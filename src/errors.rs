@@ -180,4 +180,6 @@ pub enum MatterError {
     #[error("Unknow Message: {0}")]
     UnknownMessageTypeError(String),
 
+    #[error("CryptoError: {0}")]
+    CryptoError(String),
 }

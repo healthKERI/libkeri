@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::cesr::{non_trans_dex, BaseMatter, Parsable};
 use crate::cesr::verfer::Verfer;
 use crate::errors::MatterError;
@@ -16,10 +17,6 @@ pub struct Cigar {
 
 impl Cigar {
     pub fn new(raw: Option<&[u8]>, code: Option<&str>, soft: Option<&str>, rize: Option<usize>, verfer: Option<Verfer>) -> Result<Self, MatterError> {
-        if !non_trans_dex::TUPLE.contains(&(code.unwrap())) {
-            return Err(MatterError::UnsupportedCodeError(String::from(code.unwrap())));
-        }
-
         let base = BaseMatter::new(raw, code, soft, rize)?;
         Ok(Cigar {
             base,
@@ -93,4 +90,5 @@ impl Matter for Cigar {
     fn is_digestive(&self) -> bool { self.base.is_digestive() }
     fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
     fn is_special(&self) -> bool { self.base.is_special() }
+    fn as_any(&self) -> &dyn Any { self }
 }

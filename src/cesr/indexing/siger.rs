@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::cesr::indexing::{idx_sig_dex, BaseIndexer, Indexer};
 use crate::cesr::Parsable;
 use crate::cesr::verfer::Verfer;
@@ -84,14 +85,8 @@ impl Parsable for Siger {
 }
 
 impl Indexer for Siger {
-    fn code(&self) -> &str { self.base.code() }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn qb64(&self) -> String { self.base.qb64() }
-    fn qb64b(&self) -> Vec<u8> { self.base.qb64b() }
-    fn qb2(&self) -> Vec<u8> { self.base.qb2() }
-    fn full_size(&self) -> u32 { self.base.full_size() }
     fn index(&self) -> u32 { self.base.index() }
-    fn ondex(&self) -> u32 { self.base.ondex() }
+    fn ondex(&self) -> Option<u32> { self.base.ondex() }
 }
 
 impl Matter for Siger {
@@ -142,6 +137,8 @@ impl Matter for Siger {
     fn is_special(&self) -> bool {
         false
     }
+
+    fn as_any(&self) -> &dyn Any { self }
 }
 
 

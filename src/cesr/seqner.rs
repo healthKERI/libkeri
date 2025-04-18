@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::cesr::{mtr_dex, non_trans_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
@@ -93,4 +94,5 @@ impl Matter for Seqner {
     fn is_digestive(&self) -> bool { self.base.is_digestive() }
     fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
     fn is_special(&self) -> bool { self.base.is_special() }
+    fn as_any(&self) -> &dyn Any { self }
 }

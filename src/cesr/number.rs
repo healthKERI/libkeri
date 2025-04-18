@@ -1,3 +1,4 @@
+use std::any::Any;
 use num_bigint::BigUint;
 use crate::cesr::{num_dex, raw_size, BaseMatter, Parsable};
 use num_traits::pow;
@@ -228,6 +229,7 @@ impl Matter for Number {
     fn is_digestive(&self) -> bool { self.base.is_digestive() }
     fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
     fn is_special(&self) -> bool { self.base.is_special() }
+    fn as_any(&self) -> &dyn Any { self }
 }
 
 

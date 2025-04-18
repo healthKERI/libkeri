@@ -1,4 +1,5 @@
 mod cesr;
+mod signer;
 
 use std::marker::PhantomData;
 use std::fmt::Debug;
@@ -21,6 +22,9 @@ pub enum SuberError {
 
     #[error("Deserialization error: {0}")]
     DeserializationError(String),
+
+    #[error("Empty Keys")]
+    EmptyKeys,
 }
 
 // A trait for serialization/deserialization behavior

@@ -1,10 +1,12 @@
 pub mod siger;
 
+use std::any::Any;
 use std::collections::HashMap;
 use crate::cesr::{b64_to_int, code_b2_to_b64, code_b64_to_b2, decode_b64, encode_b64, int_to_b64, nab_sextets, Parsable};
 use crate::errors::MatterError;
 use std::str;
 use num_bigint::BigUint;
+use crate::Matter;
 
 #[allow(dead_code)]
 pub mod idr_dex {
@@ -334,28 +336,10 @@ pub fn get_bards() -> HashMap<u8, i32> {
 ///  is None. In that case the index is used instread as the length.
 ///
 ///  Sub classes are derivation code and key event element context specific.
-pub trait Indexer {
-    /// Returns the hard part of the derivation code
-    fn code(&self) -> &str;
-
-    /// Returns raw crypto material (without derivation code)
-    fn raw(&self) -> &[u8];
-
-    /// Returns base64 fully qualified representation
-    fn qb64(&self) -> String;
-
-    /// Returns base64 fully qualified representation
-    fn qb64b(&self) -> Vec<u8>;
-
-    /// Returns binary fully qualified representation
-    fn qb2(&self) -> Vec<u8>;
-
-    /// Full Size
-    fn full_size(&self) -> u32;
-
+pub trait Indexer: Matter {
     fn index(&self) -> u32;
 
-    fn ondex(&self) -> u32;
+    fn ondex(&self) -> Option<u32>;
 }
 
 #[derive(Debug, Clone)]
@@ -363,7 +347,7 @@ pub struct BaseIndexer {
     code: String,
     raw: Vec<u8>,
     index: u32,
-    ondex: u32,
+    ondex: Option<u32>,
 }
 
 impl BaseIndexer {
@@ -437,7 +421,7 @@ impl BaseIndexer {
             }
 
             // if code in IdxCrtSigDex and ondex is not None => raise error
-            if idx_sig_dex::TUPLE.contains(&code_str) && on.is_some() {
+            if idx_crt_sig_dex::TUPLE.contains(&code_str) && ondex.is_some() {
                 return Err(MatterError::InvalidVarIndexError(format!(
                     "Non None ondex={:?} for code={}",
                     on, code_str
@@ -445,7 +429,7 @@ impl BaseIndexer {
             }
 
             // if code in IdxBthSigDex => handle default or matching
-            if idx_sig_dex::TUPLE.contains(&code_str) {
+            if idx_bth_sig_dex::TUPLE.contains(&code_str) {
                 if on.is_none() {
                     // default: ondex = index
                     on = Some(idx);
@@ -499,7 +483,7 @@ impl BaseIndexer {
             Ok(Self {
                 code: code_str.to_string(),
                 index: idx,
-                ondex: on.unwrap(),
+                ondex: on,
                 raw: raw_bytes.to_vec(), // .to_vec() creates an owned Vec<u8>
             })
         } else {
@@ -706,7 +690,7 @@ impl BaseIndexer {
         Ok(BaseIndexer {
             code: hard.to_string(),
             index,
-            ondex: ondex.unwrap(),
+            ondex,
             raw,
         })
     }
@@ -881,7 +865,7 @@ impl BaseIndexer {
         Ok(BaseIndexer {
             code: hard.to_string(),
             index,
-            ondex: ondex.unwrap(),
+            ondex,
             raw: Vec::from(raw),
         })
     }
@@ -890,7 +874,7 @@ impl BaseIndexer {
     fn infil(&self) -> Result<String, MatterError> {
         let code = self.code();
         let index = self.index();
-        let ondex = self.ondex();
+        let ondex = self.ondex().unwrap_or(0);
         let raw = self.raw();
 
         // Calculate padding size: (3 - (len(raw) % 3)) % 3
@@ -981,7 +965,7 @@ impl BaseIndexer {
     pub fn binfil(&self) -> Result<Vec<u8>, MatterError> {
         let code = self.code();
         let index = self.index();
-        let ondex = self.ondex();
+        let ondex = self.ondex().unwrap_or(0);
         let raw = self.raw();
 
         // Calculate padding size: (3 - (len(raw) % 3)) % 3
@@ -1086,7 +1070,7 @@ impl Parsable for BaseIndexer {
         let idx = BaseIndexer::from_qb64(qb64.unwrap_or(""))?;
         if strip.unwrap_or(false) {
             let fs = idx.full_size();
-            data.drain(..fs as usize);
+            data.drain(..fs);
         }
         Ok(idx)
     }
@@ -1097,7 +1081,7 @@ impl Parsable for BaseIndexer {
         let idx = BaseIndexer::bexfil(qb2)?;
         if strip.unwrap_or(false) {
             let fs = idx.full_size();
-            data.drain(..fs as usize);
+            data.drain(..fs);
         }
         Ok(idx)
     }
@@ -1131,8 +1115,7 @@ fn int_to_bytes(value: BigUint, length: usize) -> Vec<u8> {
     result
 }
 
-
-impl Indexer for BaseIndexer {
+impl Matter for BaseIndexer {
     fn code(&self) -> &str {
         &self.code
     }
@@ -1140,6 +1123,7 @@ impl Indexer for BaseIndexer {
     fn raw(&self) -> &[u8] {
         &self.raw
     }
+
 
     fn qb64(&self) -> String {
         let result = self.infil();
@@ -1156,19 +1140,72 @@ impl Indexer for BaseIndexer {
         result.unwrap()
     }
 
-    fn full_size(&self) -> u32 {
-        let sizes = get_sizes();
-        let size = sizes[self.code.as_str()];
-        size.fs.or_else(|| Some(0)).unwrap()
+    fn soft(&self) -> &str {
+        ""
     }
 
+    fn full_size(&self) -> usize {
+        let sizes = get_sizes();
+        let size = sizes[self.code.as_str()];
+        size.fs.or_else(|| Some(0)).unwrap() as usize
+    }
+
+    fn size(&self) -> usize {
+        let soft = self.soft();
+        if soft.len() == 0 {
+            0
+        } else {
+            b64_to_int(self.soft()) as usize
+        }
+    }
+
+    fn is_transferable(&self) -> bool {
+        false
+    }
+
+    fn is_digestive(&self) -> bool {
+        false
+    }
+
+    fn is_prefixive(&self) -> bool {
+        false
+    }
+
+    fn is_special(&self) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Indexer for BaseIndexer {
     fn index(&self) -> u32 {
         self.index
     }
 
-    fn ondex(&self) -> u32 {
+    fn ondex(&self) -> Option<u32> {
         self.ondex
     }
+}
+
+/// Returns expected raw size in bytes for a given code.
+/// Not applicable to codes with fs = None
+pub fn raw_size(code: &str) -> Result<usize, MatterError> {
+    // Assuming Sizes is a HashMap or similar structure mapping codes to size tuples
+    // Get the size tuple from the Sizes map
+    let sizes = get_sizes();
+    let size = sizes[code];
+
+    let (hs, ss, _, fs, _) = (size.hs, size.ss, size.os, size.fs.unwrap(), size.ls);
+
+    // Calculate and return the raw size
+    // Converting to isize to avoid potential underflow in subtraction
+    let fs_minus_headers = (fs as isize) - ((hs as isize) + (ss as isize));
+
+    // Convert back to usize after calculation
+    Ok(((fs_minus_headers * 3) / 4) as usize)
 }
 
 
@@ -1234,7 +1271,7 @@ mod tests {
         assert_eq!(indexer.raw(), &expected_raw);
         assert_eq!(indexer.code(), idr_dex::ED25519_SIG);
         assert_eq!(indexer.index(), 0);
-        assert_eq!(indexer.ondex(), 0);
+        assert_eq!(indexer.ondex(), Some(0));
 
         // Test that we can recreate qb64b and qb2 (similar to _exfil and _bexfil in Python)
         let qb64b = indexer.qb64b();
@@ -1247,14 +1284,14 @@ mod tests {
         assert_eq!(indexer1.raw(), &expected_raw);
         assert_eq!(indexer1.code(), idr_dex::ED25519_SIG);
         assert_eq!(indexer1.index(), 0);
-        assert_eq!(indexer1.ondex(), 0);
+        assert_eq!(indexer1.ondex(), Some(0));
 
         // Test initialization constructor
         let indexer = BaseIndexer {
             code: idr_dex::ED25519_SIG.to_string(),
             raw: Vec::from(sig),
             index: 5,
-            ondex: 5,
+            ondex: Some(5),
         };
 
         let qsig64 = "AFCZ0jw5JCQwn2v7GKCMQHISMi5rsscfcA4nbY9AqqWMyG6FyCH2cZFwqezPkq8p3sr8f37Xb3wXgh3UPG8igSYJ";
@@ -1271,7 +1308,7 @@ mod tests {
         assert_eq!(indexer.raw, sig);
         assert_eq!(indexer.code, idr_dex::ED25519_SIG);
         assert_eq!(indexer.index, 5);
-        assert_eq!(indexer.ondex, 5);
+        assert_eq!(indexer.ondex, Some(5));
 
         // Test qb64, qb64b, and qb2 properties
         // In a real implementation, you would call methods that generate these values
@@ -1295,13 +1332,13 @@ mod tests {
             raw: Vec::from(sig),
             code: idr_dex::ED25519_SIG.to_string(),
             index: 5,
-            ondex: 5,
+            ondex: Some(5),
         };
 
         assert_eq!(indexer.raw, sig);
         assert_eq!(indexer.code, idr_dex::ED25519_SIG);
         assert_eq!(indexer.index, 5);
-        assert_eq!(indexer.ondex, 5);
+        assert_eq!(indexer.ondex, Some(5));
 
         // In a real implementation, these would call actual methods
         let qb64 = indexer.qb64();
