@@ -199,10 +199,6 @@ impl Verfer {
 impl Parsable for Verfer {
     fn from_qb64b(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb64b(data, strip)?;
-        if !non_trans_dex::TUPLE.contains(&(base.code())) {
-            return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
-        }
-
         if ![
             mtr_dex::ED25519N,
             mtr_dex::ED25519,
@@ -222,7 +218,14 @@ impl Parsable for Verfer {
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb2(data, strip)?;
-        if !non_trans_dex::TUPLE.contains(&(base.code())) {
+        if ![
+            mtr_dex::ED25519N,
+            mtr_dex::ED25519,
+            mtr_dex::ECDSA_256R1N,
+            mtr_dex::ECDSA_256R1,
+            mtr_dex::ECDSA_256K1N,
+            mtr_dex::ECDSA_256K1,
+        ].contains(&base.code()) {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 

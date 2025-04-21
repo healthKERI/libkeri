@@ -777,6 +777,7 @@ dependencies = [
  "chrono",
  "dirs",
  "heed",
+ "libsodium-sys",
  "num-bigint",
  "num-rational",
  "num-traits",

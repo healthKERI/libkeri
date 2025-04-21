@@ -1937,8 +1937,8 @@ impl Serdery {
     pub fn reap(
         &self,
         ims: &[u8],
-        genus: &str,
-        gvrsn: &Versionage,
+        _genus: &str,
+        _gvrsn: &Versionage,
         native: Option<bool>,
         skip: Option<usize>
     ) -> Result<Box<dyn Serder>, KERIError> {

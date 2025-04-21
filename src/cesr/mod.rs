@@ -4,6 +4,7 @@ use base64::{engine::general_purpose, Engine};
 use once_cell::sync::Lazy;
 use std::{fmt, str};
 use std::any::Any;
+use std::fmt::Display;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
@@ -71,6 +72,49 @@ pub static B64_CHR_BY_IDX: Lazy<HashMap<u8, char>> = Lazy::new(|| {
 
     map
 });
+
+/// Security tiers for secret derivation
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Tiers {
+    /// Low security tier
+    LOW,
+    /// Medium security tier
+    MED,
+    /// High security tier
+    HIGH,
+}
+
+impl Tiers {
+    /// String value for the tier
+    pub const LOW: &'static str = "low";
+    /// String value for the tier
+    pub const MED: &'static str = "med";
+    /// String value for the tier
+    pub const HIGH: &'static str = "high";
+}
+
+impl From<&str> for Tiers {
+    fn from(s: &str) -> Self {
+        match s {
+            "low" => Tiers::LOW,
+            "med" => Tiers::MED,
+            "high" => Tiers::HIGH,
+            _ => Tiers::LOW, // Default to LOW for unrecognized values
+        }
+    }
+}
+
+impl Display for Tiers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            Tiers::LOW => "low",
+            Tiers::MED => "med",
+            Tiers::HIGH => "high",
+        };
+        write!(f, "{}", str)
+    }
+}
+
 
 /// Maps Base64 character to corresponding index
 #[allow(dead_code)]
