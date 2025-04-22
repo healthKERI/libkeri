@@ -24,7 +24,7 @@ use crate::Matter;
 #[derive(Debug, Clone)]
 pub struct Signer {
     base: BaseMatter,
-    verfer: Verfer,
+    pub verfer: Verfer,
 }
 
 impl Signer {

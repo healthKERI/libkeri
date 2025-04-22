@@ -87,6 +87,7 @@ impl Encrypter {
         code: Option<&str>,
     ) -> Result<Cipher, MatterError> {
         // Get serialization from either ser or prim
+        let mut code = code;
         let serialization = if let Some(s) = ser {
             s.to_vec()
         } else if let Some(p) = prim {
@@ -94,10 +95,12 @@ impl Encrypter {
                 // Determine default code based on primitive type
                 if p.code() == mtr_dex::SALT_128 {
                     // Use p.qb64b() for qb64 serialization
+                    code = Some(mtr_dex::X25519_CIPHER_SALT);
                     p.qb64b()
                 } else if p.code() == mtr_dex::ED25519_SEED {
-                    // Use p.qb64b() for qb64 serialization
+                    code = Some(mtr_dex::X25519_CIPHER_SEED);
                     p.qb64b()
+                    // Use p.qb64b() for qb64 serialization
                 } else {
                     return Err(MatterError::ValueError(format!(
                         "Unsupported primitive with code = {} when cipher code is missing",

@@ -6,6 +6,9 @@ mod encrypter;
 
 pub use salter::Salter;
 pub use signer::Signer;
+pub use cipher::Cipher;
+pub use decrypter::Decrypter;
+pub use encrypter::Encrypter;
 
 use libsodium_sys;
 

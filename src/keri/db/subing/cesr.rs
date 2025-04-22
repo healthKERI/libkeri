@@ -1,23 +1,10 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::cesr::Parsable;
-use crate::errors::MatterError;
-use crate::keri::db::dbing::LMDBer;
+use crate::keri::db::dbing::{BytesDatabase, LMDBer};
 use crate::keri::db::errors::DBError;
 use crate::keri::db::subing::{SuberBase, SuberError, ValueCodec};
 use crate::cesr::Matter;
-
-#[derive(Debug, thiserror::Error)]
-pub enum CesrSuberError {
-    #[error("Suber error: {0}")]
-    SuberError(#[from] SuberError),
-
-    #[error("Matter error: {0}")]
-    MatterError(#[from] MatterError),
-
-    #[error("DB error: {0}")]
-    DBError(#[from] DBError),
-}
 
 // CesrCodec implements ValueCodec trait for CESR objects
 pub struct CesrCodec<T: Matter> {
@@ -25,7 +12,7 @@ pub struct CesrCodec<T: Matter> {
 }
 
 impl<T: Matter> ValueCodec for CesrCodec<T> {
-    type Error = CesrSuberError;
+    type Error = SuberError;
 
     fn serialize<V: ?Sized + Clone + Into<Vec<u8>>>(val: &V) -> Result<Vec<u8>, SuberError> {
         // In the case of Matter objects, we should use qb64b
@@ -57,7 +44,7 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
-    ) -> Result<Self, CesrSuberError> {
+    ) -> Result<Self, SuberError> {
         let base = SuberBase::<'db, CesrCodec<M>>::new(db, subkey, sep, verify)?;
 
         Ok(Self {
@@ -67,30 +54,42 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
     }
 
     // Override ser method to use Matter's qb64b method
-    pub fn ser(&self, val: &M) -> Result<Vec<u8>, CesrSuberError> {
+    pub fn ser(&self, val: &M) -> Result<Vec<u8>, SuberError> {
         Ok(val.qb64b())
     }
 
     // Override des method to use Matter's from_qb64b method
-    pub fn des(&self, val: &[u8]) -> Result<M, CesrSuberError> {
+    pub fn des(&self, val: &[u8]) -> Result<M, SuberError> {
         Ok(M::from_qb64b(&mut val.to_vec(), None)?)
     }
 
+    pub fn to_key<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Vec<u8> {
+        self.base.to_key(keys, topive)
+    }
+
     // Delegate methods to the base implementation
-    pub fn put<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+    pub fn put<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, SuberError> {
         let key = self.base.to_key(keys, false);
         let val_bytes = self.ser(val)?;
         Ok(self.base.db.put_val(&self.base.sdb, &key, &val_bytes)?)
     }
 
+    pub fn put_val(&self, key: &[u8], val: &[u8]) -> Result<bool, DBError> {
+        self.base.db.put_val(&self.base.sdb, key, val)
+    }
+
+    pub fn set_val(&self, key: &[u8], val: &[u8]) -> Result<bool, DBError> {
+        self.base.db.set_val(&self.base.sdb, key, val)
+    }
+
     // Delegate methods to the base implementation
-    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, SuberError> {
         let key = self.base.to_key(keys, false);
         let val_bytes = self.ser(val)?;
         Ok(self.base.db.set_val(&self.base.sdb, &key, &val_bytes)?)
     }
 
-    pub fn get<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<Option<M>, CesrSuberError> {
+    pub fn get<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<Option<M>, SuberError> {
         let key = self.base.to_key(keys, false);
         if let Some(val) = self.base.db.get_val(&self.base.sdb, &key)? {
             Ok(Some(self.des(&val)?))
@@ -99,8 +98,13 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         }
     }
 
+    // Remove an entry at keys
+    pub fn rem<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<bool, SuberError> {
+        self.base.trim(keys, false)
+    }
+
     // Delegate the remaining methods to base
-    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, CesrSuberError> {
+    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
         Ok(self.base.trim(keys, topive)?)
     }
 
@@ -108,7 +112,7 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         &self,
         keys: &[K],
         topive: bool,
-    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, CesrSuberError> {
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         Ok(self.base.get_full_item_iter(keys, topive)?)
     }
 
@@ -116,16 +120,16 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         &self,
         keys: &[K],
         topive: bool,
-    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, CesrSuberError> {
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         Ok(self.base.get_item_iter(keys, topive)?)
     }
 
-    pub fn cnt_all(&self) -> Result<usize, CesrSuberError> {
+    pub fn cnt_all(&self) -> Result<usize, SuberError> {
         Ok(self.base.cnt_all()?)
     }
 
     // Add additional methods that would transform raw byte values into Matter instances
-    pub fn process_items(&self, items: Vec<(Vec<Vec<u8>>, Vec<u8>)>) -> Result<Vec<(Vec<Vec<u8>>, M)>, CesrSuberError> {
+    pub fn process_items(&self, items: Vec<(Vec<Vec<u8>>, Vec<u8>)>) -> Result<Vec<(Vec<Vec<u8>>, M)>, SuberError> {
         items
             .into_iter()
             .map(|(keys, val)| {
@@ -147,27 +151,27 @@ impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
-    ) -> Result<Self, CesrSuberError> {
+    ) -> Result<Self, SuberError> {
         let base = CesrSuberBase::new(db, subkey, sep, verify)?;
 
         Ok(Self { base })
     }
 
     // Delegate all methods to the base
-    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, SuberError> {
         self.base.pin(keys, val)
     }
 
     // Delegate all methods to the base
-    pub fn put<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+    pub fn put<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, SuberError> {
         self.base.put(keys, val)
     }
 
-    pub fn get<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<Option<M>, CesrSuberError> {
+    pub fn get<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<Option<M>, SuberError> {
         self.base.get(keys)
     }
 
-    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, CesrSuberError> {
+    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
         self.base.trim(keys, topive)
     }
 
@@ -175,7 +179,7 @@ impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
         &self,
         keys: &[K],
         topive: bool,
-    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, CesrSuberError> {
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         self.base.get_full_item_iter(keys, topive)
     }
 
@@ -183,15 +187,15 @@ impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
         &self,
         keys: &[K],
         topive: bool,
-    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, CesrSuberError> {
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         self.base.get_item_iter(keys, topive)
     }
 
-    pub fn process_items(&self, items: Vec<(Vec<Vec<u8>>, Vec<u8>)>) -> Result<Vec<(Vec<Vec<u8>>, M)>, CesrSuberError> {
+    pub fn process_items(&self, items: Vec<(Vec<Vec<u8>>, Vec<u8>)>) -> Result<Vec<(Vec<Vec<u8>>, M)>, SuberError> {
         self.base.process_items(items)
     }
 
-    pub fn cnt_all(&self) -> Result<usize, CesrSuberError> {
+    pub fn cnt_all(&self) -> Result<usize, SuberError> {
         self.base.cnt_all()
     }
 }
@@ -209,7 +213,7 @@ mod tests {
     use crate::keri::db::subing::cesr::CesrSuber;
 
     #[test]
-    fn test_cesr_suber() -> Result<(), CesrSuberError> {
+    fn test_cesr_suber() -> Result<(), SuberError> {
         // Create a temporary database for testing
         let lmdber = LMDBer::builder()
             .name("test_db")
@@ -309,7 +313,6 @@ mod tests {
         assert!(sdb_pugs.put(keys_a2, &val1)?);
 
         let empty: [&[u8]; 0] = [];
-        let items = sdb_pugs.get_item_iter(&empty, false)?;
         let items = sdb_pugs.get_item_iter(&empty, false)?;
         let processed_items = sdb_pugs.process_items(items)?;
 

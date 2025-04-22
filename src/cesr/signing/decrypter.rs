@@ -143,7 +143,7 @@ impl Decrypter {
     fn decrypt_x25519(
         &self,
         cipher: &Cipher,
-        _transferable: bool, //TODO: fix to be transferable
+        transferable: bool,
         bare: bool,
     ) -> Result<Box<dyn Any>, MatterError> {
         // Calculate public key from private key
@@ -178,7 +178,7 @@ impl Decrypter {
                     let signer = Signer::from_qb2(&mut plain, None)?;
                     Ok(Box::new(signer))
                 } else {
-                    let signer = Signer::from_qb64b(&mut plain, None)?;
+                    let signer = Signer::from_qb64b_and_transferable(&mut plain, None, transferable)?;
                     Ok(Box::new(signer))
                 }
             }
