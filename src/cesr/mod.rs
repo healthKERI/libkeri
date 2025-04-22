@@ -25,7 +25,7 @@ pub mod indexing;
 pub mod counting;
 pub mod tholder;
 pub mod pather;
-mod signing;
+pub mod signing;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Versionage {

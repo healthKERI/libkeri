@@ -109,6 +109,9 @@ impl Signer {
     pub fn verfer(&self) -> &Verfer {
         &self.verfer
     }
+    pub fn set_verfer(&mut self, verfer: Verfer) {
+        self.verfer = verfer;
+    }
 
     /// Sign the serialization and return a signature (Cigar or Siger)
     pub fn sign(&self, ser: &[u8], index: Option<u32>, only: Option<bool>, ondex: Option<u32>) -> Result<Box<dyn Matter>, MatterError> {
@@ -290,6 +293,47 @@ impl Signer {
                 Ok(Box::new(siger))
             }
         }
+    }
+
+    pub fn from_qb64b_and_transferable(data: &mut Vec<u8>, strip: Option<bool>, transferable: bool)  -> Result<Self, MatterError> {
+        let mut signer = Signer::from_qb64b(data, strip)?;
+        // Generate verfer based on the signing key
+        let verfer = match signer.code() {
+            mtr_dex::ED25519_SEED => {
+                let raw_bytes: [u8; 32] = signer.raw().try_into()
+                    .map_err(|_| MatterError::CryptoError("Invalid Ed25519 seed".into()))?;
+
+                sodiumoxide::init().map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
+                let seed = ed25519::Seed::from_slice(&raw_bytes)
+                    .ok_or_else(|| MatterError::CryptoError("Invalid Ed25519 seed".to_string()))?;
+                let (pk, _) = ed25519::keypair_from_seed(&seed);
+                let verfer_code = if transferable { mtr_dex::ED25519 } else { mtr_dex::ED25519N };
+                Verfer::new(Some(&pk[..]), Some(verfer_code))?
+            },
+            mtr_dex::ECDSA_256R1_SEED => {
+                let signing_key = SigningKey::from_slice(&signer.raw())
+                    .map_err(|_| MatterError::CryptoError("Invalid P256 seed".into()))?;
+                let verkey = signing_key.verifying_key().to_encoded_point(true).as_bytes().to_vec();
+                let verfer_code = if transferable { mtr_dex::ECDSA_256R1 } else { mtr_dex::ECDSA_256R1N };
+                Verfer::new(Some(&verkey), Some(verfer_code))?
+            },
+            mtr_dex::ECDSA_256K1_SEED => {
+                let raw_bytes: [u8; 32] = signer.raw().try_into()
+                    .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
+
+                let secp = Secp256k1::new();
+                let secret_key = SecretKey::from_byte_array(&raw_bytes)
+                    .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
+                let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
+                let verkey = public_key.serialize();
+                let verfer_code = if transferable { mtr_dex::ECDSA_256K1 } else { mtr_dex::ECDSA_256K1N };
+                Verfer::new(Some(&verkey), Some(verfer_code))?
+            },
+            _ => return Err(MatterError::UnexpectedCode(format!("Unsupported signer code: {}", signer.code()))),
+        };
+
+        signer.set_verfer(verfer);
+        Ok(signer)
     }
 }
 

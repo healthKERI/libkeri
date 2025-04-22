@@ -83,6 +83,13 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         Ok(self.base.db.put_val(&self.base.sdb, &key, &val_bytes)?)
     }
 
+    // Delegate methods to the base implementation
+    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+        let key = self.base.to_key(keys, false);
+        let val_bytes = self.ser(val)?;
+        Ok(self.base.db.set_val(&self.base.sdb, &key, &val_bytes)?)
+    }
+
     pub fn get<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<Option<M>, CesrSuberError> {
         let key = self.base.to_key(keys, false);
         if let Some(val) = self.base.db.get_val(&self.base.sdb, &key)? {
@@ -144,6 +151,11 @@ impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
         let base = CesrSuberBase::new(db, subkey, sep, verify)?;
 
         Ok(Self { base })
+    }
+
+    // Delegate all methods to the base
+    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &M) -> Result<bool, CesrSuberError> {
+        self.base.pin(keys, val)
     }
 
     // Delegate all methods to the base
