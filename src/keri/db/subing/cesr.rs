@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 use crate::cesr::Parsable;
-use crate::keri::db::dbing::{BytesDatabase, LMDBer};
+use crate::keri::db::dbing::{LMDBer};
 use crate::keri::db::errors::DBError;
 use crate::keri::db::subing::{SuberBase, SuberError, ValueCodec};
 use crate::cesr::Matter;
@@ -38,6 +38,8 @@ pub struct CesrSuberBase<'db, M: Matter> {
     _matter_type: PhantomData<M>,
 }
 
+
+#[allow(dead_code)]
 impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
     pub fn new(
         db: Arc<&'db LMDBer>,

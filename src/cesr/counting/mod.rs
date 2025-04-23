@@ -10,6 +10,7 @@ use std::str;
 ///
 /// Only provides defined codes.
 /// Undefined are left out so that inclusion(exclusion) via contains methods works.
+#[allow(dead_code)]
 pub mod gen_dex {
     use once_cell::sync::Lazy;
     use std::collections::HashMap;
@@ -40,6 +41,7 @@ pub mod gen_dex {
     pub static TUPLE: [&'static str; 4] = [KERI_ACDC_SPAC, KERI, ACDC, SPAC];
 }
 
+#[allow(dead_code)]
 pub mod ctr_dex_1_0 {
     use once_cell::sync::Lazy;
     use std::collections::HashMap;
@@ -110,6 +112,7 @@ pub mod ctr_dex_1_0 {
     });
 }
 
+#[allow(dead_code)]
 pub mod ctr_dex_2_0 {
     use once_cell::sync::Lazy;
     use std::collections::HashMap;
@@ -288,6 +291,7 @@ pub mod ctr_dex_2_0 {
     });
 }
 
+#[allow(dead_code)]
 pub mod seal_dex_2_0 {
     use once_cell::sync::Lazy;
     use std::collections::HashMap;
@@ -578,6 +582,7 @@ fn pow_u64(base: u64, exp: u32) -> u64 {
 
 /// Matter is a trait for fully qualified cryptographic material.
 /// Implementations provide various specialized crypto material types.
+#[allow(dead_code)]
 pub trait Counter {
     /// Returns the hard part of the derivation code
     fn code(&self) -> &str;

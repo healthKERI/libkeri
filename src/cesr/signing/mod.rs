@@ -6,13 +6,13 @@ mod encrypter;
 
 pub use salter::Salter;
 pub use signer::Signer;
-pub use cipher::Cipher;
 pub use decrypter::Decrypter;
 pub use encrypter::Encrypter;
 
 use libsodium_sys;
 
 /// Module for X25519 cipher codes for variable-sized sniffable stream plaintext
+#[allow(dead_code)]
 pub mod cix_var_strm_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -53,6 +53,7 @@ pub mod cix_var_strm_dex {
 }
 
 /// Module for X25519 cipher codes for variable-sized QB64 plaintext
+#[allow(dead_code)]
 pub mod cix_var_qb64_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -93,6 +94,7 @@ pub mod cix_var_qb64_dex {
 }
 
 /// Module for X25519 cipher codes for fixed-sized QB64 plaintext
+#[allow(dead_code)]
 pub mod cix_fix_qb64_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -117,6 +119,7 @@ pub mod cix_fix_qb64_dex {
 }
 
 /// Module for X25519 cipher codes for all (both fixed and variable) sizes of QB64 plaintext
+#[allow(dead_code)]
 pub mod cix_all_qb64_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -167,6 +170,7 @@ pub mod cix_all_qb64_dex {
 }
 
 /// Module for X25519 cipher codes for variable-sized QB2 plaintext
+#[allow(dead_code)]
 pub mod cix_var_qb2_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -207,6 +211,7 @@ pub mod cix_var_qb2_dex {
 }
 
 /// Module for X25519 cipher codes for all variable sizes and all types of plaintext
+#[allow(dead_code)]
 pub mod cix_var_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -301,6 +306,7 @@ pub mod cix_var_dex {
 }
 
 /// Module for X25519 cipher codes for all sizes and all types of plaintext
+#[allow(dead_code)]
 pub mod cix_dex {
     use std::collections::HashMap;
     use once_cell::sync::Lazy;
@@ -411,7 +417,7 @@ use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
 use crate::errors::MatterError;
 
 /// Convert an Ed25519 public key to an X25519 public key
-fn ed25519_pk_to_x25519_pk(ed_pk: &ed25519::PublicKey) -> Result<crypto_box::PublicKey, MatterError> {
+pub fn ed25519_pk_to_x25519_pk(ed_pk: &ed25519::PublicKey) -> Result<crypto_box::PublicKey, MatterError> {
     // In libsodium, there's a crypto_sign_ed25519_pk_to_curve25519 function
     // We need to implement this conversion for sodiumoxide
 
@@ -441,7 +447,7 @@ fn ed25519_pk_to_x25519_pk(ed_pk: &ed25519::PublicKey) -> Result<crypto_box::Pub
 }
 
 /// Convert an Ed25519 secret key to an X25519 secret key
-fn ed25519_sk_to_x25519_sk(ed_sk: &ed25519::SecretKey) -> Result<crypto_box::SecretKey, MatterError> {
+pub fn ed25519_sk_to_x25519_sk(ed_sk: &ed25519::SecretKey) -> Result<crypto_box::SecretKey, MatterError> {
     // In libsodium, there's a crypto_sign_ed25519_sk_to_curve25519 function
 
     // Extract the raw bytes from the Ed25519 secret key
