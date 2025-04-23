@@ -1,10 +1,10 @@
-use std::fmt;
+use crate::cesr::b64_to_int;
+use crate::cesr::{int_to_b64, Versionage};
+use crate::errors::MatterError;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::fmt;
 use thiserror::Error;
-use crate::cesr::{int_to_b64, Versionage};
-use crate::cesr::b64_to_int;
-use crate::errors::MatterError;
 
 mod core;
 mod db;
@@ -50,7 +50,6 @@ pub const MAXVSOFFSET: usize = 12;
 
 /// Minimum buffer size to "smell" the version format
 pub const SMELLSIZE: usize = MAXVSOFFSET + MAXVERFULLSPAN;
-
 
 /// Errors related to protocol validation
 #[derive(Error, Debug)]
@@ -129,12 +128,12 @@ pub enum KERIError {
     InvalidCesrData,
 }
 
-
 impl From<MatterError> for KERIError {
     fn from(error: MatterError) -> Self {
         match error {
-           MatterError::InvalidCode(code) =>
-                KERIError::ValidationError(format!("Invalid Matter code: {}", code)),
+            MatterError::InvalidCode(code) => {
+                KERIError::ValidationError(format!("Invalid Matter code: {}", code))
+            }
 
             // Fallback for any other errors or future-added error types
             _ => KERIError::MatterError(format!("{:?}", error)),
@@ -174,7 +173,10 @@ pub fn rematch(captures: &regex::Captures) -> Result<Smellage, KERIError> {
         };
 
         if vrsn.major < 2 {
-            return Err(KERIError::VersionError(format!("{}.{}", vrsn.major, vrsn.minor)));
+            return Err(KERIError::VersionError(format!(
+                "{}.{}",
+                vrsn.major, vrsn.minor
+            )));
         }
 
         if !Kinds::contains(kind) {
@@ -272,17 +274,18 @@ pub fn versify(
             version.minor,
             kind,
             size,
-            width=VERRAWSIZE
+            width = VERRAWSIZE
         ))
     } else {
         // Version 2+ format
-        Ok(format!("{}{}{}{}{}{}",
-           protocol,
-           int_to_b64(version.major, 1),
-           int_to_b64(version.minor, 2),
-           kind,
-           int_to_b64(size as u32, 4),
-           std::str::from_utf8(VER2TERM).unwrap()
+        Ok(format!(
+            "{}{}{}{}{}{}",
+            protocol,
+            int_to_b64(version.major, 1),
+            int_to_b64(version.minor, 2),
+            kind,
+            int_to_b64(size as u32, 4),
+            std::str::from_utf8(VER2TERM).unwrap()
         ))
     }
 }
@@ -304,12 +307,13 @@ pub fn deversify<T: AsRef<[u8]>>(vs: T) -> Result<Smellage, KERIError> {
     // Convert input to bytes if it's not already
     let vs_bytes = vs.as_ref();
 
-    let vs_str = std::str::from_utf8(vs_bytes).map_err(|e| KERIError::VersionError(format!("Invalid UTF-8: {}", e)))?;
+    let vs_str = std::str::from_utf8(vs_bytes)
+        .map_err(|e| KERIError::VersionError(format!("Invalid UTF-8: {}", e)))?;
     // Match the version string against the regex pattern
     match REVER.captures(vs_str) {
         Some(captures) => rematch(&captures),
         None => Err(KERIError::VersionError(
-            String::from_utf8_lossy(vs_bytes).to_string()
+            String::from_utf8_lossy(vs_bytes).to_string(),
         )),
     }
 }
@@ -332,15 +336,20 @@ pub fn deversify<T: AsRef<[u8]>>(vs: T) -> Result<Smellage, KERIError> {
 /// Returns a VersionError if the version string is invalid or not found within MAXVSOFFSET.
 pub fn smell(raw: &[u8]) -> Result<Smellage, KERIError> {
     if raw.len() < SMELLSIZE {
-        return Err(KERIError::VersionError("Need more raw bytes to smell full version string.".to_string()));
+        return Err(KERIError::VersionError(
+            "Need more raw bytes to smell full version string.".to_string(),
+        ));
     }
 
-    let raw_str = std::str::from_utf8(raw).map_err(|e| KERIError::VersionError(format!("Invalid UTF-8: {}", e)))?;
+    let raw_str = std::str::from_utf8(raw)
+        .map_err(|e| KERIError::VersionError(format!("Invalid UTF-8: {}", e)))?;
     // Search for version string pattern in raw bytes
     match REVER.find(raw_str) {
         Some(mat) if mat.start() <= MAXVSOFFSET => {
             // If found and within max offset, extract captures and get Smellage
-            let caps = REVER.captures(raw_str).expect("Match should contain captures");
+            let caps = REVER
+                .captures(raw_str)
+                .expect("Match should contain captures");
             rematch(&caps)
         }
         _ => {
@@ -352,8 +361,6 @@ pub fn smell(raw: &[u8]) -> Result<Smellage, KERIError> {
         }
     }
 }
-
-
 
 /// KERI/ACDC protocol packet (message) types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -391,12 +398,33 @@ impl Ilks {
     /// Returns all Ilk values as a vector of strings
     pub fn all() -> Vec<&'static str> {
         vec![
-            Self::ICP, Self::ROT, Self::IXN, Self::DIP, Self::DRT,
-            Self::RCT, Self::QRY, Self::RPY, Self::XIP, Self::EXN,
-            Self::PRO, Self::BAR, Self::VCP, Self::VRT, Self::ISS,
-            Self::REV, Self::BIS, Self::BRV, Self::RIP, Self::UPD,
-            Self::ACD, Self::ACE, Self::SCH, Self::ATT, Self::AGG,
-            Self::EDG, Self::RUL,
+            Self::ICP,
+            Self::ROT,
+            Self::IXN,
+            Self::DIP,
+            Self::DRT,
+            Self::RCT,
+            Self::QRY,
+            Self::RPY,
+            Self::XIP,
+            Self::EXN,
+            Self::PRO,
+            Self::BAR,
+            Self::VCP,
+            Self::VRT,
+            Self::ISS,
+            Self::REV,
+            Self::BIS,
+            Self::BRV,
+            Self::RIP,
+            Self::UPD,
+            Self::ACD,
+            Self::ACE,
+            Self::SCH,
+            Self::ATT,
+            Self::AGG,
+            Self::EDG,
+            Self::RUL,
         ]
     }
 
@@ -405,7 +433,6 @@ impl Ilks {
         Self::all().contains(&ilk)
     }
 }
-
 
 impl std::hash::Hash for Ilk {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -542,13 +569,7 @@ impl Saids {
 
     /// Returns all SAID field labels as a vector of strings
     pub fn all() -> Vec<&'static str> {
-        vec![
-            Self::DOLLAR,
-            Self::AT,
-            Self::ID,
-            Self::I,
-            Self::D,
-        ]
+        vec![Self::DOLLAR, Self::AT, Self::ID, Self::I, Self::D]
     }
 
     /// Checks if a given string is a valid SAID field label
@@ -625,7 +646,12 @@ pub struct Smellage {
 
 impl Smellage {
     /// Create a new Smellage instance
-    pub fn new(proto: impl Into<String>, vrsn: Versionage, kind: impl Into<String>, size: usize) -> Self {
+    pub fn new(
+        proto: impl Into<String>,
+        vrsn: Versionage,
+        kind: impl Into<String>,
+        size: usize,
+    ) -> Self {
         Self {
             proto: proto.into(),
             vrsn,
@@ -727,14 +753,13 @@ impl Default for SmellageBuilder {
     }
 }
 
-
 /// Enum representing serialization kinds
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Kinds {
     Json,
     Mgpk,
     Cbor,
-    Cesr
+    Cesr,
 }
 
 impl Kinds {
@@ -748,11 +773,13 @@ impl Kinds {
             "MGPK" => Ok(Self::Mgpk),
             "CBOR" => Ok(Self::Cbor),
             "CESR" => Ok(Self::Cesr),
-            _ => Err(KERIError::VersionError(format!("Invalid serialization kind: {}", kind)))
+            _ => Err(KERIError::VersionError(format!(
+                "Invalid serialization kind: {}",
+                kind
+            ))),
         }
     }
 }
-
 
 impl fmt::Display for Kinds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -833,7 +860,7 @@ mod tests {
     #[test]
     fn test_all_ilks() {
         let all = Ilks::all();
-        assert_eq!(all.len(), 27);  // Total number of Ilks
+        assert_eq!(all.len(), 27); // Total number of Ilks
         assert!(all.contains(&"icp"));
         assert!(all.contains(&"rot"));
         // ... and so on
@@ -888,7 +915,7 @@ mod tests {
     #[test]
     fn test_all_saids() {
         let all = Saids::all();
-        assert_eq!(all.len(), 5);  // Total number of SAID field labels
+        assert_eq!(all.len(), 5); // Total number of SAID field labels
         assert!(all.contains(&"$id"));
         assert!(all.contains(&"@id"));
         assert!(all.contains(&"id"));
@@ -949,9 +976,9 @@ mod tests {
     }
     #[test]
     fn test_smellage_new() {
-        let smell = Smellage::new("KERI", Versionage{major: 1, minor: 0}, "icp", 123);
+        let smell = Smellage::new("KERI", Versionage { major: 1, minor: 0 }, "icp", 123);
         assert_eq!(smell.proto, "KERI");
-        assert_eq!(smell.vrsn, Versionage{major: 1, minor: 0});
+        assert_eq!(smell.vrsn, Versionage { major: 1, minor: 0 });
         assert_eq!(smell.kind, "icp");
         assert_eq!(smell.size, 123);
         assert_eq!(smell.gvrsn, None);
@@ -959,37 +986,43 @@ mod tests {
 
     #[test]
     fn test_smellage_with_gvrsn() {
-        let smell = Smellage::with_gvrsn("KERI", Versionage{major: 1, minor: 0}, "icp", 123, Versionage{major: 1, minor: 0});
+        let smell = Smellage::with_gvrsn(
+            "KERI",
+            Versionage { major: 1, minor: 0 },
+            "icp",
+            123,
+            Versionage { major: 1, minor: 0 },
+        );
         assert_eq!(smell.proto, "KERI");
-        assert_eq!(smell.vrsn, Versionage{major: 1, minor: 0});
+        assert_eq!(smell.vrsn, Versionage { major: 1, minor: 0 });
         assert_eq!(smell.kind, "icp");
         assert_eq!(smell.size, 123);
-        assert_eq!(smell.gvrsn, Some(Versionage{major: 1, minor: 0}));
+        assert_eq!(smell.gvrsn, Some(Versionage { major: 1, minor: 0 }));
     }
 
     #[test]
     fn test_smellage_builder() {
         let smell = SmellageBuilder::new()
             .proto("KERI")
-            .vrsn(Versionage{major: 1, minor: 0})
+            .vrsn(Versionage { major: 1, minor: 0 })
             .kind("rot")
             .size(256)
-            .gvrsn(Versionage{major: 1, minor: 0})
+            .gvrsn(Versionage { major: 1, minor: 0 })
             .build()
             .unwrap();
 
         assert_eq!(smell.proto, "KERI");
-        assert_eq!(smell.vrsn, Versionage{major: 1, minor: 0});
+        assert_eq!(smell.vrsn, Versionage { major: 1, minor: 0 });
         assert_eq!(smell.kind, "rot");
         assert_eq!(smell.size, 256);
-        assert_eq!(smell.gvrsn, Some(Versionage{major: 1, minor: 0}));
+        assert_eq!(smell.gvrsn, Some(Versionage { major: 1, minor: 0 }));
     }
 
     #[test]
     fn test_builder_error() {
         let result = SmellageBuilder::new()
             .proto("KERI")
-            .vrsn(Versionage{major: 1, minor: 0})
+            .vrsn(Versionage { major: 1, minor: 0 })
             .size(256)
             .build();
 
@@ -1021,5 +1054,4 @@ mod tests {
         assert_eq!(proto.keri, "KERI");
         assert_eq!(proto.acdc, "ACDC");
     }
-
 }

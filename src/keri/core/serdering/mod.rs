@@ -4,35 +4,64 @@ use crate::cesr::number::Number;
 use crate::cesr::tholder::Tholder;
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{dig_dex, get_sizes, mtr_dex, BaseMatter, Versionage, VRSN_1_0};
-use crate::{keri, Matter};
 use crate::keri::{deversify, smell, versify, Ilk, KERIError, Kinds, Protocolage, Said, Smellage};
+use crate::{keri, Matter};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use keri::Ilks;
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
+use std::any::Any;
 use std::collections::HashMap;
 use tracing::error;
-use std::any::Any;
 
 /// Create a validation schema for the different event types
 pub fn build_validation_schema() -> HashMap<Ilk, Vec<&'static str>> {
     let mut schema = HashMap::new();
 
     // For each ilk, define the required fields (those that must be present)
-    schema.insert(Ilk::Icp, vec!["v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c"]);
-    schema.insert(Ilk::Rot, vec!["v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba"]);
+    schema.insert(
+        Ilk::Icp,
+        vec![
+            "v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c",
+        ],
+    );
+    schema.insert(
+        Ilk::Rot,
+        vec![
+            "v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba",
+        ],
+    );
     schema.insert(Ilk::Ixn, vec!["v", "t", "d", "i", "s", "p"]);
-    schema.insert(Ilk::Dip, vec!["v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c", "di"]);
-    schema.insert(Ilk::Drt, vec!["v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba"]);
+    schema.insert(
+        Ilk::Dip,
+        vec![
+            "v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c", "di",
+        ],
+    );
+    schema.insert(
+        Ilk::Drt,
+        vec![
+            "v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba",
+        ],
+    );
     schema.insert(Ilk::Rct, vec!["v", "t", "d", "i", "s"]);
     schema.insert(Ilk::Qry, vec!["v", "t", "d", "dt", "r", "rr", "q"]);
     schema.insert(Ilk::Rpy, vec!["v", "t", "d", "dt", "r", "a"]);
     schema.insert(Ilk::Pro, vec!["v", "t", "d", "dt", "r", "rr", "q"]);
     schema.insert(Ilk::Bar, vec!["v", "t", "d", "dt", "r", "a"]);
-    schema.insert(Ilk::Exn, vec!["v", "t", "d", "i", "rp", "p", "dt", "r", "q", "a", "e"]);
-    schema.insert(Ilk::Vcp, vec!["v", "t", "d", "i", "ii", "s", "c", "bt", "b", "n"]);
-    schema.insert(Ilk::Vrt, vec!["v", "t", "d", "i", "p", "s", "bt", "br", "ba"]);
+    schema.insert(
+        Ilk::Exn,
+        vec!["v", "t", "d", "i", "rp", "p", "dt", "r", "q", "a", "e"],
+    );
+    schema.insert(
+        Ilk::Vcp,
+        vec!["v", "t", "d", "i", "ii", "s", "c", "bt", "b", "n"],
+    );
+    schema.insert(
+        Ilk::Vrt,
+        vec!["v", "t", "d", "i", "p", "s", "bt", "br", "ba"],
+    );
     schema.insert(Ilk::Iss, vec!["v", "t", "d", "i", "s", "ri", "dt"]);
     schema.insert(Ilk::Rev, vec!["v", "t", "d", "i", "s", "ri", "p", "dt"]);
     schema.insert(Ilk::Bis, vec!["v", "t", "d", "i", "ii", "s", "ra", "dt"]);
@@ -58,10 +87,11 @@ fn get_version_span(vrsn: &Versionage, kind: &Kinds) -> Result<usize, KERIError>
         // Add other version spans as needed
 
         // Unknown version/kind combination
-        _ => Err(KERIError::VersionError("Unsupported version and kind combination".to_string())),
+        _ => Err(KERIError::VersionError(
+            "Unsupported version and kind combination".to_string(),
+        )),
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -69,7 +99,6 @@ enum AttribField {
     StringList(Vec<String>),
     StringMap(HashMap<String, String>),
 }
-
 
 /// A comprehensive struct containing all possible KERI event fields
 /// with Option<T> for fields that aren't required by all event types
@@ -231,14 +260,26 @@ impl Sadder {
     /// preserving any existing values from the original
     pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Self {
         let mut sad = Self::default();
-        let ilk = if orig.t.is_empty() { ilk.as_str().to_string() } else { orig.t.clone() };
+        let ilk = if orig.t.is_empty() {
+            ilk.as_str().to_string()
+        } else {
+            orig.t.clone()
+        };
 
         // Preserve version if already set
-        sad.v = if orig.v.is_empty() { "".to_string() } else { orig.v.clone() };
+        sad.v = if orig.v.is_empty() {
+            "".to_string()
+        } else {
+            orig.v.clone()
+        };
         // Set the type from original
         sad.t = ilk.clone();
         // Preserve digest if already set
-        sad.d = if orig.d.is_empty() { "".to_string() } else { orig.d.clone() };
+        sad.d = if orig.d.is_empty() {
+            "".to_string()
+        } else {
+            orig.d.clone()
+        };
 
         // Apply type-specific defaults based on ilk
         match ilk.as_str() {
@@ -251,9 +292,12 @@ impl Sadder {
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
                 sad.c = orig.c.clone().or(Some(vec![]));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "rot" => {
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
@@ -264,15 +308,21 @@ impl Sadder {
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.br = orig.br.clone().or(Some(vec![]));
                 sad.ba = orig.ba.clone().or(Some(Value::Array(vec![])));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "ixn" => {
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "dip" => {
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.kt = orig.kt.clone().or(Some("0".to_string()));
@@ -282,10 +332,13 @@ impl Sadder {
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
                 sad.c = orig.c.clone().or(Some(vec![]));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
                 sad.di = orig.di.clone().or(Some("".to_string()));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "drt" => {
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
@@ -296,45 +349,69 @@ impl Sadder {
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.br = orig.br.clone().or(Some(vec![]));
                 sad.ba = orig.ba.clone().or(Some(Value::Array(vec![])));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "rct" => {
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.i = orig.i.clone().or(Some("".to_string()));
-            },
+            }
             "qry" => {
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
                 sad.r = orig.r.clone().or(Some("".to_string()));
                 sad.rr = orig.rr.clone().or(Some("".to_string()));
-                sad.q = orig.q.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
-            },
+                sad.q = orig
+                    .q
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
+            }
             "rpy" => {
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
                 sad.r = orig.r.clone().or(Some("".to_string()));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
-            },
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
+            }
             "pro" => {
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
                 sad.r = orig.r.clone().or(Some("".to_string()));
                 sad.rr = orig.rr.clone().or(Some("".to_string()));
-                sad.q = orig.q.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
-            },
+                sad.q = orig
+                    .q
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
+            }
             "bar" => {
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
                 sad.r = orig.r.clone().or(Some("".to_string()));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
-            },
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
+            }
             "exn" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.rp = orig.rp.clone().or(Some("".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
                 sad.r = orig.r.clone().or(Some("".to_string()));
-                sad.q = orig.q.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
-                sad.a = orig.a.clone().or_else(|| Some(AttribField::StringList(vec![])));
-                sad.e = orig.e.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
-            },
+                sad.q = orig
+                    .q
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
+                sad.a = orig
+                    .a
+                    .clone()
+                    .or_else(|| Some(AttribField::StringList(vec![])));
+                sad.e = orig
+                    .e
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
+            }
             "vcp" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.ii = orig.ii.clone().or(Some("".to_string()));
@@ -342,7 +419,7 @@ impl Sadder {
                 sad.c = orig.c.clone().or(Some(vec![]));
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
-            },
+            }
             "vrt" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
@@ -350,34 +427,40 @@ impl Sadder {
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.br = orig.br.clone().or(Some(vec![]));
                 sad.ba = orig.ba.clone().or(Some(Value::Array(vec![])));
-            },
+            }
             "iss" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.ri = orig.ri.clone().or(Some("".to_string()));
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
-            },
+            }
             "rev" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.ri = orig.ri.clone().or(Some("".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
-            },
+            }
             "bis" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.ii = orig.ii.clone().or(Some("".to_string()));
                 sad.s = orig.s.clone().or(Some("0".to_string()));
-                sad.rules = orig.rules.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
+                sad.rules = orig
+                    .rules
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
-            },
+            }
             "brv" => {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.s = orig.s.clone().or(Some("0".to_string()));
                 sad.p = orig.p.clone().or(Some("".to_string()));
-                sad.rules = orig.rules.clone().or_else(|| Some(Value::Object(serde_json::Map::new())));
+                sad.rules = orig
+                    .rules
+                    .clone()
+                    .or_else(|| Some(Value::Object(serde_json::Map::new())));
                 sad.dt = orig.dt.clone().or(Some("".to_string()));
-            },
+            }
             // Default case for unknown ilk types
             _ => {
                 // Keep the base defaults from Self::default()
@@ -411,32 +494,33 @@ impl Sadder {
                             }
                         }
                         Err(_) => {
-                            _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                            _saids.insert("i", mtr_dex::BLAKE3_256.to_string());
+                            // Blake3_256
                         }
                     }
                 } else {
                     _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
                 }
-            },
+            }
             "rot" | "drt" | "vrt" | "rev" | "brv" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "ixn" | "rct" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "qry" | "rpy" | "pro" | "bar" | "exn" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "vcp" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
                 _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "iss" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "bis" => {
                 _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             _ => {} // No defaults for unknown types
         }
 
@@ -464,18 +548,19 @@ impl Sadder {
                 // Set the appropriate field based on the label
                 match *label {
                     "d" => self.d = dummy_value,
-                    "i" => if let Some(i) = &mut self.i {
-                        *i = dummy_value;
-                    } else {
-                        self.i = Some(dummy_value);
-                    },
+                    "i" => {
+                        if let Some(i) = &mut self.i {
+                            *i = dummy_value;
+                        } else {
+                            self.i = Some(dummy_value);
+                        }
+                    }
                     // Add other SAID fields as needed
                     _ => {} // Ignore unknown labels
                 }
             }
         }
     }
-
 
     /// Creates a specific event type from this general structure
     pub fn ilk(&self) -> Result<Ilk, KERIError> {
@@ -532,101 +617,216 @@ impl Sadder {
     /// Validate the Sadder instance based on its ilk (event type)
     pub fn validate(&self) -> Result<(), KERIError> {
         // Get the ilk from the t field
-        let ilk = Ilk::from_str(&self.t)
-            .ok_or_else(|| KERIError::UnknownIlk(self.t.clone()))?;
+        let ilk = Ilk::from_str(&self.t).ok_or_else(|| KERIError::UnknownIlk(self.t.clone()))?;
 
         // Get the validation schema
         let validation_schema = build_validation_schema();
 
         // Get the required fields for this ilk
-        let required_fields = validation_schema.get(&ilk)
+        let required_fields = validation_schema
+            .get(&ilk)
             .expect("All ilks should have validation rules");
 
         // Check each required field
         for &field in required_fields {
             match field {
-                "v" => if self.v.is_empty() {
-                    return Err(KERIError::MissingRequiredField("v".to_string(), self.t.clone()));
-                },
-                "t" => if self.t.is_empty() {
-                    return Err(KERIError::MissingRequiredField("t".to_string(), self.t.clone()));
-                },
-                "d" => if self.d.is_empty() {
-                    return Err(KERIError::MissingRequiredField("d".to_string(), self.t.clone()));
-                },
-                "i" => if self.i.is_none() {
-                    return Err(KERIError::MissingRequiredField("i".to_string(), self.t.clone()));
-                },
-                "s" => if self.s.is_none() {
-                    return Err(KERIError::MissingRequiredField("s".to_string(), self.t.clone()));
-                },
-                "p" => if self.p.is_none() {
-                    return Err(KERIError::MissingRequiredField("p".to_string(), self.t.clone()));
-                },
-                "kt" => if self.kt.is_none() {
-                    return Err(KERIError::MissingRequiredField("kt".to_string(), self.t.clone()));
-                },
-                "k" => if self.k.is_none() {
-                    return Err(KERIError::MissingRequiredField("k".to_string(), self.t.clone()));
-                },
-                "nt" => if self.nt.is_none() {
-                    return Err(KERIError::MissingRequiredField("nt".to_string(), self.t.clone()));
-                },
-                "n" => if self.n.is_none() {
-                    return Err(KERIError::MissingRequiredField("n".to_string(), self.t.clone()));
-                },
-                "bt" => if self.bt.is_none() {
-                    return Err(KERIError::MissingRequiredField("bt".to_string(), self.t.clone()));
-                },
-                "b" => if self.b.is_none() {
-                    return Err(KERIError::MissingRequiredField("b".to_string(), self.t.clone()));
-                },
-                "c" => if self.c.is_none() {
-                    return Err(KERIError::MissingRequiredField("c".to_string(), self.t.clone()));
-                },
-                "a" => if self.a.is_none() {
-                    return Err(KERIError::MissingRequiredField("a".to_string(), self.t.clone()));
-                },
-                "di" => if self.di.is_none() {
-                    return Err(KERIError::MissingRequiredField("di".to_string(), self.t.clone()));
-                },
-                "dt" => if self.dt.is_none() {
-                    return Err(KERIError::MissingRequiredField("dt".to_string(), self.t.clone()));
-                },
-                "r" => if self.r.is_none() {
-                    return Err(KERIError::MissingRequiredField("r".to_string(), self.t.clone()));
-                },
+                "v" => {
+                    if self.v.is_empty() {
+                        return Err(KERIError::MissingRequiredField(
+                            "v".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "t" => {
+                    if self.t.is_empty() {
+                        return Err(KERIError::MissingRequiredField(
+                            "t".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "d" => {
+                    if self.d.is_empty() {
+                        return Err(KERIError::MissingRequiredField(
+                            "d".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "i" => {
+                    if self.i.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "i".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "s" => {
+                    if self.s.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "s".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "p" => {
+                    if self.p.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "p".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "kt" => {
+                    if self.kt.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "kt".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "k" => {
+                    if self.k.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "k".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "nt" => {
+                    if self.nt.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "nt".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "n" => {
+                    if self.n.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "n".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "bt" => {
+                    if self.bt.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "bt".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "b" => {
+                    if self.b.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "b".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "c" => {
+                    if self.c.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "c".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "a" => {
+                    if self.a.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "a".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "di" => {
+                    if self.di.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "di".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "dt" => {
+                    if self.dt.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "dt".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "r" => {
+                    if self.r.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "r".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
                 "rr" => {
                     // Not directly in the Sadder struct, needs special handling
                     // Since rr isn't directly in the struct, this would need custom validation
                     // or would need to check a specific field in q if rr is contained there
-                },
-                "q" => if self.q.is_none() {
-                    return Err(KERIError::MissingRequiredField("q".to_string(), self.t.clone()));
-                },
-                "ri" => if self.ri.is_none() {
-                    return Err(KERIError::MissingRequiredField("ri".to_string(), self.t.clone()));
-                },
-                "br" => if self.br.is_none() {
-                    return Err(KERIError::MissingRequiredField("br".to_string(), self.t.clone()));
-                },
-                "ba" => if self.ba.is_none() {
-                    return Err(KERIError::MissingRequiredField("ba".to_string(), self.t.clone()));
-                },
-                "ii" => if self.ii.is_none() {
-                    return Err(KERIError::MissingRequiredField("ii".to_string(), self.t.clone()));
-                },
+                }
+                "q" => {
+                    if self.q.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "q".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "ri" => {
+                    if self.ri.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "ri".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "br" => {
+                    if self.br.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "br".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "ba" => {
+                    if self.ba.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "ba".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
+                "ii" => {
+                    if self.ii.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "ii".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
                 "rp" => {
                     // Not directly in the Sadder struct, needs special handling
                     // Since rp isn't directly in the struct, this would need custom validation
-                },
-                "e" => if self.e.is_none() {
-                    return Err(KERIError::MissingRequiredField("e".to_string(), self.t.clone()));
-                },
+                }
+                "e" => {
+                    if self.e.is_none() {
+                        return Err(KERIError::MissingRequiredField(
+                            "e".to_string(),
+                            self.t.clone(),
+                        ));
+                    }
+                }
                 "ra" => {
                     // Not directly in the Sadder struct, needs special handling
                     // This could be part of another field or requires custom validation
-                },
+                }
                 _ => {}
             }
         }
@@ -641,9 +841,7 @@ impl Sadder {
             Err(err) => Err(format!("Validation error: {}", err)),
         }
     }
-
 }
-
 
 // Extension to validate a specific field to allow more modular validation
 pub trait FieldValidator {
@@ -682,7 +880,6 @@ impl FieldValidator for Sadder {
     }
 }
 
-
 /// Base implementation of the Serder trait for serializable/deserializable entities
 #[derive(Debug, Clone)]
 pub struct BaseSerder {
@@ -706,7 +903,6 @@ pub struct BaseSerder {
     gvrsn: Versionage,
 }
 
-
 impl Default for BaseSerder {
     fn default() -> Self {
         BaseSerder {
@@ -724,30 +920,40 @@ impl Default for BaseSerder {
 }
 
 impl BaseSerder {
-
-    pub fn from_init(raw: Option<&[u8]>, sad: Option<&Sadder>, makify: Option<bool>,
-                         smellage: Option<Smellage>, proto: Option<String>, vrsn: Option<Versionage>,
-                         kind: Option<Kinds>, ilk: Option<Ilk>,
-                     saids: Option<HashMap<&str, String>>) -> Result<Self, KERIError> {
+    pub fn from_init(
+        raw: Option<&[u8]>,
+        sad: Option<&Sadder>,
+        makify: Option<bool>,
+        smellage: Option<Smellage>,
+        proto: Option<String>,
+        vrsn: Option<Versionage>,
+        kind: Option<Kinds>,
+        ilk: Option<Ilk>,
+        saids: Option<HashMap<&str, String>>,
+    ) -> Result<Self, KERIError> {
         let mfy = makify.unwrap_or(true);
 
         match raw {
-            Some(raw) => {
-                Self::from_raw(raw, smellage)
-            }
+            Some(raw) => Self::from_raw(raw, smellage),
             None => {
                 if mfy {
                     let mut serder = Self::default();
-                    serder.makify(sad.unwrap_or(&Sadder::default()), proto, vrsn, kind, ilk, saids)?;
+                    serder.makify(
+                        sad.unwrap_or(&Sadder::default()),
+                        proto,
+                        vrsn,
+                        kind,
+                        ilk,
+                        saids,
+                    )?;
                     Ok(serder)
                 } else {
                     match sad {
-                        Some(sad) => {
-                            Self::from_sad(sad)
-                        }
-                        None => {
-                            Err(KERIError::MissingRequiredField("raw".to_string(), "Raw or Sad required".to_string()))?
-                        }
+                        Some(sad) => Self::from_sad(sad),
+                        None => Err(KERIError::MissingRequiredField(
+                            "raw".to_string(),
+                            "Raw or Sad required".to_string(),
+                        ))?,
                     }
                 }
             }
@@ -810,7 +1016,8 @@ impl BaseSerder {
                 return Err(KERIError::FieldError(format!(
                     "Missing primary said field in {:?}.",
                     sad
-                )));                }
+                )));
+            }
         }
 
         // Note: In Rust, we don't modify the passed-in raw buffer directly
@@ -851,8 +1058,8 @@ impl BaseSerder {
             size,
             said: None,
             genus,
-            gvrsn: gvrsn.ok_or_else(|| KERIError::FieldError("Missing required gvrsn value".to_string()))?
-            ,
+            gvrsn: gvrsn
+                .ok_or_else(|| KERIError::FieldError("Missing required gvrsn value".to_string()))?,
         };
 
         // Get the primary said field label
@@ -876,7 +1083,8 @@ impl BaseSerder {
                 return Err(KERIError::FieldError(format!(
                     "Missing primary said field in {:?}.",
                     sad
-                )));                }
+                )));
+            }
         }
 
         // Note: In Rust, we don't modify the passed-in raw buffer directly
@@ -908,7 +1116,13 @@ impl BaseSerder {
     ///
     /// # Returns
     /// The updated Sadder with proper version string
-    pub fn prepare_version(&self, sad: &mut Sadder, kind: Kinds, proto: String, vrsn: Versionage) -> Result<(), KERIError> {
+    pub fn prepare_version(
+        &self,
+        sad: &mut Sadder,
+        kind: Kinds,
+        proto: String,
+        vrsn: Versionage,
+    ) -> Result<(), KERIError> {
         // Only process for these serialization formats
         if matches!(kind, Kinds::Json | Kinds::Cbor | Kinds::Mgpk) {
             // Dummy character for padding
@@ -925,7 +1139,12 @@ impl BaseSerder {
             let size = raw.len();
 
             // Generate the correct version string with the calculated size
-            let vs = versify(proto.as_str(), &vrsn, kind.to_string().as_str(), size as u64)?;
+            let vs = versify(
+                proto.as_str(),
+                &vrsn,
+                kind.to_string().as_str(),
+                size as u64,
+            )?;
 
             // Update the version string in the Sadder
             sad.v = vs;
@@ -1044,11 +1263,9 @@ impl BaseSerder {
                 //     ));
                 // value
             }
-            Kinds::Cesr => {
-                Err(KERIError::MgpkError(
-                    "CESR deserialization not implemented".to_string(),
-                ))
-            }
+            Kinds::Cesr => Err(KERIError::MgpkError(
+                "CESR deserialization not implemented".to_string(),
+            )),
         }
     }
 
@@ -1070,21 +1287,15 @@ impl BaseSerder {
                 Ok(json_str) => Ok(json_str.into_bytes()),
                 Err(e) => Err(KERIError::DeserializeError(e.to_string())),
             },
-            Kinds::Mgpk => {
-                Err(KERIError::DeserializeError(
-                    "MsgPack serialization not enabled".to_string(),
-                ))
-            }
-            Kinds::Cbor => {
-                Err(KERIError::DeserializeError(
-                    "CBOR serialization not enabled".to_string(),
-                ))
-            }
-            Kinds::Cesr => {
-                Err(KERIError::DeserializeError(
-                    "CESR serialization not enabled".to_string(),
-                ))
-            }
+            Kinds::Mgpk => Err(KERIError::DeserializeError(
+                "MsgPack serialization not enabled".to_string(),
+            )),
+            Kinds::Cbor => Err(KERIError::DeserializeError(
+                "CBOR serialization not enabled".to_string(),
+            )),
+            Kinds::Cesr => Err(KERIError::DeserializeError(
+                "CESR serialization not enabled".to_string(),
+            )),
         }
     }
 
@@ -1127,27 +1338,33 @@ impl BaseSerder {
         vrsn: Option<Versionage>,
         kind: Option<Kinds>,
         ilk: Option<Ilk>,
-        saids: Option<HashMap<&str, String>>) -> Result<(), KERIError> {
-
+        saids: Option<HashMap<&str, String>>,
+    ) -> Result<(), KERIError> {
         // Determine protocol to use
-        let proto = proto.or_else(|| {
-            // Extract from sad (this would need implementation details)
-            Some("KERI".to_string())
-        }).unwrap_or_else(|| self.proto.clone());
+        let proto = proto
+            .or_else(|| {
+                // Extract from sad (this would need implementation details)
+                Some("KERI".to_string())
+            })
+            .unwrap_or_else(|| self.proto.clone());
 
         // Determine version to use
-        let vrsn = vrsn.or_else(|| {
-            // Extract from sad (this would need implementation details)
-            Some(VRSN_1_0)
-        }).unwrap_or_else(|| self.vrsn.clone());
+        let vrsn = vrsn
+            .or_else(|| {
+                // Extract from sad (this would need implementation details)
+                Some(VRSN_1_0)
+            })
+            .unwrap_or_else(|| self.vrsn.clone());
 
         // Determine kind to use
-        let kind = kind.or_else(|| {
-            // Extract from sad (this would need implementation details)
-            Some(Kinds::Json)
-        }).unwrap_or_else(|| self.kind.clone());
+        let kind = kind
+            .or_else(|| {
+                // Extract from sad (this would need implementation details)
+                Some(Kinds::Json)
+            })
+            .unwrap_or_else(|| self.kind.clone());
 
-        let ilk = ilk.unwrap_or_else(|| {Ilk::Icp});
+        let ilk = ilk.unwrap_or_else(|| Ilk::Icp);
 
         // Update sad with the determined values
         let sad = &mut Sadder::default_with_type(ilk, sad);
@@ -1166,32 +1383,33 @@ impl BaseSerder {
                             }
                         }
                         Err(_) => {
-                            said_fields.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                            said_fields.insert("i", mtr_dex::BLAKE3_256.to_string());
+                            // Blake3_256
                         }
                     }
                 } else {
                     said_fields.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
                 }
-            },
+            }
             "rot" | "drt" | "vrt" | "rev" | "brv" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "ixn" | "rct" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "qry" | "rpy" | "pro" | "bar" | "exn" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "vcp" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
                 said_fields.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "iss" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             "bis" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
-            },
+            }
             _ => {} // No digestive fields for other types
         }
 
@@ -1214,17 +1432,20 @@ impl BaseSerder {
         for (label, code) in said_fields {
             // Check if the code is digestive (in DigDex)
             if dig_dex::TUPLE.contains(&code.as_str()) {
-                let diger = Diger::from_ser_and_code(&raw, code.as_str()).map_err(|e| KERIError::from(e))?;
+                let diger = Diger::from_ser_and_code(&raw, code.as_str())
+                    .map_err(|e| KERIError::from(e))?;
                 let qb64 = diger.qb64();
 
                 // Update the field based on the label
                 match label {
                     "d" => sad.d = qb64,
-                    "i" => if let Some(i) = &mut sad.i {
-                        *i = qb64;
-                    } else {
-                        sad.i = Some(qb64);
-                    },
+                    "i" => {
+                        if let Some(i) = &mut sad.i {
+                            *i = qb64;
+                        } else {
+                            sad.i = Some(qb64);
+                        }
+                    }
                     // Add other fields as needed
                     _ => {} // Ignore unknown fields
                 }
@@ -1235,7 +1456,11 @@ impl BaseSerder {
         let raw = Self::dumps(&sad, &kind)?;
 
         // Compute SAID (Self-Addressing IDentifier) for the sad
-        let said = if sad.d.is_empty() { sad.i.clone() } else {Some(sad.d.clone())};
+        let said = if sad.d.is_empty() {
+            sad.i.clone()
+        } else {
+            Some(sad.d.clone())
+        };
 
         // Update object properties
         self.raw = raw;
@@ -1255,7 +1480,6 @@ impl BaseSerder {
 
         Ok(())
     }
-
 }
 
 /// Trait representing a serializable/deserializable entity with SAID (Self-Addressing IDentifier)
@@ -1314,7 +1538,6 @@ pub trait Serder: Any + Send + Sync {
     fn ilk(&self) -> Option<&str>;
 
     fn as_any(&self) -> &dyn Any;
-
 }
 
 impl Serder for BaseSerder {
@@ -1398,7 +1621,8 @@ impl Verifiable for BaseSerder {
             let raw = Self::dumps(&sad, &self.kind)?;
 
             let dcoder = Diger::from_qb64(said);
-            let diger = Diger::from_ser_and_code(&raw, dcoder.unwrap().code()).map_err(|e| KERIError::from(e))?;
+            let diger = Diger::from_ser_and_code(&raw, dcoder.unwrap().code())
+                .map_err(|e| KERIError::from(e))?;
             let qb64 = diger.qb64();
             if said != &qb64 {
                 return Err(KERIError::ValidationError(format!(
@@ -1417,7 +1641,6 @@ impl Verifiable for BaseSerder {
     }
 }
 
-
 /// KERI-specific implementation of the Serder
 #[derive(Debug, Clone)]
 pub struct SerderKERI {
@@ -1426,18 +1649,42 @@ pub struct SerderKERI {
 
 /// Implement the Serder trait for SerderKERI
 impl Serder for SerderKERI {
-    fn pretty(&self, size: Option<usize>) -> String { self.base.pretty(size) }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn sad(&self) -> Sadder { self.base.sad() }
-    fn genus(&self) -> &str { self.base.genus() }
-    fn gvrsn(&self) -> &Versionage { self.base.gvrsn() }
-    fn kind(&self) -> &Kinds { self.base.kind() }
-    fn proto(&self) -> &str { self.base.proto() }
-    fn vrsn(&self) -> &Versionage { self.base.vrsn() }
-    fn size(&self) -> usize { self.base.size() }
-    fn said(&self) -> Option<&str> { self.base.said() }
-    fn ilk(&self) -> Option<&str> { self.base.ilk() }
-    fn as_any(&self) -> &dyn Any { self }
+    fn pretty(&self, size: Option<usize>) -> String {
+        self.base.pretty(size)
+    }
+    fn raw(&self) -> &[u8] {
+        self.base.raw()
+    }
+    fn sad(&self) -> Sadder {
+        self.base.sad()
+    }
+    fn genus(&self) -> &str {
+        self.base.genus()
+    }
+    fn gvrsn(&self) -> &Versionage {
+        self.base.gvrsn()
+    }
+    fn kind(&self) -> &Kinds {
+        self.base.kind()
+    }
+    fn proto(&self) -> &str {
+        self.base.proto()
+    }
+    fn vrsn(&self) -> &Versionage {
+        self.base.vrsn()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
+    }
+    fn said(&self) -> Option<&str> {
+        self.base.said()
+    }
+    fn ilk(&self) -> Option<&str> {
+        self.base.ilk()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl SerderKERI {
@@ -1502,12 +1749,8 @@ impl SerderKERI {
     /// Seals from .sad["a"]
     pub fn seals(&self) -> Option<Vec<String>> {
         match &self.base.sad.a {
-            Some(AttribField::StringList(list)) => {
-                Some(list.clone())
-            }
-            Some(AttribField::StringMap(_)) => {
-                None
-            }
+            Some(AttribField::StringList(list)) => Some(list.clone()),
+            Some(AttribField::StringMap(_)) => None,
             None => None,
         }
     }
@@ -1724,21 +1967,43 @@ pub struct SerderACDC {
 
 /// Implement the Serder trait for SerderKERI
 impl Serder for SerderACDC {
-    fn pretty(&self, size: Option<usize>) -> String { self.base.pretty(size) }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn sad(&self) -> Sadder { self.base.sad() }
-    fn genus(&self) -> &str { self.base.genus() }
-    fn gvrsn(&self) -> &Versionage { self.base.gvrsn() }
-    fn kind(&self) -> &Kinds { self.base.kind() }
-    fn proto(&self) -> &str { self.base.proto() }
-    fn vrsn(&self) -> &Versionage { self.base.vrsn() }
-    fn size(&self) -> usize { self.base.size() }
-    fn said(&self) -> Option<&str> { self.base.said() }
-    fn ilk(&self) -> Option<&str> { self.base.ilk() }
-    fn as_any(&self) -> &dyn Any { self }
+    fn pretty(&self, size: Option<usize>) -> String {
+        self.base.pretty(size)
+    }
+    fn raw(&self) -> &[u8] {
+        self.base.raw()
+    }
+    fn sad(&self) -> Sadder {
+        self.base.sad()
+    }
+    fn genus(&self) -> &str {
+        self.base.genus()
+    }
+    fn gvrsn(&self) -> &Versionage {
+        self.base.gvrsn()
+    }
+    fn kind(&self) -> &Kinds {
+        self.base.kind()
+    }
+    fn proto(&self) -> &str {
+        self.base.proto()
+    }
+    fn vrsn(&self) -> &Versionage {
+        self.base.vrsn()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
+    }
+    fn said(&self) -> Option<&str> {
+        self.base.said()
+    }
+    fn ilk(&self) -> Option<&str> {
+        self.base.ilk()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
-
-
 
 impl SerderACDC {
     /// Creates a new `SerderACDC` by constructing its `BaseSerder` from raw bytes.
@@ -1752,7 +2017,6 @@ impl SerderACDC {
         let base = BaseSerder::from_sad(sad)?;
         Ok(Self { base })
     }
-
 
     /// uuid property getter
     /// Optional fields return None when not present
@@ -1782,7 +2046,7 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["i"] issuer AID
     pub fn issuer(&self) -> Option<&str> {
         if let Some(value) = self.base.sad.i.as_ref() {
-            return Some(value.as_str())
+            return Some(value.as_str());
         }
         None
     }
@@ -1803,7 +2067,7 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["ri"] registry SAID
     pub fn regi(&self) -> Option<&str> {
         if let Some(value) = self.base.sad.ri.as_ref() {
-            return Some(value.as_str())
+            return Some(value.as_str());
         }
         None
     }
@@ -1848,9 +2112,7 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["a"]["i"] issuee AID
     pub fn issuee(&self) -> Option<&str> {
         match &self.base.sad.a {
-            Some(AttribField::StringMap(map)) => {
-                map.get("i").map(|s| s.as_str())
-            }
+            Some(AttribField::StringMap(map)) => map.get("i").map(|s| s.as_str()),
             Some(AttribField::StringList(_)) => None,
             None => None,
         }
@@ -1940,7 +2202,7 @@ impl Serdery {
         _genus: &str,
         _gvrsn: &Versionage,
         native: Option<bool>,
-        skip: Option<usize>
+        skip: Option<usize>,
     ) -> Result<Box<dyn Serder>, KERIError> {
         let native = native.unwrap_or(false);
         let skip = skip.unwrap_or(0);
@@ -1966,17 +2228,19 @@ impl Serdery {
             let serder = SerderACDC::from_raw(ims, Some(smellage))?;
             Ok(Box::new(serder))
         } else {
-            Err(KERIError::ProtocolError(format!("Unsupported protocol type = {}", smellage.proto)))
+            Err(KERIError::ProtocolError(format!(
+                "Unsupported protocol type = {}",
+                smellage.proto
+            )))
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::cesr::VRSN_1_0;
-    use crate::keri::{Ilk, Kinds};
     use crate::keri::core::serdering::{AttribField, BaseSerder, Sadder, Serder, SerderKERI};
+    use crate::keri::{Ilk, Kinds};
 
     #[test]
     fn test_valid_icp_event() {
@@ -1987,9 +2251,13 @@ mod tests {
             i: Some("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ".to_string()),
             s: Some("0".to_string()),
             kt: Some("1".to_string()),
-            k: Some(vec!["DQbYDpQRN5cmkQ94mR69N_c98C0-SIVYEj2LM2VAGUhZ".to_string()]),
+            k: Some(vec![
+                "DQbYDpQRN5cmkQ94mR69N_c98C0-SIVYEj2LM2VAGUhZ".to_string()
+            ]),
             nt: Some("1".to_string()),
-            n: Some(vec!["EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y".to_string()]),
+            n: Some(vec![
+                "EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y".to_string()
+            ]),
             bt: Some("0".to_string()),
             b: Some(vec![]),
             c: Some(vec![]),
@@ -2011,7 +2279,9 @@ mod tests {
             kt: Some("1".to_string()),
             // k field is missing
             nt: Some("1".to_string()),
-            n: Some(vec!["EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y".to_string()]),
+            n: Some(vec![
+                "EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y".to_string()
+            ]),
             bt: Some("0".to_string()),
             b: Some(vec![]),
             c: Some(vec![]),
@@ -2024,7 +2294,9 @@ mod tests {
     #[test]
     fn test_serder_initialization_and_verification() {
         // Test creating a Serder with makify=true and icp ilk
-        let serder = BaseSerder::from_init(None, None, Some(true), None, None, None, None, None, None).unwrap();
+        let serder =
+            BaseSerder::from_init(None, None, Some(true), None, None, None, None, None, None)
+                .unwrap();
 
         // Check the generated SAD structure
         let sad = serder.sad();
@@ -2096,9 +2368,22 @@ mod tests {
         // Test creating a Serder with makify=true and icp ilk
         let mut sad = Sadder::default();
         sad.i = Some("DKxy2sgzfplyr-tgwIxS19f2OchFHtLwPWD3v4oYimBx".to_string());
-        let serder = BaseSerder::from_init(None, Some(&sad), Some(true), None, None, None, None, None, None).unwrap();
+        let serder = BaseSerder::from_init(
+            None,
+            Some(&sad),
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(serder.sad().i, sad.i);
-        assert_eq!(serder.sad().d, "EIXK39EgyxshefoCdSpKCkG5FR9s405YI4FAHDvAqO_R");
+        assert_eq!(
+            serder.sad().d,
+            "EIXK39EgyxshefoCdSpKCkG5FR9s405YI4FAHDvAqO_R"
+        );
     }
-
 }

@@ -21,4 +21,3 @@ pub enum CoreError {
     #[error("Invalid code: {0}")]
     FilerError(String),
 }
-

@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use super::*;
+use chrono::{DateTime, Utc};
 
 /// Returns key formed by joining top key and hex str conversion of
 /// int ordinal number on with sep character.
@@ -261,10 +261,7 @@ pub fn suffix(key: impl AsRef<[u8]>, ion: u64, sep: Option<[u8; 1]>) -> Vec<u8> 
 /// # Errors
 /// * `DBError::ValueError` - if key cannot be split
 /// * `DBError::ParseError` - if the ion part cannot be parsed as hex
-pub fn unsuffix(
-    iokey: impl AsRef<[u8]>,
-    sep: Option<[u8; 1]>,
-) -> Result<(Vec<u8>, u64), DBError> {
+pub fn unsuffix(iokey: impl AsRef<[u8]>, sep: Option<[u8; 1]>) -> Result<(Vec<u8>, u64), DBError> {
     let iokey_bytes = iokey.as_ref();
     let sep_bytes = sep.map_or(b".".to_vec(), |s| s.to_vec());
 
@@ -312,7 +309,7 @@ mod tests {
                 pre.as_slice(),
                 b".00000000000000000000000000000000".as_slice()
             ]
-                .concat()
+            .concat()
         );
         assert_eq!(
             on_key(&pre, 1, None),
@@ -320,7 +317,7 @@ mod tests {
                 pre.as_slice(),
                 b".00000000000000000000000000000001".as_slice()
             ]
-                .concat()
+            .concat()
         );
         assert_eq!(
             on_key(&pre, 2, None),
@@ -328,7 +325,7 @@ mod tests {
                 pre.as_slice(),
                 b".00000000000000000000000000000002".as_slice()
             ]
-                .concat()
+            .concat()
         );
         assert_eq!(
             on_key(&pre, 3, None),
@@ -336,7 +333,7 @@ mod tests {
                 pre.as_slice(),
                 b".00000000000000000000000000000003".as_slice()
             ]
-                .concat()
+            .concat()
         );
         assert_eq!(
             on_key(&pre, 4, None),
@@ -344,7 +341,7 @@ mod tests {
                 pre.as_slice(),
                 b".00000000000000000000000000000004".as_slice()
             ]
-                .concat()
+            .concat()
         );
 
         assert_eq!(
@@ -353,7 +350,7 @@ mod tests {
                 pre.as_slice(),
                 b"|00000000000000000000000000000000".as_slice()
             ]
-                .concat()
+            .concat()
         );
         assert_eq!(
             on_key(&pre, 4, Some(*b"|")),
@@ -361,7 +358,7 @@ mod tests {
                 pre.as_slice(),
                 b"|00000000000000000000000000000004".as_slice()
             ]
-                .concat()
+            .concat()
         );
 
         let onkey = on_key(&pre, 0, None);

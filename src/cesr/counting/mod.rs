@@ -1,8 +1,8 @@
 use crate::cesr::{code_b2_to_b64, int_to_b64, nab_sextets, Parsable, Versionage, VERSION};
 use crate::errors::MatterError;
-use once_cell::sync::Lazy;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::str;
 
@@ -47,23 +47,23 @@ pub mod ctr_dex_1_0 {
     use std::collections::HashMap;
 
     // Controller Index and Signatures Constants
-    pub const CONTROLLER_IDX_SIGS: &str = "-A";  // Qualified Base64 Indexed Signature.
-    pub const WITNESS_IDX_SIGS: &str = "-B";  // Qualified Base64 Indexed Signature.
-    pub const NON_TRANS_RECEIPT_COUPLES: &str = "-C";  // Composed Base64 Couple, pre+cig.
-    pub const TRANS_RECEIPT_QUADRUPLES: &str = "-D";  // Composed Base64 Quadruple, pre+snu+dig+sig.
-    pub const FIRST_SEEN_REPLAY_COUPLES: &str = "-E";  // Composed Base64 Couple, fnu+dts.
-    pub const TRANS_IDX_SIG_GROUPS: &str = "-F";  // Composed Base64 Group, pre+snu+dig+ControllerIdxSigs group.
-    pub const SEAL_SOURCE_COUPLES: &str = "-G";  // Composed Base64 couple, snu+dig of given delegator/issuer/transaction event
-    pub const TRANS_LAST_IDX_SIG_GROUPS: &str = "-H";  // Composed Base64 Group, pre+ControllerIdxSigs group.
-    pub const SEAL_SOURCE_TRIPLES: &str = "-I";  // Composed Base64 triple, pre+snu+dig of anchoring source event
-    pub const SAD_PATH_SIG_GROUPS: &str = "-J";  // Composed Base64 Group path+TransIdxSigGroup of SAID of content
-    pub const ROOT_SAD_PATH_SIG_GROUPS: &str = "-K";  // Composed Base64 Group, root(path)+SaidPathCouples
-    pub const PATHED_MATERIAL_GROUP: &str = "-L";  // Composed Grouped Pathed Material Quadlet (4 char each)
-    pub const BIG_PATHED_MATERIAL_GROUP: &str = "-0L";  // Composed Grouped Pathed Material Quadlet (4 char each)
-    pub const ATTACHMENT_GROUP: &str = "-V";  // Composed Grouped Attached Material Quadlet (4 char each)
-    pub const BIG_ATTACHMENT_GROUP: &str = "-0V";  // Composed Grouped Attached Material Quadlet (4 char each)
-    pub const ESSR_PAYLOAD_GROUP: &str = "-Z";  // ESSR Payload Group, dig of content+Texter group
-    pub const KERI_ACDC_GENUS_VERSION: &str = "--AAA";  // KERI ACDC Protocol Stack CESR Version
+    pub const CONTROLLER_IDX_SIGS: &str = "-A"; // Qualified Base64 Indexed Signature.
+    pub const WITNESS_IDX_SIGS: &str = "-B"; // Qualified Base64 Indexed Signature.
+    pub const NON_TRANS_RECEIPT_COUPLES: &str = "-C"; // Composed Base64 Couple, pre+cig.
+    pub const TRANS_RECEIPT_QUADRUPLES: &str = "-D"; // Composed Base64 Quadruple, pre+snu+dig+sig.
+    pub const FIRST_SEEN_REPLAY_COUPLES: &str = "-E"; // Composed Base64 Couple, fnu+dts.
+    pub const TRANS_IDX_SIG_GROUPS: &str = "-F"; // Composed Base64 Group, pre+snu+dig+ControllerIdxSigs group.
+    pub const SEAL_SOURCE_COUPLES: &str = "-G"; // Composed Base64 couple, snu+dig of given delegator/issuer/transaction event
+    pub const TRANS_LAST_IDX_SIG_GROUPS: &str = "-H"; // Composed Base64 Group, pre+ControllerIdxSigs group.
+    pub const SEAL_SOURCE_TRIPLES: &str = "-I"; // Composed Base64 triple, pre+snu+dig of anchoring source event
+    pub const SAD_PATH_SIG_GROUPS: &str = "-J"; // Composed Base64 Group path+TransIdxSigGroup of SAID of content
+    pub const ROOT_SAD_PATH_SIG_GROUPS: &str = "-K"; // Composed Base64 Group, root(path)+SaidPathCouples
+    pub const PATHED_MATERIAL_GROUP: &str = "-L"; // Composed Grouped Pathed Material Quadlet (4 char each)
+    pub const BIG_PATHED_MATERIAL_GROUP: &str = "-0L"; // Composed Grouped Pathed Material Quadlet (4 char each)
+    pub const ATTACHMENT_GROUP: &str = "-V"; // Composed Grouped Attached Material Quadlet (4 char each)
+    pub const BIG_ATTACHMENT_GROUP: &str = "-0V"; // Composed Grouped Attached Material Quadlet (4 char each)
+    pub const ESSR_PAYLOAD_GROUP: &str = "-Z"; // ESSR Payload Group, dig of content+Texter group
+    pub const KERI_ACDC_GENUS_VERSION: &str = "--AAA"; // KERI ACDC Protocol Stack CESR Version
 
     // Define a static tuple of all counter codes
     pub static TUPLE: Lazy<Vec<&'static str>> = Lazy::new(|| {
@@ -93,12 +93,21 @@ pub mod ctr_dex_1_0 {
         let mut map = HashMap::new();
         map.insert(CONTROLLER_IDX_SIGS, "Controller Indexed Signatures");
         map.insert(WITNESS_IDX_SIGS, "Witness Indexed Signatures");
-        map.insert(NON_TRANS_RECEIPT_COUPLES, "Non-Transferable Receipt Couples");
+        map.insert(
+            NON_TRANS_RECEIPT_COUPLES,
+            "Non-Transferable Receipt Couples",
+        );
         map.insert(TRANS_RECEIPT_QUADRUPLES, "Transferable Receipt Quadruples");
         map.insert(FIRST_SEEN_REPLAY_COUPLES, "First Seen Replay Couples");
-        map.insert(TRANS_IDX_SIG_GROUPS, "Transferable Indexed Signature Groups");
+        map.insert(
+            TRANS_IDX_SIG_GROUPS,
+            "Transferable Indexed Signature Groups",
+        );
         map.insert(SEAL_SOURCE_COUPLES, "Seal Source Couples");
-        map.insert(TRANS_LAST_IDX_SIG_GROUPS, "Transferable Last Indexed Signature Groups");
+        map.insert(
+            TRANS_LAST_IDX_SIG_GROUPS,
+            "Transferable Last Indexed Signature Groups",
+        );
         map.insert(SEAL_SOURCE_TRIPLES, "Seal Source Triples");
         map.insert(SAD_PATH_SIG_GROUPS, "SAD Path Signature Groups");
         map.insert(ROOT_SAD_PATH_SIG_GROUPS, "Root SAD Path Signature Groups");
@@ -118,59 +127,59 @@ pub mod ctr_dex_2_0 {
     use std::collections::HashMap;
 
     // Counter Codes for CESR 2.0
-    pub const GENERIC_GROUP: &str = "-A";  // Generic Group (Universal with Override).
-    pub const BIG_GENERIC_GROUP: &str = "-0A";  // Big Generic Group (Universal with Override).
-    pub const MESSAGE_GROUP: &str = "-B";  // Message Body plus Attachments Group (Universal with Override).
-    pub const BIG_MESSAGE_GROUP: &str = "-0B";  // Big Message Body plus Attachments Group (Universal with Override).
-    pub const ATTACHMENT_GROUP: &str = "-C";  // Message Attachments Only Group (Universal with Override).
-    pub const BIG_ATTACHMENT_GROUP: &str = "-0C";  // Big Attachments Only Group (Universal with Override).
-    pub const DATAGRAM_SEGMENT_GROUP: &str = "-D";  // Datagram Segment Group (Universal).
-    pub const BIG_DATAGRAM_SEGMENT_GROUP: &str = "-0D";  // Big Datagram Segment Group (Universal).
-    pub const ESSR_WRAPPER_GROUP: &str = "-E";  // ESSR Wrapper Group (Universal).
-    pub const BIG_ESSR_WRAPPER_GROUP: &str = "-0E";  // Big ESSR Wrapper Group (Universal).
-    pub const FIXED_MESSAGE_BODY_GROUP: &str = "-F";  // Fixed Field Message Body Group (Universal).
-    pub const BIG_FIXED_MESSAGE_BODY_GROUP: &str = "-0F";  // Big Fixed Field Message Body Group (Universal).
-    pub const MAP_MESSAGE_BODY_GROUP: &str = "-G";  // Field Map Message Body Group (Universal).
-    pub const BIG_MAP_MESSAGE_BODY_GROUP: &str = "-0G";  // Big Field Map Message Body Group (Universal).
-    pub const GENERIC_MAP_GROUP: &str = "-H";  // Generic Field Map Group (Universal).
-    pub const BIG_GENERIC_MAP_GROUP: &str = "-0H";  // Big Generic Field Map Group (Universal).
-    pub const GENERIC_LIST_GROUP: &str = "-I";  // Generic List Group (Universal).
-    pub const BIG_GENERIC_LIST_GROUP: &str = "-0I";  // Big Generic List Group (Universal).
-    pub const CONTROLLER_IDX_SIGS: &str = "-J";  // Controller Indexed Signature(s) of qb64.
-    pub const BIG_CONTROLLER_IDX_SIGS: &str = "-0J";  // Big Controller Indexed Signature(s) of qb64.
-    pub const WITNESS_IDX_SIGS: &str = "-K";  // Witness Indexed Signature(s) of qb64.
-    pub const BIG_WITNESS_IDX_SIGS: &str = "-0K";  // Big Witness Indexed Signature(s) of qb64.
-    pub const NON_TRANS_RECEIPT_COUPLES: &str = "-L";  // NonTrans Receipt Couple(s), pre+cig.
-    pub const BIG_NON_TRANS_RECEIPT_COUPLES: &str = "-0L";  // Big NonTrans Receipt Couple(s), pre+cig.
-    pub const TRANS_RECEIPT_QUADRUPLES: &str = "-M";  // Trans Receipt Quadruple(s), pre+snu+dig+sig.
-    pub const BIG_TRANS_RECEIPT_QUADRUPLES: &str = "-0M";  // Big Trans Receipt Quadruple(s), pre+snu+dig+sig.
-    pub const FIRST_SEEN_REPLAY_COUPLES: &str = "-N";  // First Seen Replay Couple(s), fnu+dts.
-    pub const BIG_FIRST_SEEN_REPLAY_COUPLES: &str = "-0N";  // First Seen Replay Couple(s), fnu+dts.
-    pub const TRANS_IDX_SIG_GROUPS: &str = "-O";  // Trans Indexed Signature Group(s), pre+snu+dig+CtrControllerIdxSigs of qb64.
-    pub const BIG_TRANS_IDX_SIG_GROUPS: &str = "-0O";  // Big Trans Indexed Signature Group(s), pre+snu+dig+CtrControllerIdxSigs of qb64.
-    pub const TRANS_LAST_IDX_SIG_GROUPS: &str = "-P";  // Trans Last Est Evt Indexed Signature Group(s), pre+CtrControllerIdxSigs of qb64.
-    pub const BIG_TRANS_LAST_IDX_SIG_GROUPS: &str = "-0P";  // Big Trans Last Est Evt Indexed Signature Group(s), pre+CtrControllerIdxSigs of qb64.
-    pub const SEAL_SOURCE_COUPLES: &str = "-Q";  // Seal Source Couple(s), snu+dig of source sealing or sealed event.
-    pub const BIG_SEAL_SOURCE_COUPLES: &str = "-0Q";  // Seal Source Couple(s), snu+dig of source sealing or sealed event.
-    pub const SEAL_SOURCE_TRIPLES: &str = "-R";  // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
-    pub const BIG_SEAL_SOURCE_TRIPLES: &str = "-0R";  // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
-    pub const PATHED_MATERIAL_GROUP: &str = "-S";  // Pathed Material Group.
-    pub const BIG_PATHED_MATERIAL_GROUP: &str = "-0S";  // Big Pathed Material Group.
-    pub const SAD_PATH_SIG_GROUPS: &str = "-T";  // SAD Path Group(s) sadpath+CtrTransIdxSigGroup(s) of SAID qb64 of content.
-    pub const BIG_SAD_PATH_SIG_GROUPS: &str = "-0T";  // Big SAD Path Group(s) sadpath+CtrTransIdxSigGroup(s) of SAID qb64 of content.
-    pub const ROOT_SAD_PATH_SIG_GROUPS: &str = "-U";  // Root Path SAD Path Group(s), rootpath+SadPathGroup(s).
-    pub const BIG_ROOT_SAD_PATH_SIG_GROUPS: &str = "-0U";  // Big Root Path SAD Path Group(s), rootpath+SadPathGroup(s).
-    pub const DIGEST_SEAL_SINGLES: &str = "-V";  // Digest Seal Single(s), dig of sealed data.
-    pub const BIG_DIGEST_SEAL_SINGLES: &str = "-0V";  // Big Digest Seal Single(s), dig of sealed data.
-    pub const MERKLE_ROOT_SEAL_SINGLES: &str = "-W";  // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
-    pub const BIG_MERKLE_ROOT_SEAL_SINGLES: &str = "-0W";  // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
-    pub const BACKER_REGISTRAR_SEAL_COUPLES: &str = "-X";  // Backer Registrar Seal Couple(s), brid+dig of sealed data.
-    pub const BIG_BACKER_REGISTRAR_SEAL_COUPLES: &str = "-0X";  // Big Backer Registrar Seal Couple(s), brid+dig of sealed data.
-    pub const SEAL_SOURCE_LAST_SINGLES: &str = "-Y";  // Seal Source Couple(s), pre of last source sealing or sealed event.
-    pub const BIG_SEAL_SOURCE_LAST_SINGLES: &str = "-0Y";  // Big Seal Source Couple(s), pre of last source sealing or sealed event.
-    pub const ESSR_PAYLOAD_GROUP: &str = "-Z";  // ESSR Payload Group.
-    pub const BIG_ESSR_PAYLOAD_GROUP: &str = "-0Z";  // Big ESSR Payload Group.
-    pub const KERI_ACDC_GENUS_VERSION: &str = "--AAA";  // KERI ACDC Stack CESR Protocol Genus Version (Universal)
+    pub const GENERIC_GROUP: &str = "-A"; // Generic Group (Universal with Override).
+    pub const BIG_GENERIC_GROUP: &str = "-0A"; // Big Generic Group (Universal with Override).
+    pub const MESSAGE_GROUP: &str = "-B"; // Message Body plus Attachments Group (Universal with Override).
+    pub const BIG_MESSAGE_GROUP: &str = "-0B"; // Big Message Body plus Attachments Group (Universal with Override).
+    pub const ATTACHMENT_GROUP: &str = "-C"; // Message Attachments Only Group (Universal with Override).
+    pub const BIG_ATTACHMENT_GROUP: &str = "-0C"; // Big Attachments Only Group (Universal with Override).
+    pub const DATAGRAM_SEGMENT_GROUP: &str = "-D"; // Datagram Segment Group (Universal).
+    pub const BIG_DATAGRAM_SEGMENT_GROUP: &str = "-0D"; // Big Datagram Segment Group (Universal).
+    pub const ESSR_WRAPPER_GROUP: &str = "-E"; // ESSR Wrapper Group (Universal).
+    pub const BIG_ESSR_WRAPPER_GROUP: &str = "-0E"; // Big ESSR Wrapper Group (Universal).
+    pub const FIXED_MESSAGE_BODY_GROUP: &str = "-F"; // Fixed Field Message Body Group (Universal).
+    pub const BIG_FIXED_MESSAGE_BODY_GROUP: &str = "-0F"; // Big Fixed Field Message Body Group (Universal).
+    pub const MAP_MESSAGE_BODY_GROUP: &str = "-G"; // Field Map Message Body Group (Universal).
+    pub const BIG_MAP_MESSAGE_BODY_GROUP: &str = "-0G"; // Big Field Map Message Body Group (Universal).
+    pub const GENERIC_MAP_GROUP: &str = "-H"; // Generic Field Map Group (Universal).
+    pub const BIG_GENERIC_MAP_GROUP: &str = "-0H"; // Big Generic Field Map Group (Universal).
+    pub const GENERIC_LIST_GROUP: &str = "-I"; // Generic List Group (Universal).
+    pub const BIG_GENERIC_LIST_GROUP: &str = "-0I"; // Big Generic List Group (Universal).
+    pub const CONTROLLER_IDX_SIGS: &str = "-J"; // Controller Indexed Signature(s) of qb64.
+    pub const BIG_CONTROLLER_IDX_SIGS: &str = "-0J"; // Big Controller Indexed Signature(s) of qb64.
+    pub const WITNESS_IDX_SIGS: &str = "-K"; // Witness Indexed Signature(s) of qb64.
+    pub const BIG_WITNESS_IDX_SIGS: &str = "-0K"; // Big Witness Indexed Signature(s) of qb64.
+    pub const NON_TRANS_RECEIPT_COUPLES: &str = "-L"; // NonTrans Receipt Couple(s), pre+cig.
+    pub const BIG_NON_TRANS_RECEIPT_COUPLES: &str = "-0L"; // Big NonTrans Receipt Couple(s), pre+cig.
+    pub const TRANS_RECEIPT_QUADRUPLES: &str = "-M"; // Trans Receipt Quadruple(s), pre+snu+dig+sig.
+    pub const BIG_TRANS_RECEIPT_QUADRUPLES: &str = "-0M"; // Big Trans Receipt Quadruple(s), pre+snu+dig+sig.
+    pub const FIRST_SEEN_REPLAY_COUPLES: &str = "-N"; // First Seen Replay Couple(s), fnu+dts.
+    pub const BIG_FIRST_SEEN_REPLAY_COUPLES: &str = "-0N"; // First Seen Replay Couple(s), fnu+dts.
+    pub const TRANS_IDX_SIG_GROUPS: &str = "-O"; // Trans Indexed Signature Group(s), pre+snu+dig+CtrControllerIdxSigs of qb64.
+    pub const BIG_TRANS_IDX_SIG_GROUPS: &str = "-0O"; // Big Trans Indexed Signature Group(s), pre+snu+dig+CtrControllerIdxSigs of qb64.
+    pub const TRANS_LAST_IDX_SIG_GROUPS: &str = "-P"; // Trans Last Est Evt Indexed Signature Group(s), pre+CtrControllerIdxSigs of qb64.
+    pub const BIG_TRANS_LAST_IDX_SIG_GROUPS: &str = "-0P"; // Big Trans Last Est Evt Indexed Signature Group(s), pre+CtrControllerIdxSigs of qb64.
+    pub const SEAL_SOURCE_COUPLES: &str = "-Q"; // Seal Source Couple(s), snu+dig of source sealing or sealed event.
+    pub const BIG_SEAL_SOURCE_COUPLES: &str = "-0Q"; // Seal Source Couple(s), snu+dig of source sealing or sealed event.
+    pub const SEAL_SOURCE_TRIPLES: &str = "-R"; // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
+    pub const BIG_SEAL_SOURCE_TRIPLES: &str = "-0R"; // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
+    pub const PATHED_MATERIAL_GROUP: &str = "-S"; // Pathed Material Group.
+    pub const BIG_PATHED_MATERIAL_GROUP: &str = "-0S"; // Big Pathed Material Group.
+    pub const SAD_PATH_SIG_GROUPS: &str = "-T"; // SAD Path Group(s) sadpath+CtrTransIdxSigGroup(s) of SAID qb64 of content.
+    pub const BIG_SAD_PATH_SIG_GROUPS: &str = "-0T"; // Big SAD Path Group(s) sadpath+CtrTransIdxSigGroup(s) of SAID qb64 of content.
+    pub const ROOT_SAD_PATH_SIG_GROUPS: &str = "-U"; // Root Path SAD Path Group(s), rootpath+SadPathGroup(s).
+    pub const BIG_ROOT_SAD_PATH_SIG_GROUPS: &str = "-0U"; // Big Root Path SAD Path Group(s), rootpath+SadPathGroup(s).
+    pub const DIGEST_SEAL_SINGLES: &str = "-V"; // Digest Seal Single(s), dig of sealed data.
+    pub const BIG_DIGEST_SEAL_SINGLES: &str = "-0V"; // Big Digest Seal Single(s), dig of sealed data.
+    pub const MERKLE_ROOT_SEAL_SINGLES: &str = "-W"; // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
+    pub const BIG_MERKLE_ROOT_SEAL_SINGLES: &str = "-0W"; // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
+    pub const BACKER_REGISTRAR_SEAL_COUPLES: &str = "-X"; // Backer Registrar Seal Couple(s), brid+dig of sealed data.
+    pub const BIG_BACKER_REGISTRAR_SEAL_COUPLES: &str = "-0X"; // Big Backer Registrar Seal Couple(s), brid+dig of sealed data.
+    pub const SEAL_SOURCE_LAST_SINGLES: &str = "-Y"; // Seal Source Couple(s), pre of last source sealing or sealed event.
+    pub const BIG_SEAL_SOURCE_LAST_SINGLES: &str = "-0Y"; // Big Seal Source Couple(s), pre of last source sealing or sealed event.
+    pub const ESSR_PAYLOAD_GROUP: &str = "-Z"; // ESSR Payload Group.
+    pub const BIG_ESSR_PAYLOAD_GROUP: &str = "-0Z"; // Big ESSR Payload Group.
+    pub const KERI_ACDC_GENUS_VERSION: &str = "--AAA"; // KERI ACDC Stack CESR Protocol Genus Version (Universal)
 
     // Define a static tuple of all counter codes
     pub static TUPLE: Lazy<Vec<&'static str>> = Lazy::new(|| {
@@ -245,9 +254,15 @@ pub mod ctr_dex_2_0 {
         map.insert(ESSR_WRAPPER_GROUP, "ESSR Wrapper Group");
         map.insert(BIG_ESSR_WRAPPER_GROUP, "Big ESSR Wrapper Group");
         map.insert(FIXED_MESSAGE_BODY_GROUP, "Fixed Field Message Body Group");
-        map.insert(BIG_FIXED_MESSAGE_BODY_GROUP, "Big Fixed Field Message Body Group");
+        map.insert(
+            BIG_FIXED_MESSAGE_BODY_GROUP,
+            "Big Fixed Field Message Body Group",
+        );
         map.insert(MAP_MESSAGE_BODY_GROUP, "Field Map Message Body Group");
-        map.insert(BIG_MAP_MESSAGE_BODY_GROUP, "Big Field Map Message Body Group");
+        map.insert(
+            BIG_MAP_MESSAGE_BODY_GROUP,
+            "Big Field Map Message Body Group",
+        );
         map.insert(GENERIC_MAP_GROUP, "Generic Field Map Group");
         map.insert(BIG_GENERIC_MAP_GROUP, "Big Generic Field Map Group");
         map.insert(GENERIC_LIST_GROUP, "Generic List Group");
@@ -256,16 +271,40 @@ pub mod ctr_dex_2_0 {
         map.insert(BIG_CONTROLLER_IDX_SIGS, "Big Controller Indexed Signatures");
         map.insert(WITNESS_IDX_SIGS, "Witness Indexed Signatures");
         map.insert(BIG_WITNESS_IDX_SIGS, "Big Witness Indexed Signatures");
-        map.insert(NON_TRANS_RECEIPT_COUPLES, "Non-Transferable Receipt Couples");
-        map.insert(BIG_NON_TRANS_RECEIPT_COUPLES, "Big Non-Transferable Receipt Couples");
+        map.insert(
+            NON_TRANS_RECEIPT_COUPLES,
+            "Non-Transferable Receipt Couples",
+        );
+        map.insert(
+            BIG_NON_TRANS_RECEIPT_COUPLES,
+            "Big Non-Transferable Receipt Couples",
+        );
         map.insert(TRANS_RECEIPT_QUADRUPLES, "Transferable Receipt Quadruples");
-        map.insert(BIG_TRANS_RECEIPT_QUADRUPLES, "Big Transferable Receipt Quadruples");
+        map.insert(
+            BIG_TRANS_RECEIPT_QUADRUPLES,
+            "Big Transferable Receipt Quadruples",
+        );
         map.insert(FIRST_SEEN_REPLAY_COUPLES, "First Seen Replay Couples");
-        map.insert(BIG_FIRST_SEEN_REPLAY_COUPLES, "Big First Seen Replay Couples");
-        map.insert(TRANS_IDX_SIG_GROUPS, "Transferable Indexed Signature Groups");
-        map.insert(BIG_TRANS_IDX_SIG_GROUPS, "Big Transferable Indexed Signature Groups");
-        map.insert(TRANS_LAST_IDX_SIG_GROUPS, "Transferable Last Indexed Signature Groups");
-        map.insert(BIG_TRANS_LAST_IDX_SIG_GROUPS, "Big Transferable Last Indexed Signature Groups");
+        map.insert(
+            BIG_FIRST_SEEN_REPLAY_COUPLES,
+            "Big First Seen Replay Couples",
+        );
+        map.insert(
+            TRANS_IDX_SIG_GROUPS,
+            "Transferable Indexed Signature Groups",
+        );
+        map.insert(
+            BIG_TRANS_IDX_SIG_GROUPS,
+            "Big Transferable Indexed Signature Groups",
+        );
+        map.insert(
+            TRANS_LAST_IDX_SIG_GROUPS,
+            "Transferable Last Indexed Signature Groups",
+        );
+        map.insert(
+            BIG_TRANS_LAST_IDX_SIG_GROUPS,
+            "Big Transferable Last Indexed Signature Groups",
+        );
         map.insert(SEAL_SOURCE_COUPLES, "Seal Source Couples");
         map.insert(BIG_SEAL_SOURCE_COUPLES, "Big Seal Source Couples");
         map.insert(SEAL_SOURCE_TRIPLES, "Seal Source Triples");
@@ -275,13 +314,22 @@ pub mod ctr_dex_2_0 {
         map.insert(SAD_PATH_SIG_GROUPS, "SAD Path Signature Groups");
         map.insert(BIG_SAD_PATH_SIG_GROUPS, "Big SAD Path Signature Groups");
         map.insert(ROOT_SAD_PATH_SIG_GROUPS, "Root SAD Path Signature Groups");
-        map.insert(BIG_ROOT_SAD_PATH_SIG_GROUPS, "Big Root SAD Path Signature Groups");
+        map.insert(
+            BIG_ROOT_SAD_PATH_SIG_GROUPS,
+            "Big Root SAD Path Signature Groups",
+        );
         map.insert(DIGEST_SEAL_SINGLES, "Digest Seal Singles");
         map.insert(BIG_DIGEST_SEAL_SINGLES, "Big Digest Seal Singles");
         map.insert(MERKLE_ROOT_SEAL_SINGLES, "Merkle Root Seal Singles");
         map.insert(BIG_MERKLE_ROOT_SEAL_SINGLES, "Big Merkle Root Seal Singles");
-        map.insert(BACKER_REGISTRAR_SEAL_COUPLES, "Backer Registrar Seal Couples");
-        map.insert(BIG_BACKER_REGISTRAR_SEAL_COUPLES, "Big Backer Registrar Seal Couples");
+        map.insert(
+            BACKER_REGISTRAR_SEAL_COUPLES,
+            "Backer Registrar Seal Couples",
+        );
+        map.insert(
+            BIG_BACKER_REGISTRAR_SEAL_COUPLES,
+            "Big Backer Registrar Seal Couples",
+        );
         map.insert(SEAL_SOURCE_LAST_SINGLES, "Seal Source Last Singles");
         map.insert(BIG_SEAL_SOURCE_LAST_SINGLES, "Big Seal Source Last Singles");
         map.insert(ESSR_PAYLOAD_GROUP, "ESSR Payload Group");
@@ -297,18 +345,18 @@ pub mod seal_dex_2_0 {
     use std::collections::HashMap;
 
     // Seal Indexing Constants
-    pub const SEAL_SOURCE_COUPLES: &str = "-Q";  // Seal Source Couple(s), snu+dig of source sealing or sealed event.
-    pub const BIG_SEAL_SOURCE_COUPLES: &str = "-0Q";  // Seal Source Couple(s), snu+dig of source sealing or sealed event.
-    pub const SEAL_SOURCE_TRIPLES: &str = "-R";  // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
-    pub const BIG_SEAL_SOURCE_TRIPLES: &str = "-0R";  // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
-    pub const DIGEST_SEAL_SINGLES: &str = "-V";  // Digest Seal Single(s), dig of sealed data.
-    pub const BIG_DIGEST_SEAL_SINGLES: &str = "-0V";  // Big Digest Seal Single(s), dig of sealed data.
-    pub const MERKLE_ROOT_SEAL_SINGLES: &str = "-W";  // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
-    pub const BIG_MERKLE_ROOT_SEAL_SINGLES: &str = "-0W";  // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
-    pub const BACKER_REGISTRAR_SEAL_COUPLES: &str = "-X";  // Backer Registrar Seal Couple(s), brid+dig of sealed data.
-    pub const BIG_BACKER_REGISTRAR_SEAL_COUPLES: &str = "-0X";  // Big Backer Registrar Seal Couple(s), brid+dig of sealed data.
-    pub const SEAL_SOURCE_LAST_SINGLES: &str = "-Y";  // Seal Source Couple(s), pre of last source sealing event.
-    pub const BIG_SEAL_SOURCE_LAST_SINGLES: &str = "-0Y";  // Big Seal Source Couple(s), pre of last source sealing event.
+    pub const SEAL_SOURCE_COUPLES: &str = "-Q"; // Seal Source Couple(s), snu+dig of source sealing or sealed event.
+    pub const BIG_SEAL_SOURCE_COUPLES: &str = "-0Q"; // Seal Source Couple(s), snu+dig of source sealing or sealed event.
+    pub const SEAL_SOURCE_TRIPLES: &str = "-R"; // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
+    pub const BIG_SEAL_SOURCE_TRIPLES: &str = "-0R"; // Seal Source Triple(s), pre+snu+dig of source sealing or sealed event.
+    pub const DIGEST_SEAL_SINGLES: &str = "-V"; // Digest Seal Single(s), dig of sealed data.
+    pub const BIG_DIGEST_SEAL_SINGLES: &str = "-0V"; // Big Digest Seal Single(s), dig of sealed data.
+    pub const MERKLE_ROOT_SEAL_SINGLES: &str = "-W"; // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
+    pub const BIG_MERKLE_ROOT_SEAL_SINGLES: &str = "-0W"; // Merkle Tree Root Digest Seal Single(s), dig of sealed data.
+    pub const BACKER_REGISTRAR_SEAL_COUPLES: &str = "-X"; // Backer Registrar Seal Couple(s), brid+dig of sealed data.
+    pub const BIG_BACKER_REGISTRAR_SEAL_COUPLES: &str = "-0X"; // Big Backer Registrar Seal Couple(s), brid+dig of sealed data.
+    pub const SEAL_SOURCE_LAST_SINGLES: &str = "-Y"; // Seal Source Couple(s), pre of last source sealing event.
+    pub const BIG_SEAL_SOURCE_LAST_SINGLES: &str = "-0Y"; // Big Seal Source Couple(s), pre of last source sealing event.
 
     // Define a static tuple of all seal codes
     pub static TUPLE: Lazy<Vec<&'static str>> = Lazy::new(|| {
@@ -339,20 +387,25 @@ pub mod seal_dex_2_0 {
         map.insert(BIG_DIGEST_SEAL_SINGLES, "Big Digest Seal Singles");
         map.insert(MERKLE_ROOT_SEAL_SINGLES, "Merkle Root Seal Singles");
         map.insert(BIG_MERKLE_ROOT_SEAL_SINGLES, "Big Merkle Root Seal Singles");
-        map.insert(BACKER_REGISTRAR_SEAL_COUPLES, "Backer Registrar Seal Couples");
-        map.insert(BIG_BACKER_REGISTRAR_SEAL_COUPLES, "Big Backer Registrar Seal Couples");
+        map.insert(
+            BACKER_REGISTRAR_SEAL_COUPLES,
+            "Backer Registrar Seal Couples",
+        );
+        map.insert(
+            BIG_BACKER_REGISTRAR_SEAL_COUPLES,
+            "Big Backer Registrar Seal Couples",
+        );
         map.insert(SEAL_SOURCE_LAST_SINGLES, "Seal Source Last Singles");
         map.insert(BIG_SEAL_SOURCE_LAST_SINGLES, "Big Seal Source Last Singles");
         map
     });
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct Cizage {
-    pub hs: u32,  // header size
-    pub ss: u32,  // section size
-    pub fs: u32,  // field size
+    pub hs: u32, // header size
+    pub ss: u32, // section size
+    pub fs: u32, // field size
 }
 
 /// Returns a HashMap mapping CESR counter codes to their size specifications
@@ -360,29 +413,148 @@ pub fn get_sizes_1_0() -> HashMap<&'static str, Cizage> {
     let mut sizes = HashMap::new();
 
     // Add standard counter code sizes
-    sizes.insert("-A", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-B", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-C", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-D", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-E", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-F", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-G", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-H", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-I", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-J", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-K", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-L", Cizage { hs: 2, ss: 2, fs: 4 });
+    sizes.insert(
+        "-A",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-B",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-C",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-D",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-E",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-F",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-G",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-H",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-I",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-J",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-K",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-L",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
 
     // Add big counter code sizes
-    sizes.insert("-0L", Cizage { hs: 3, ss: 5, fs: 8 });
+    sizes.insert(
+        "-0L",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
 
     // Add seal sizes
-    sizes.insert("-V", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-0V", Cizage { hs: 3, ss: 5, fs: 8 });
+    sizes.insert(
+        "-V",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-0V",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
 
     // Add other special codes
-    sizes.insert("-Z", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("--AAA", Cizage { hs: 5, ss: 3, fs: 8 });
+    sizes.insert(
+        "-Z",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "--AAA",
+        Cizage {
+            hs: 5,
+            ss: 3,
+            fs: 8,
+        },
+    );
 
     sizes
 }
@@ -392,63 +564,434 @@ pub fn get_sizes_2_0() -> HashMap<&'static str, Cizage> {
     let mut sizes = HashMap::new();
 
     // Standard counter codes
-    sizes.insert("-A", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-B", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-C", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-D", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-E", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-F", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-G", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-H", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-I", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-J", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-K", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-L", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-M", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-N", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-O", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-P", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-Q", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-R", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-S", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-T", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-U", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-V", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-W", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-X", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-Y", Cizage { hs: 2, ss: 2, fs: 4 });
-    sizes.insert("-Z", Cizage { hs: 2, ss: 2, fs: 4 });
+    sizes.insert(
+        "-A",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-B",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-C",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-D",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-E",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-F",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-G",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-H",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-I",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-J",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-K",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-L",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-M",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-N",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-O",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-P",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-Q",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-R",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-S",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-T",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-U",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-V",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-W",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-X",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-Y",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
+    sizes.insert(
+        "-Z",
+        Cizage {
+            hs: 2,
+            ss: 2,
+            fs: 4,
+        },
+    );
 
     // Big counter codes
-    sizes.insert("-0A", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0B", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0C", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0D", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0E", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0F", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0G", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0H", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0I", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0J", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0K", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0L", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0M", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0N", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0O", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0P", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0Q", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0R", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0S", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0T", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0U", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0V", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0W", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0X", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0Y", Cizage { hs: 3, ss: 5, fs: 8 });
-    sizes.insert("-0Z", Cizage { hs: 3, ss: 5, fs: 8 });
+    sizes.insert(
+        "-0A",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0B",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0C",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0D",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0E",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0F",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0G",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0H",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0I",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0J",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0K",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0L",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0M",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0N",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0O",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0P",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0Q",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0R",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0S",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0T",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0U",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0V",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0W",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0X",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0Y",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
+    sizes.insert(
+        "-0Z",
+        Cizage {
+            hs: 3,
+            ss: 5,
+            fs: 8,
+        },
+    );
 
     // Special code
-    sizes.insert("--AAA", Cizage { hs: 5, ss: 3, fs: 8 });
+    sizes.insert(
+        "--AAA",
+        Cizage {
+            hs: 5,
+            ss: 3,
+            fs: 8,
+        },
+    );
 
     sizes
 }
@@ -478,8 +1021,8 @@ pub fn hards() -> HashMap<Vec<u8>, u32> {
     }
 
     // Add special codes
-    map.insert(b"-0".to_vec(), 3);  // Big code indicator
-    map.insert(b"--".to_vec(), 5);  // Special index indicator
+    map.insert(b"-0".to_vec(), 3); // Big code indicator
+    map.insert(b"--".to_vec(), 5); // Special index indicator
 
     map
 }
@@ -493,20 +1036,26 @@ pub static BARDS: Lazy<HashMap<Vec<u8>, u32>> = Lazy::new(|| {
 
     // All other keys with value 2
     // 0xf8 series
-    for second_byte in [0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70,
-        0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0] {
+    for second_byte in [
+        0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0,
+        0xf0,
+    ] {
         map.insert(vec![0xf8, second_byte], 2);
     }
 
     // 0xf9 series
-    for second_byte in [0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70,
-        0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0] {
+    for second_byte in [
+        0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0,
+        0xf0,
+    ] {
         map.insert(vec![0xf9, second_byte], 2);
     }
 
     // 0xfa series
-    for second_byte in [0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70,
-        0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0] {
+    for second_byte in [
+        0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0,
+        0xf0,
+    ] {
         map.insert(vec![0xfa, second_byte], 2);
     }
 
@@ -537,7 +1086,7 @@ pub fn code_b64_to_b2(s: Vec<u8>) -> Vec<u8> {
     // Convert Base64 byte vector to BigUint
     let ss = str::from_utf8(&s).unwrap();
 
-    let i = b64_to_int(ss);  // Assuming b64_to_int is modified to accept &[u8]
+    let i = b64_to_int(ss); // Assuming b64_to_int is modified to accept &[u8]
 
     // Add 2 bits right zero padding for each sextet
     let padding_bits = 2 * (s.len() % 4);
@@ -549,7 +1098,6 @@ pub fn code_b64_to_b2(s: Vec<u8>) -> Vec<u8> {
     // Convert to bytes in big-endian order
     padded_i.to_bytes_be().to_vec()
 }
-
 
 /// Convert Base64 encoded string to integer
 fn b64_to_int(s: &str) -> BigUint {
@@ -626,17 +1174,29 @@ pub trait Counter {
 pub struct BaseCounter {
     code: String,
     count: u64,
-    version: Versionage
+    version: Versionage,
 }
 
 impl BaseCounter {
-    pub fn from_code_and_count(code: Option<&str>, count: Option<u64>, count_b64: Option<&str>) -> Result<Self, MatterError> {
+    pub fn from_code_and_count(
+        code: Option<&str>,
+        count: Option<u64>,
+        count_b64: Option<&str>,
+    ) -> Result<Self, MatterError> {
         // Get the latest version for codes and sizes
         let gvrsn = VERSION; // assuming VERSION is a global constant similar to Python's gvrsn
 
         // Use the latest supported version codes and sizes
-        let codes = if gvrsn.major == 1 { &ctr_dex_1_0::MAP } else { &ctr_dex_2_0::MAP };
-        let sizes = if gvrsn.major == 1 { &get_sizes_1_0() } else { &get_sizes_2_0() };
+        let codes = if gvrsn.major == 1 {
+            &ctr_dex_1_0::MAP
+        } else {
+            &ctr_dex_2_0::MAP
+        };
+        let sizes = if gvrsn.major == 1 {
+            &get_sizes_1_0()
+        } else {
+            &get_sizes_2_0()
+        };
 
         // Process the code provided
         let mut code_str = match code {
@@ -652,11 +1212,17 @@ impl BaseCounter {
                     code_str = actual_code.to_string();
                     // Verify the actual code is valid
                     if !sizes.contains_key(code_str.as_str()) || code_str.len() < 2 {
-                        return Err(MatterError::InvalidCode(format!("Unsupported code={}", code_str)));
+                        return Err(MatterError::InvalidCode(format!(
+                            "Unsupported code={}",
+                            code_str
+                        )));
                     }
                 }
                 None => {
-                    return Err(MatterError::InvalidCode(format!("Unsupported code={}", code_str)));
+                    return Err(MatterError::InvalidCode(format!(
+                        "Unsupported code={}",
+                        code_str
+                    )));
                 }
             }
         }
@@ -687,7 +1253,8 @@ impl BaseCounter {
         let mut code_str = code_str;
         let mut ss_value = ss;
 
-        if !"-123456789-_".contains(&code_str[1..2]) { // small [A-Z,a-z] or large [0]
+        if !"-123456789-_".contains(&code_str[1..2]) {
+            // small [A-Z,a-z] or large [0]
             if ss != 2 && ss != 5 {
                 return Err(MatterError::InvalidVarIndex(format!(
                     "Invalid ss={} for code={}",
@@ -720,40 +1287,50 @@ impl BaseCounter {
 
     pub fn from_qb64(qb64: &str) -> Result<Self, MatterError> {
         if qb64.is_empty() {
-            return Err(MatterError::ShortageError("Empty material, Need more characters.".to_string()));
+            return Err(MatterError::ShortageError(
+                "Empty material, Need more characters.".to_string(),
+            ));
         }
 
         // Extract first two char code selector
         if qb64.len() < 2 {
-            return Err(MatterError::ShortageError(format!("Need {} more characters.", 2 - qb64.len())));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more characters.",
+                2 - qb64.len()
+            )));
         }
 
         let hards = hards();
         let sizes = &get_sizes_1_0();
 
         let first = &qb64[..2];
-            // .map_err(|_| MatterError::EncodingError("Invalid UTF-8 in code selector".to_string()))?;
+        // .map_err(|_| MatterError::EncodingError("Invalid UTF-8 in code selector".to_string()))?;
 
         if !hards.contains_key(first.as_bytes()) {
-            return Err(MatterError::InvalidCode(format!("Invalid code selector={}", first)));
+            return Err(MatterError::InvalidCode(format!(
+                "Invalid code selector={}",
+                first
+            )));
         }
 
         // Get hard code size
         let hs = *hards.get(first.as_bytes()).unwrap() as usize;
 
         if qb64.len() < hs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more characters.", hs - qb64.len()),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more characters.",
+                hs - qb64.len()
+            )));
         }
 
         // Get hard code
         let hard = &qb64[..hs];
 
         if !sizes.contains_key(hard) {
-            return Err(MatterError::UnexpectedCodeError(
-                format!("Unsupported code ={}", hard),
-            ));
+            return Err(MatterError::UnexpectedCodeError(format!(
+                "Unsupported code ={}",
+                hard
+            )));
         }
 
         // Get sizes for the hard code
@@ -762,9 +1339,10 @@ impl BaseCounter {
 
         // Check if we have enough bytes for the full code
         if qb64.len() < fs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more characters.", fs - qb64.len()),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more characters.",
+                fs - qb64.len()
+            )));
         }
 
         // Extract count chars
@@ -778,17 +1356,18 @@ impl BaseCounter {
             .ok_or_else(|| MatterError::ValueError("Count value too large for u64".to_string()))?;
 
         // Update the struct fields
-       Ok(BaseCounter {
+        Ok(BaseCounter {
             code: hard.to_string(),
             count,
             version: VERSION,
         })
-
     }
 
     fn bexfil(qb2: &[u8]) -> Result<Self, MatterError> {
         if qb2.is_empty() {
-            return Err(MatterError::ShortageError("Empty material, Need more bytes.".to_string()));
+            return Err(MatterError::ShortageError(
+                "Empty material, Need more bytes.".to_string(),
+            ));
         }
         let sizes = &get_sizes_1_0();
 
@@ -803,10 +1382,11 @@ impl BaseCounter {
                     "Unexpected op code start while extracting Matter.".to_string(),
                 ))
             } else {
-                Err(MatterError::UnexpectedCodeError(
-                    format!("Unsupported code start sextet={:?}", first),
-                ))
-            }
+                Err(MatterError::UnexpectedCodeError(format!(
+                    "Unsupported code start sextet={:?}",
+                    first
+                )))
+            };
         }
 
         // Get code hard size equivalent sextets
@@ -816,9 +1396,10 @@ impl BaseCounter {
         let bhs = ((hs * 3 + 3) / 4) as usize; // ceiling division of hs * 3 / 4
 
         if qb2.len() < bhs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more bytes.", bhs - qb2.len()),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more bytes.",
+                bhs - qb2.len()
+            )));
         }
 
         // Extract and convert hard part of code
@@ -826,9 +1407,10 @@ impl BaseCounter {
             .map_err(|e| MatterError::EncodingError(format!("Failed to convert code: {}", e)))?;
 
         if !sizes.contains_key(hard.as_str()) {
-            return Err(MatterError::UnexpectedCodeError(
-                format!("Unsupported code ={}", hard),
-            ));
+            return Err(MatterError::UnexpectedCodeError(format!(
+                "Unsupported code ={}",
+                hard
+            )));
         }
 
         // Get sizes for the hard code
@@ -839,9 +1421,10 @@ impl BaseCounter {
         let bcs = (fs * 3 + 3) / 4; // ceiling division of fs * 3 / 4
 
         if qb2.len() < bcs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more bytes.", bcs - qb2.len()),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more bytes.",
+                bcs - qb2.len()
+            )));
         }
 
         // Extract and convert both hard and soft part of code
@@ -862,7 +1445,7 @@ impl BaseCounter {
     }
 
     fn infil(&self) -> Result<String, MatterError> {
-        let code = &self.code;  // codex value chars hard code
+        let code = &self.code; // codex value chars hard code
         let count = self.count; // index value int used for soft
 
         let sizes = &get_sizes_1_0();
@@ -876,14 +1459,15 @@ impl BaseCounter {
         // - hs >= 2, ss > 0, fs == hs + ss, and fs is divisible by 4
 
         // Check if count is in valid range
-        let max_count = pow_u64(64, ss)
-            .checked_sub(1)
-            .ok_or_else(|| MatterError::ValueError("Arithmetic overflow in max count calculation".to_string()))?;
+        let max_count = pow_u64(64, ss).checked_sub(1).ok_or_else(|| {
+            MatterError::ValueError("Arithmetic overflow in max count calculation".to_string())
+        })?;
 
         if count > max_count {
-            return Err(MatterError::InvalidVarIndexError(
-                format!("Invalid count={} for code={}.", count, code)
-            ));
+            return Err(MatterError::InvalidVarIndexError(format!(
+                "Invalid count={} for code={}.",
+                count, code
+            )));
         }
 
         // Convert count to base64 with specified length
@@ -894,9 +1478,11 @@ impl BaseCounter {
 
         // Check valid pad size for whole code size
         if both.len() % 4 != 0 {
-            return Err(MatterError::InvalidCodeSizeError(
-                format!("Invalid size = {} of {} not a multiple of 4.", both.len(), both)
-            ));
+            return Err(MatterError::InvalidCodeSizeError(format!(
+                "Invalid size = {} of {} not a multiple of 4.",
+                both.len(),
+                both
+            )));
         }
 
         // Return UTF-8 encoded bytes of the combined string
@@ -904,7 +1490,7 @@ impl BaseCounter {
     }
 
     fn binfil(&self) -> Result<Vec<u8>, MatterError> {
-        let code = &self.code;  // codex chars hard code
+        let code = &self.code; // codex chars hard code
         let count = self.count; // index value int used for soft
 
         let sizes = &get_sizes_1_0();
@@ -918,14 +1504,15 @@ impl BaseCounter {
         // - hs >= 2, ss > 0, fs == hs + ss, and fs is divisible by 4
 
         // Check if count is in valid range
-        let max_count = pow_u64(64, ss)
-            .checked_sub(1)
-            .ok_or_else(|| MatterError::ValueError("Arithmetic overflow in max count calculation".to_string()))?;
+        let max_count = pow_u64(64, ss).checked_sub(1).ok_or_else(|| {
+            MatterError::ValueError("Arithmetic overflow in max count calculation".to_string())
+        })?;
 
         if count > max_count {
-            return Err(MatterError::InvalidVarIndexError(
-                format!("Invalid count={} for code={}.", count, code)
-            ));
+            return Err(MatterError::InvalidVarIndexError(format!(
+                "Invalid count={} for code={}.",
+                count, code
+            )));
         }
 
         // Convert count to base64 with specified length
@@ -936,9 +1523,11 @@ impl BaseCounter {
 
         // Verify the combined code has the expected length
         if both.len() != fs as usize {
-            return Err(MatterError::InvalidCodeSizeError(
-                format!("Mismatch code size = {} with table = {}.", fs, both.len())
-            ));
+            return Err(MatterError::InvalidCodeSizeError(format!(
+                "Mismatch code size = {} with table = {}.",
+                fs,
+                both.len()
+            )));
         }
 
         // Convert the combined base64 code to base2 bytes (binary representation)
@@ -1013,7 +1602,7 @@ impl Counter for BaseCounter {
     }
 
     fn both(&self) -> String {
-        format!{"{}{}", self.code(), self.soft()}
+        format! {"{}{}", self.code(), self.soft()}
     }
 
     fn full_size(&self) -> u32 {
@@ -1033,9 +1622,9 @@ impl Counter for BaseCounter {
 
 #[cfg(test)]
 mod tests {
+    use super::gen_dex;
     use super::*;
     use crate::cesr::decode_b64;
-    use super::gen_dex;
 
     #[test]
     fn test_genus_codes() {
@@ -1068,11 +1657,7 @@ mod tests {
         let mut qscb2 = decode_b64(&qsc)?;
 
         // Test with code and count
-        let counter = BaseCounter::from_code_and_count(
-            Some(code.as_str()),
-            Some(count),
-            None
-        )?;
+        let counter = BaseCounter::from_code_and_count(Some(code.as_str()), Some(count), None)?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1106,7 +1691,7 @@ mod tests {
         let counter = BaseCounter::from_code_and_count(
             Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS.clone()),
             Some(count),
-            None
+            None,
         )?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
@@ -1133,9 +1718,7 @@ mod tests {
         assert_eq!(counter.version.minor, 0);
 
         // Test with qb64 bytes
-        let counter = BaseCounter::from_qb64b(
-            &mut qscb, None
-        )?;
+        let counter = BaseCounter::from_qb64b(&mut qscb, None)?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1146,9 +1729,7 @@ mod tests {
         assert_eq!(counter.version.minor, 0);
 
         // Test with qb64 string
-        let counter = BaseCounter::from_qb64(
-            qsc.as_str(),
-        )?;
+        let counter = BaseCounter::from_qb64(qsc.as_str())?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1159,9 +1740,7 @@ mod tests {
         assert_eq!(counter.version.minor, 0);
 
         // Test with qb2
-        let counter = BaseCounter::from_qb2(
-            &mut qscb2, None
-        ).expect("Failed to decode qb2");
+        let counter = BaseCounter::from_qb2(&mut qscb2, None).expect("Failed to decode qb2");
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1173,39 +1752,35 @@ mod tests {
 
         // Test truncates extra bytes from qb64 parameter
         let long_qsc64 = format!("{}ABCD", qsc);
-        let counter = BaseCounter::from_qb64(
-            long_qsc64.as_str(),
-        )?;
+        let counter = BaseCounter::from_qb64(long_qsc64.as_str())?;
         assert_eq!(counter.qb64().len(), counter.full_size() as usize);
 
         // Test ShortageError if not enough bytes in qb64 parameter
-        let short_qsc64 = qsc[..qsc.len()-1].to_string();
-        let result = BaseCounter::from_qb64(
-            short_qsc64.as_str(),
-        );
+        let short_qsc64 = qsc[..qsc.len() - 1].to_string();
+        let result = BaseCounter::from_qb64(short_qsc64.as_str());
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), MatterError::ShortageError(_)));
 
         // Test truncates extra bytes from qb2 parameter
         let mut long_qscb2 = qscb2.clone();
         long_qscb2.extend_from_slice(&[1, 2, 3, 4, 5]);
-        let counter = BaseCounter::from_qb2(
-            &mut long_qscb2, None
-        )?;
+        let counter = BaseCounter::from_qb2(&mut long_qscb2, None)?;
         assert_eq!(counter.qb2(), qscb2);
         assert_eq!(counter.qb64().len(), counter.full_size() as usize);
 
         // Test ShortageError if not enough bytes in qb2 parameter
-        let mut short_qscb2 = qscb2[..qscb2.len()-1].to_vec();
-        let result = BaseCounter::from_qb2(
-            &mut short_qscb2, None
-        );
+        let mut short_qscb2 = qscb2[..qscb2.len() - 1].to_vec();
+        let result = BaseCounter::from_qb2(&mut short_qscb2, None);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), MatterError::ShortageError(_)));
 
         // Test with non-zero count=5
         let count = 5u64;
-        let qsc = format!("{}{}", ctr_dex_1_0::CONTROLLER_IDX_SIGS, int_to_b64(count as u32, 2));
+        let qsc = format!(
+            "{}{}",
+            ctr_dex_1_0::CONTROLLER_IDX_SIGS,
+            int_to_b64(count as u32, 2)
+        );
         assert_eq!(qsc, "-AAF");
         let mut qscb = qsc.as_bytes().to_vec();
         let qscb2 = decode_b64(&qsc)?;
@@ -1225,9 +1800,7 @@ mod tests {
         assert_eq!(counter.version.minor, 0);
 
         // Test with qb64 bytes
-        let counter = BaseCounter::from_qb64b(
-            &mut qscb, None
-        )?;
+        let counter = BaseCounter::from_qb64b(&mut qscb, None)?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1239,7 +1812,11 @@ mod tests {
 
         // Test with big codes index=100024000
         let count = 100024000u64;
-        let qsc = format!("{}{}", ctr_dex_1_0::BIG_ATTACHMENT_GROUP, int_to_b64(count as u32, 5));
+        let qsc = format!(
+            "{}{}",
+            ctr_dex_1_0::BIG_ATTACHMENT_GROUP,
+            int_to_b64(count as u32, 5)
+        );
         assert_eq!(qsc, "-0VF9j7A");
         let qscb = qsc.as_bytes().to_vec();
         let qscb2 = decode_b64(&qsc)?;
@@ -1247,7 +1824,7 @@ mod tests {
         let counter = BaseCounter::from_code_and_count(
             Some(ctr_dex_1_0::BIG_ATTACHMENT_GROUP.clone()),
             Some(count),
-            None
+            None,
         )?;
         assert_eq!(counter.code, ctr_dex_1_0::BIG_ATTACHMENT_GROUP);
         assert_eq!(counter.name(), "-0V");
@@ -1259,9 +1836,7 @@ mod tests {
         assert_eq!(counter.version.minor, 0);
 
         // Test _bexfil and _binfil
-        let counter = BaseCounter::from_qb64(
-            qsc.as_str()
-        )?;
+        let counter = BaseCounter::from_qb64(qsc.as_str())?;
         // let code = counter.code.clone();
         // let count = counter.count;
         let qb2 = counter.qb2();
@@ -1281,7 +1856,11 @@ mod tests {
 
         // Test with big pathed material group
         let count = 100024000u64;
-        let qsc = format!("{}{}", ctr_dex_1_0::BIG_PATHED_MATERIAL_GROUP, int_to_b64(count as u32, 5));
+        let qsc = format!(
+            "{}{}",
+            ctr_dex_1_0::BIG_PATHED_MATERIAL_GROUP,
+            int_to_b64(count as u32, 5)
+        );
         assert_eq!(qsc, "-0LF9j7A");
         let qscb = qsc.as_bytes().to_vec();
         let qscb2 = decode_b64(&qsc)?;
@@ -1302,15 +1881,17 @@ mod tests {
 
         // Test strip functionality
         let count = 1u64;
-        let qsc = format!("{}{}", ctr_dex_1_0::CONTROLLER_IDX_SIGS, int_to_b64(count as u32, 2));
+        let qsc = format!(
+            "{}{}",
+            ctr_dex_1_0::CONTROLLER_IDX_SIGS,
+            int_to_b64(count as u32, 2)
+        );
         assert_eq!(qsc, "-AAB");
         let qscb = qsc.as_bytes().to_vec();
         let qscb2 = decode_b64(&qsc)?;
 
         // strip ignored if qb64 is String
-        let counter = BaseCounter::from_qb64(
-            qsc.as_str(),
-        )?;
+        let counter = BaseCounter::from_qb64(qsc.as_str())?;
         assert_eq!(counter.code, ctr_dex_1_0::CONTROLLER_IDX_SIGS);
         assert_eq!(counter.name(), "-A");
         assert_eq!(counter.count, count);
@@ -1346,15 +1927,17 @@ mod tests {
 
         // Test with big codes index=1024
         let count = 1024u64;
-        let qsc = format!("{}{}", ctr_dex_1_0::BIG_ATTACHMENT_GROUP, int_to_b64(count as u32, 5));
+        let qsc = format!(
+            "{}{}",
+            ctr_dex_1_0::BIG_ATTACHMENT_GROUP,
+            int_to_b64(count as u32, 5)
+        );
         assert_eq!(qsc, "-0VAAAQA");
         let qscb = qsc.as_bytes().to_vec();
         let qscb2 = decode_b64(&qsc)?;
 
         let mut ims = qscb.clone();
-        let counter = BaseCounter::from_qb64b(
-            &mut ims, None,
-        )?;
+        let counter = BaseCounter::from_qb64b(&mut ims, None)?;
         assert_eq!(counter.code, ctr_dex_1_0::BIG_ATTACHMENT_GROUP);
         assert_eq!(counter.name(), "-0V");
         assert_eq!(counter.count, count);
@@ -1368,9 +1951,7 @@ mod tests {
         // assert_eq!(ims.len(), 0); // Consumed/stripped
 
         let mut ims = qscb2.clone();
-        let counter = BaseCounter::from_qb2(
-            &mut ims, None,
-        )?;
+        let counter = BaseCounter::from_qb2(&mut ims, None)?;
         assert_eq!(counter.code, ctr_dex_1_0::BIG_ATTACHMENT_GROUP);
         assert_eq!(counter.name(), "-0V");
         assert_eq!(counter.count, count);

@@ -78,7 +78,6 @@ impl BaseFiler {
         self.opened = opened;
     }
 
-
     pub fn extensioned(&self) -> bool {
         self.extensioned
     }
@@ -87,7 +86,6 @@ impl BaseFiler {
         self.perm
     }
 }
-
 
 impl Default for BaseFiler {
     fn default() -> Self {
@@ -108,7 +106,6 @@ impl Default for BaseFiler {
         }
     }
 }
-
 
 pub struct FilerDefaults {
     pub head_dir_path: &'static str,
@@ -144,9 +141,7 @@ impl Default for FilerDefaults {
     }
 }
 
-
 pub trait Filer {
-
     fn defaults() -> FilerDefaults {
         FilerDefaults::default()
     }
@@ -186,7 +181,6 @@ pub trait Filer {
 impl Filer for BaseFiler {}
 
 impl BaseFiler {
-
     /// Create a new Filer instance.
     ///
     /// # Arguments
@@ -233,11 +227,17 @@ impl BaseFiler {
 
         // Ensure relative path parts are relative
         if Path::new(&name).is_absolute() {
-            return Err(CoreError::FilerError(format!("Not relative name={} path.", name)));
+            return Err(CoreError::FilerError(format!(
+                "Not relative name={} path.",
+                name
+            )));
         }
 
         if Path::new(&base).is_absolute() {
-            return Err(CoreError::FilerError(format!("Not relative base={} path.", base)));
+            return Err(CoreError::FilerError(format!(
+                "Not relative base={} path.",
+                base
+            )));
         }
 
         let defaults = defaults.unwrap_or_default();
@@ -264,7 +264,16 @@ impl BaseFiler {
         };
 
         if reopen {
-            filer.reopen(Some(temp), None, Some(perm), clear, reuse, clean, None, None)?;
+            filer.reopen(
+                Some(temp),
+                None,
+                Some(perm),
+                clear,
+                reuse,
+                clean,
+                None,
+                None,
+            )?;
         }
 
         Ok(filer)
@@ -295,7 +304,7 @@ impl BaseFiler {
         reuse: bool,
         clean: bool,
         mode: Option<String>,
-        fext: Option<String>
+        fext: Option<String>,
     ) -> Result<bool, CoreError> {
         // Close first (with clearing if requested)
         self.close(clear)?;
@@ -322,9 +331,8 @@ impl BaseFiler {
         }
 
         // Check if we need to create or remake the path
-        let path_needs_remake = self.path.is_none() ||
-            !self.path.as_ref().map_or(false, |p| p.exists()) ||
-            !reuse;
+        let path_needs_remake =
+            self.path.is_none() || !self.path.as_ref().map_or(false, |p| p.exists()) || !reuse;
 
         if path_needs_remake {
             // Remake the path and potentially file
@@ -338,7 +346,7 @@ impl BaseFiler {
                 self.filed,
                 self.extensioned,
                 Some(&self.mode),
-                Some(&self.fext)
+                Some(&self.fext),
             )?;
 
             self.path = Some(result.0);
@@ -360,7 +368,6 @@ impl BaseFiler {
 
         Ok(self.opened)
     }
-
 
     /// Makes and returns (path, file) by opening or creating and opening if not
     /// preexistent, directory or file at path
@@ -438,7 +445,10 @@ impl BaseFiler {
         }
 
         if Path::new(&name_with_ext).is_absolute() {
-            return Err(CoreError::NotRelativePath(format!("name={}", name_with_ext)));
+            return Err(CoreError::NotRelativePath(format!(
+                "name={}",
+                name_with_ext
+            )));
         }
 
         let mut file = None;
@@ -447,10 +457,12 @@ impl BaseFiler {
         if temp {
             // Create temporary directory
             let temp_head_dir = Path::new(self.defaults.temp_head_dir);
-            let temp_dir = create_temp_dir(self.defaults.temp_prefix,
-                                           self.defaults.temp_suffix,
-                                           Some(temp_head_dir))
-                .map_err(|e| CoreError::IoError(format!("Unable to create temp dir: {}", e)))?;
+            let temp_dir = create_temp_dir(
+                self.defaults.temp_prefix,
+                self.defaults.temp_suffix,
+                Some(temp_head_dir),
+            )
+            .map_err(|e| CoreError::IoError(format!("Unable to create temp dir: {}", e)))?;
 
             let temp_path = temp_dir.path();
 
@@ -463,25 +475,29 @@ impl BaseFiler {
             if clean && path.exists() {
                 if path.is_file() {
                     if filed || extensioned {
-                        fs::remove_file(&path)
-                            .map_err(|e| CoreError::IoError(format!("Unable to remove file: {}", e)))?;
+                        fs::remove_file(&path).map_err(|e| {
+                            CoreError::IoError(format!("Unable to remove file: {}", e))
+                        })?;
                     } else {
                         if let Some(parent) = path.parent() {
-                            fs::remove_dir_all(parent)
-                                .map_err(|e| CoreError::IoError(format!("Unable to remove all: {}", e)))?;
+                            fs::remove_dir_all(parent).map_err(|e| {
+                                CoreError::IoError(format!("Unable to remove all: {}", e))
+                            })?;
                         }
                     }
                 } else {
-                    fs::remove_dir_all(&path)
-                        .map_err(|e| CoreError::IoError(format!("Unable to remove all dir: {}", e)))?;
+                    fs::remove_dir_all(&path).map_err(|e| {
+                        CoreError::IoError(format!("Unable to remove all dir: {}", e))
+                    })?;
                 }
             }
 
             if filed || extensioned {
                 if let Some(parent) = path.parent() {
                     if !parent.exists() {
-                        fs::create_dir_all(parent)
-                            .map_err(|e| CoreError::IoError(format!("Unable to create all dir: {}", e)))?;
+                        fs::create_dir_all(parent).map_err(|e| {
+                            CoreError::IoError(format!("Unable to create all dir: {}", e))
+                        })?;
                     }
                 }
 
@@ -506,17 +522,20 @@ impl BaseFiler {
             if clean && primary_path.exists() {
                 if primary_path.is_file() {
                     if filed {
-                        fs::remove_file(&primary_path)
-                            .map_err(|e| CoreError::IoError(format!("Unable to remove file: {}", e)))?;
+                        fs::remove_file(&primary_path).map_err(|e| {
+                            CoreError::IoError(format!("Unable to remove file: {}", e))
+                        })?;
                     } else {
                         if let Some(parent) = primary_path.parent() {
-                            fs::remove_dir_all(parent)
-                                .map_err(|e| CoreError::IoError(format!("Unable toremove all dir: {}", e)))?;
+                            fs::remove_dir_all(parent).map_err(|e| {
+                                CoreError::IoError(format!("Unable toremove all dir: {}", e))
+                            })?;
                         }
                     }
                 } else {
-                    fs::remove_dir_all(&primary_path)
-                        .map_err(|e| CoreError::IoError(format!("Unable to remove all dir: {}", e)))?;
+                    fs::remove_dir_all(&primary_path).map_err(|e| {
+                        CoreError::IoError(format!("Unable to remove all dir: {}", e))
+                    })?;
                 }
             }
 
@@ -526,8 +545,10 @@ impl BaseFiler {
                     if let Some(parent) = primary_path.parent() {
                         if !parent.exists() {
                             match fs::create_dir_all(parent) {
-                                Ok(_) => {Ok(primary_path)}
-                                Err(_) => {Err(CoreError::IoError("Unable to create dir".to_string()))}
+                                Ok(_) => Ok(primary_path),
+                                Err(_) => {
+                                    Err(CoreError::IoError("Unable to create dir".to_string()))
+                                }
                             }
                         } else {
                             Ok(primary_path)
@@ -537,14 +558,16 @@ impl BaseFiler {
                     }
                 } else {
                     match fs::create_dir_all(&primary_path) {
-                        Ok(_) => {Ok(primary_path)}
-                        Err(_) => {Err(CoreError::IoError("Unable to create dir".to_string()))}
+                        Ok(_) => Ok(primary_path),
+                        Err(_) => Err(CoreError::IoError("Unable to create dir".to_string())),
                     }
                 }
             } else {
                 // Path exists, just check permissions
                 if !has_full_access(&primary_path)? {
-                    Err(CoreError::PermissionError("Full access denied to primary path".to_string()))
+                    Err(CoreError::PermissionError(
+                        "Full access denied to primary path".to_string(),
+                    ))
                 } else {
                     Ok(primary_path)
                 }
@@ -564,13 +587,18 @@ impl BaseFiler {
                     if filed || extensioned {
                         if let Some(parent) = alt_path.parent() {
                             if !parent.exists() {
-                                fs::create_dir_all(parent)
-                                    .map_err(|e| CoreError::IoError(format!("Unable to create parent dir: {}", e)))?;
+                                fs::create_dir_all(parent).map_err(|e| {
+                                    CoreError::IoError(format!(
+                                        "Unable to create parent dir: {}",
+                                        e
+                                    ))
+                                })?;
                             }
                         }
                     } else {
-                        fs::create_dir_all(&alt_path)
-                            .map_err(|e| CoreError::IoError(format!("Unable to create all dir: {}", e)))?;
+                        fs::create_dir_all(&alt_path).map_err(|e| {
+                            CoreError::IoError(format!("Unable to create all dir: {}", e))
+                        })?;
                     }
                 }
 
@@ -591,8 +619,9 @@ impl BaseFiler {
 
             // Set permissions
             if !extensioned {
-                fs::set_permissions(&path, fs::Permissions::from_mode(perm))
-                    .map_err(|e| CoreError::IoError(format!("Unable to set file permissions {}", e)))?;
+                fs::set_permissions(&path, fs::Permissions::from_mode(perm)).map_err(|e| {
+                    CoreError::IoError(format!("Unable to set file permissions {}", e))
+                })?;
             }
         }
 
@@ -666,7 +695,10 @@ impl BaseFiler {
         }
 
         if Path::new(&name_with_ext).is_absolute() {
-            return Err(CoreError::NotRelativePath(format!("name={}", name_with_ext)));
+            return Err(CoreError::NotRelativePath(format!(
+                "name={}",
+                name_with_ext
+            )));
         }
 
         // Try the primary path first
@@ -727,9 +759,12 @@ impl BaseFiler {
         if let Some(path) = &self.path {
             if path.exists() {
                 if path.is_file() {
-                    fs::remove_file(path).map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
+                    fs::remove_file(path)
+                        .map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
                 } else {
-                    fs::remove_dir_all(path).map_err(|e| CoreError::IoError(format!("Unable to remove dir all {}", e)))?;
+                    fs::remove_dir_all(path).map_err(|e| {
+                        CoreError::IoError(format!("Unable to remove dir all {}", e))
+                    })?;
                 }
             }
         }
@@ -746,7 +781,8 @@ impl BaseFiler {
             if path.exists() {
                 if path.is_file() {
                     // Remove only the file at the end of path
-                    fs::remove_file(path).map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
+                    fs::remove_file(path)
+                        .map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
 
                     // Clear the file reference
                     self.file = None;
@@ -754,29 +790,35 @@ impl BaseFiler {
                     // If temporary, remove the parent directory as well
                     if self.temp {
                         if let Some(parent) = path.parent() {
-                            fs::remove_dir_all(parent).map_err(|e| CoreError::IoError(format!("Unable to remove all dir {}", e)))?;
+                            fs::remove_dir_all(parent).map_err(|e| {
+                                CoreError::IoError(format!("Unable to remove all dir {}", e))
+                            })?;
                         }
                     }
                 } else if self.extensioned {
                     // Path end has file extension, so treat it as a file
-                    fs::remove_file(path).map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
+                    fs::remove_file(path)
+                        .map_err(|e| CoreError::IoError(format!("Unable to remove file {}", e)))?;
 
                     // If temporary, remove the parent directory as well
                     if self.temp {
                         if let Some(parent) = path.parent() {
-                            fs::remove_dir_all(parent).map_err(|e| CoreError::IoError(format!("Unable to remove all dir parent {}", e)))?;
+                            fs::remove_dir_all(parent).map_err(|e| {
+                                CoreError::IoError(format!("Unable to remove all dir parent {}", e))
+                            })?;
                         }
                     }
                 } else {
                     // Remove the directory and all contents
-                    fs::remove_dir_all(path).map_err(|e| CoreError::IoError(format!("Unable to remove all dir path {}", e)))?;
+                    fs::remove_dir_all(path).map_err(|e| {
+                        CoreError::IoError(format!("Unable to remove all dir path {}", e))
+                    })?;
                 }
             }
         }
 
         Ok(())
     }
-
 
     // Helper method to open a file with proper permissions
     fn open_file_with_perms(&self, path: &Path, mode: &str, perm: u32) -> Result<File, CoreError> {
@@ -792,9 +834,6 @@ impl BaseFiler {
 
         Ok(file)
     }
-
-
-
 
     /// Opens or creates the directory and/or file specified by this Filer
     pub fn open(&mut self) -> io::Result<()> {
@@ -836,7 +875,10 @@ impl BaseFiler {
     fn build_path(&mut self) {
         let mut path = if self.temp {
             let mut p = PathBuf::from(self.defaults.temp_head_dir);
-            p.push(format!("{}{}{}", self.defaults.temp_prefix, self.name, self.defaults.temp_suffix));
+            p.push(format!(
+                "{}{}{}",
+                self.defaults.temp_prefix, self.name, self.defaults.temp_suffix
+            ));
             p
         } else {
             let mut p = self.head_dir_path.clone();
@@ -850,7 +892,8 @@ impl BaseFiler {
 
         // Add extension if needed
         if self.filed || self.extensioned {
-            let mut file_name = path.file_name()
+            let mut file_name = path
+                .file_name()
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
@@ -879,7 +922,6 @@ impl BaseFiler {
     }
 }
 
-
 // Helper function to expand user's home directory (e.g., "~")
 fn expand_user_path(path: &Path) -> Result<PathBuf, CoreError> {
     let path_str = path.to_string_lossy();
@@ -903,8 +945,7 @@ fn expand_user_path(path: &Path) -> Result<PathBuf, CoreError> {
 
 // Helper function to check if we have full access to a path
 fn has_full_access(path: &Path) -> Result<bool, CoreError> {
-    let metadata = fs::metadata(path)
-        .map_err(|e| CoreError::IoError(e.to_string()))?;
+    let metadata = fs::metadata(path).map_err(|e| CoreError::IoError(e.to_string()))?;
 
     // Check if we have read/write access
     // This is a simplification; on Unix systems you'd use more specific permission checks
@@ -914,7 +955,7 @@ fn has_full_access(path: &Path) -> Result<bool, CoreError> {
 fn create_temp_dir(
     prefix: &str,
     suffix: &str,
-    temp_dir: Option<&Path>
+    temp_dir: Option<&Path>,
 ) -> io::Result<tempfile::TempDir> {
     let temp_path = temp_dir.unwrap_or_else(|| Path::new("/tmp"));
     Builder::new()
@@ -923,7 +964,6 @@ fn create_temp_dir(
         .keep(true)
         .tempdir_in(temp_path)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -952,13 +992,31 @@ mod tests {
         cleanup_test_dirs();
 
         // Test with default reopen=false
-        let filer = BaseFiler::new("test", "", false, None, None, false, false, false, false, false, false, None, None, None).unwrap();
-        assert!(!filer.exists("test", "", None, false, false, false, None).unwrap());
+        let filer = BaseFiler::new(
+            "test", "", false, None, None, false, false, false, false, false, false, None, None,
+            None,
+        )
+        .unwrap();
+        assert!(!filer
+            .exists("test", "", None, false, false, false, None)
+            .unwrap());
 
         // Test with default reopen=true
-        let mut filer = BaseFiler::new("test", "", false, None, None, true, false, false, false, false, false, None, None, None).unwrap();
-        assert!(filer.exists("test", "", None, false, false, false, None).unwrap());
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
+        let mut filer = BaseFiler::new(
+            "test", "", false, None, None, true, false, false, false, false, false, None, None,
+            None,
+        )
+        .unwrap();
+        assert!(filer
+            .exists("test", "", None, false, false, false, None)
+            .unwrap());
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
@@ -979,25 +1037,49 @@ mod tests {
         let mut filer = filer;
         let _ = filer.reopen(None, None, None, false, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with reuse=true and clear=false
         let _ = filer.reopen(None, None, None, false, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with reuse=true and clear=true
         let _ = filer.reopen(None, None, None, true, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with clear=true
         let _ = filer.reopen(None, None, None, true, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test close with clear=true
@@ -1022,13 +1104,34 @@ mod tests {
         }
 
         // Test with clean=true and reopen=false
-        let filer = BaseFiler::new("test", "", false, None, None, false, false, false, true, false, false, None, None, None).unwrap();
-        assert!(!filer.exists("test", "", None, true, false, false, None).unwrap());
+        let filer = BaseFiler::new(
+            "test", "", false, None, None, false, false, false, true, false, false, None, None,
+            None,
+        )
+        .unwrap();
+        assert!(!filer
+            .exists("test", "", None, true, false, false, None)
+            .unwrap());
 
         // Test with clean=true and reopen=true
-        let mut filer = BaseFiler::new("test", "", false, None, None, true, false, false, true, false, false, None, None, None).unwrap();
-        assert!(filer.exists("test", "", None, true, false, false, None).unwrap());
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}clean{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        let mut filer = BaseFiler::new(
+            "test", "", false, None, None, true, false, false, true, false, false, None, None, None,
+        )
+        .unwrap();
+        assert!(filer
+            .exists("test", "", None, true, false, false, None)
+            .unwrap());
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}clean{}test",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
@@ -1038,7 +1141,9 @@ mod tests {
 
         // Check path normalization
         let norm_path_filer = filer.path.as_ref().unwrap().to_str().unwrap();
-        let norm_path_test = Path::new("/usr/local/var/keri/clean/test").to_str().unwrap();
+        let norm_path_test = Path::new("/usr/local/var/keri/clean/test")
+            .to_str()
+            .unwrap();
         // For Windows, we need to compare without drive letters
         let norm_path_filer = norm_path_filer.split(':').last().unwrap_or(norm_path_filer);
         let norm_path_test = norm_path_test.split(':').last().unwrap_or(norm_path_test);
@@ -1050,22 +1155,62 @@ mod tests {
 
         let _ = filer.reopen(None, None, None, false, false, true, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}clean{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}clean{}test",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, false, true, true, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}clean{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}clean{}test",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, true, true, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}clean{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}clean{}test",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, false, true, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}clean{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}clean{}test",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.close(true);
@@ -1091,28 +1236,68 @@ mod tests {
 
         // Test with reopen=false
         let filer = BaseFiler::new(
-            "test", "", false,
+            "test",
+            "",
+            false,
             Some(head_dir_path.clone()),
-            None, false, false, false, false, false, false, None, None, None
-        ).unwrap();
-        assert!(!filer.exists("test", "", Some(&head_dir_path), false, false, false, None).unwrap());
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(!filer
+            .exists("test", "", Some(&head_dir_path), false, false, false, None)
+            .unwrap());
 
         // Test with reopen=true
         let mut filer = BaseFiler::new(
-            "test", "", false,
+            "test",
+            "",
+            false,
             Some(head_dir_path.clone()),
-            None, true, false, false, false, false, false, None, None, None
-        ).unwrap();
+            None,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
-        assert!(filer.exists("test", "", Some(&head_dir_path), false, false, false, None).unwrap());
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .exists("test", "", Some(&head_dir_path), false, false, false, None)
+            .unwrap());
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
 
         let _ = filer.close(false);
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test various reopen combinations with alt path
@@ -1120,22 +1305,46 @@ mod tests {
 
         let _ = filer.reopen(None, None, None, false, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, false, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(".keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.close(true);
@@ -1162,19 +1371,35 @@ mod tests {
 
         // Test with filed=true and reopen=false
         let filer = BaseFiler::new(
-            "test", "conf", false,
-            None, None, false, false, false, false, true, false, None, None, None
-        ).unwrap();
-        assert!(!filer.exists("test", "", None, false, true, false, None).unwrap());
+            "test", "conf", false, None, None, false, false, false, false, true, false, None, None,
+            None,
+        )
+        .unwrap();
+        assert!(!filer
+            .exists("test", "", None, false, true, false, None)
+            .unwrap());
 
         // Test with filed=true and reopen=true
         let mut filer = BaseFiler::new(
-            "test", "conf", false,
-            None, None, true, false, false, false, true, false, None, None, None
-        ).unwrap();
+            "test", "conf", false, None, None, true, false, false, false, true, false, None, None,
+            None,
+        )
+        .unwrap();
 
-        assert!(filer.exists("test", "conf", None, false, true, false, None).unwrap());
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .exists("test", "conf", None, false, true, false, None)
+            .unwrap());
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_some());
@@ -1196,7 +1421,17 @@ mod tests {
 
         let _ = filer.close(false);
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test various reopen combinations with filed=true
@@ -1204,22 +1439,62 @@ mod tests {
 
         let _ = filer.reopen(None, None, None, false, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, false, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                "keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.close(true);
@@ -1245,21 +1520,75 @@ mod tests {
 
         // Test with filed=true, alt path and reopen=false
         let filer = BaseFiler::new(
-            "test", "conf", false,
+            "test",
+            "conf",
+            false,
             Some(head_dir_path.clone()),
-            None, false, false, false, false, true, false, None, None, None
-        ).unwrap();
-        assert!(!filer.exists("test", "conf", Some(&head_dir_path), false, true, false, None).unwrap());
+            None,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(!filer
+            .exists(
+                "test",
+                "conf",
+                Some(&head_dir_path),
+                false,
+                true,
+                false,
+                None
+            )
+            .unwrap());
 
         // Test with filed=true, alt path and reopen=true
         let mut filer = BaseFiler::new(
-            "test", "conf", false,
+            "test",
+            "conf",
+            false,
             Some(head_dir_path.clone()),
-            None, true, false, false, false, true, false, None, None, None
-        ).unwrap();
+            None,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
-        assert!(filer.exists("test", "conf", Some(&head_dir_path), false, true, false, None).unwrap());
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .exists(
+                "test",
+                "conf",
+                Some(&head_dir_path),
+                false,
+                true,
+                false,
+                None
+            )
+            .unwrap());
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_some());
@@ -1281,7 +1610,17 @@ mod tests {
 
         let _ = filer.close(false);
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test various reopen combinations with filed=true and alt path
@@ -1289,22 +1628,62 @@ mod tests {
 
         let _ = filer.reopen(None, None, None, false, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, false, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, true, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.reopen(None, None, None, true, false, false, None, None);
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}conf{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(&format!(
+                ".keri{}conf{}test.text",
+                std::path::MAIN_SEPARATOR,
+                std::path::MAIN_SEPARATOR
+            )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         let _ = filer.close(true);
@@ -1315,11 +1694,29 @@ mod tests {
     fn test_filing_with_temp() {
         // Test open_filer with temp=true (default)
         {
-            let mut filer = BaseFiler::new("test", "", true,
-                                       None,
-                                       None, true, false, false, false, false, false, None, None, None).unwrap();
-            assert!(filer.path.as_ref().unwrap().to_str().unwrap().starts_with("/tmp/keri_"));
-            assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("_test{}keri{}test", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+            let mut filer = BaseFiler::new(
+                "test", "", true, None, None, true, false, false, false, false, false, None, None,
+                None,
+            )
+            .unwrap();
+            assert!(filer
+                .path
+                .as_ref()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with("/tmp/keri_"));
+            assert!(filer
+                .path
+                .as_ref()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .ends_with(&format!(
+                    "_test{}keri{}test",
+                    std::path::MAIN_SEPARATOR,
+                    std::path::MAIN_SEPARATOR
+                )));
             assert!(filer.opened);
             assert!(filer.path.as_ref().unwrap().exists());
             assert!(filer.file.is_none());
@@ -1329,59 +1726,55 @@ mod tests {
 
             assert!(!path.unwrap().exists()); // Temp directories should be cleaned up
         }
-    //
-    //     // Test open_filer with filed=true and temp=true
-    //     {
-    //         let filer = open_filer(None, None, None, None, false, false, false, true, None, None).unwrap();
-    //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().starts_with("/tmp/keri_"));
-    //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("_test{}keri{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
-    //         assert!(filer.opened);
-    //         assert!(filer.path.as_ref().unwrap().exists());
-    //         assert!(filer.file.is_some());
-    //
-    //         let path = filer.path.clone();
-    //         drop(filer); // Close the filer
-    //         assert!(!path.unwrap().exists()); // Temp files should be cleaned up
-    //     }
-    //
-    //     // Test open_filer with alt path
-    //     {
-    //         // Use a head_dir_path that will not be writable to force using alt path
-    //         let head_dir_path = if cfg!(windows) {
-    //             PathBuf::from("C:\\Windows\\System32")
-    //         } else {
-    //             PathBuf::from("/root/keri")
-    //         };
-    //
-    //         let filer = open_filer(
-    //             None, None,
-    //             Some(head_dir_path),
-    //             None, true, false, false, true, None, None
-    //         ).unwrap();
-    //
-    //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test.text", std::path::MAIN_SEPARATOR)));
-    //         assert!(filer.opened);
-    //         assert!(filer.path.as_ref().unwrap().exists());
-    //         assert!(filer.file.is_some());
-    //
-    //         let path = filer.path.clone();
-    //         drop(filer); // Close the filer with clear=true
-    //         assert!(!path.unwrap().exists()); // Should be cleaned up even though not temp, because clear=true
-    //     }
+        //
+        //     // Test open_filer with filed=true and temp=true
+        //     {
+        //         let filer = open_filer(None, None, None, None, false, false, false, true, None, None).unwrap();
+        //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().starts_with("/tmp/keri_"));
+        //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!("_test{}keri{}test.text", std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR)));
+        //         assert!(filer.opened);
+        //         assert!(filer.path.as_ref().unwrap().exists());
+        //         assert!(filer.file.is_some());
+        //
+        //         let path = filer.path.clone();
+        //         drop(filer); // Close the filer
+        //         assert!(!path.unwrap().exists()); // Temp files should be cleaned up
+        //     }
+        //
+        //     // Test open_filer with alt path
+        //     {
+        //         // Use a head_dir_path that will not be writable to force using alt path
+        //         let head_dir_path = if cfg!(windows) {
+        //             PathBuf::from("C:\\Windows\\System32")
+        //         } else {
+        //             PathBuf::from("/root/keri")
+        //         };
+        //
+        //         let filer = open_filer(
+        //             None, None,
+        //             Some(head_dir_path),
+        //             None, true, false, false, true, None, None
+        //         ).unwrap();
+        //
+        //         assert!(filer.path.as_ref().unwrap().to_str().unwrap().ends_with(&format!(".keri{}test.text", std::path::MAIN_SEPARATOR)));
+        //         assert!(filer.opened);
+        //         assert!(filer.path.as_ref().unwrap().exists());
+        //         assert!(filer.file.is_some());
+        //
+        //         let path = filer.path.clone();
+        //         drop(filer); // Close the filer with clear=true
+        //         assert!(!path.unwrap().exists()); // Should be cleaned up even though not temp, because clear=true
+        //     }
     }
 
     #[test]
     fn test_filing_invalid_paths() {
         // Test invalid name (absolute path)
-        let name = if cfg!(windows) {
-            "C:\\test"
-        } else {
-            "/test"
-        };
+        let name = if cfg!(windows) { "C:\\test" } else { "/test" };
 
         let result = BaseFiler::new(
-            name, "conf", false,
-            None, None, true, false, false, false, true, false, None, None, None
+            name, "conf", false, None, None, true, false, false, false, true, false, None, None,
+            None,
         );
 
         assert!(result.is_err());
@@ -1390,15 +1783,11 @@ mod tests {
         }
 
         // Test invalid base (absolute path)
-        let base = if cfg!(windows) {
-            "C:\\conf"
-        } else {
-            "/conf"
-        };
+        let base = if cfg!(windows) { "C:\\conf" } else { "/conf" };
 
         let result = BaseFiler::new(
-            "test", base, false,
-            None, None, true, false, false, false, true, false, None, None, None
+            "test", base, false, None, None, true, false, false, false, true, false, None, None,
+            None,
         );
 
         assert!(result.is_err());

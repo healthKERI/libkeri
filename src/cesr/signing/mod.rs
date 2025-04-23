@@ -1,21 +1,21 @@
-pub mod signer;
 mod cipher;
-mod salter;
 mod decrypter;
 mod encrypter;
+mod salter;
+pub mod signer;
 
-pub use salter::Salter;
-pub use signer::Signer;
 pub use decrypter::Decrypter;
 pub use encrypter::Encrypter;
+pub use salter::Salter;
+pub use signer::Signer;
 
 use libsodium_sys;
 
 /// Module for X25519 cipher codes for variable-sized sniffable stream plaintext
 #[allow(dead_code)]
 pub mod cix_var_strm_dex {
-    use std::collections::HashMap;
     use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// X25519 sealed box cipher bytes of sniffable stream plaintext lead size 0
     pub const X25519_CIPHER_L0: &str = "4C";
@@ -49,14 +49,13 @@ pub mod cix_var_strm_dex {
         X25519_CIPHER_BIG_L1,
         X25519_CIPHER_BIG_L2,
     ];
-
 }
 
 /// Module for X25519 cipher codes for variable-sized QB64 plaintext
 #[allow(dead_code)]
 pub mod cix_var_qb64_dex {
-    use std::collections::HashMap;
     use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// X25519 sealed box cipher bytes of QB64 plaintext lead size 0
     pub const X25519_CIPHER_QB64_L0: &str = "4D";
@@ -71,7 +70,6 @@ pub mod cix_var_qb64_dex {
     /// X25519 sealed box cipher bytes of QB64 plaintext big lead size 2
     pub const X25519_CIPHER_QB64_BIG_L2: &str = "9AAD";
 
-
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         let mut map = HashMap::new();
         map.insert("X25519_CIPHER_QB64_L0", X25519_CIPHER_QB64_L0);
@@ -82,7 +80,7 @@ pub mod cix_var_qb64_dex {
         map.insert("X25519_CIPHER_QB64_BIG_L2", X25519_CIPHER_QB64_BIG_L2);
         map
     });
-    
+
     pub static TUPLE: [&'static str; 6] = [
         X25519_CIPHER_QB64_L0,
         X25519_CIPHER_QB64_L1,
@@ -96,8 +94,8 @@ pub mod cix_var_qb64_dex {
 /// Module for X25519 cipher codes for fixed-sized QB64 plaintext
 #[allow(dead_code)]
 pub mod cix_fix_qb64_dex {
-    use std::collections::HashMap;
     use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// X25519 sealed box 124 char qb64 Cipher of 44 char qb64 Seed
     pub const X25519_CIPHER_SEED: &str = "P";
@@ -111,19 +109,15 @@ pub mod cix_fix_qb64_dex {
         map
     });
 
-
-    pub static TUPLE: [&'static str; 2] = [
-        X25519_CIPHER_SEED,
-        X25519_CIPHER_SALT,
-    ];
+    pub static TUPLE: [&'static str; 2] = [X25519_CIPHER_SEED, X25519_CIPHER_SALT];
 }
 
 /// Module for X25519 cipher codes for all (both fixed and variable) sizes of QB64 plaintext
 #[allow(dead_code)]
 pub mod cix_all_qb64_dex {
-    use std::collections::HashMap;
-    use once_cell::sync::Lazy;
     use super::{cix_fix_qb64_dex, cix_var_qb64_dex};
+    use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// X25519 sealed box 124 char qb64 Cipher of 44 char qb64 Seed
     pub const X25519_CIPHER_SEED: &str = cix_fix_qb64_dex::X25519_CIPHER_SEED;
@@ -156,7 +150,6 @@ pub mod cix_all_qb64_dex {
         map
     });
 
-
     pub static TUPLE: [&'static str; 8] = [
         X25519_CIPHER_SEED,
         X25519_CIPHER_SALT,
@@ -172,8 +165,8 @@ pub mod cix_all_qb64_dex {
 /// Module for X25519 cipher codes for variable-sized QB2 plaintext
 #[allow(dead_code)]
 pub mod cix_var_qb2_dex {
-    use std::collections::HashMap;
     use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// X25519 sealed box cipher bytes of QB2 plaintext lead size 0
     pub const X25519_CIPHER_QB2_L0: &str = "4E";
@@ -199,7 +192,6 @@ pub mod cix_var_qb2_dex {
         map
     });
 
-
     pub static TUPLE: [&'static str; 6] = [
         X25519_CIPHER_QB2_L0,
         X25519_CIPHER_QB2_L1,
@@ -213,9 +205,9 @@ pub mod cix_var_qb2_dex {
 /// Module for X25519 cipher codes for all variable sizes and all types of plaintext
 #[allow(dead_code)]
 pub mod cix_var_dex {
-    use std::collections::HashMap;
+    use super::{cix_var_qb2_dex, cix_var_qb64_dex, cix_var_strm_dex};
     use once_cell::sync::Lazy;
-    use super::{cix_var_strm_dex, cix_var_qb64_dex, cix_var_qb2_dex};
+    use std::collections::HashMap;
 
     // Stream plaintext codes
     /// X25519 sealed box cipher bytes of sniffable stream plaintext lead size 0
@@ -281,7 +273,7 @@ pub mod cix_var_dex {
         map.insert(X25519_CIPHER_QB2_BIG_L2, "X25519_CIPHER_QB2_BIG_L2");
         map
     });
-    
+
     pub static TUPLE: [&'static str; 18] = [
         X25519_CIPHER_L0,
         X25519_CIPHER_L1,
@@ -300,17 +292,16 @@ pub mod cix_var_dex {
         X25519_CIPHER_QB2_L2,
         X25519_CIPHER_QB2_BIG_L0,
         X25519_CIPHER_QB2_BIG_L1,
-        X25519_CIPHER_QB2_BIG_L2
+        X25519_CIPHER_QB2_BIG_L2,
     ];
-
 }
 
 /// Module for X25519 cipher codes for all sizes and all types of plaintext
 #[allow(dead_code)]
 pub mod cix_dex {
-    use std::collections::HashMap;
+    use super::{cix_fix_qb64_dex, cix_var_dex};
     use once_cell::sync::Lazy;
-    use super::{cix_var_dex, cix_fix_qb64_dex};
+    use std::collections::HashMap;
 
     // Variable size codes for stream plaintext
     /// X25519 sealed box cipher bytes of sniffable stream plaintext lead size 0
@@ -362,7 +353,6 @@ pub mod cix_dex {
 
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         let mut map = HashMap::new();
-        
 
         map.insert(X25519_CIPHER_L0, "X25519_CIPHER_L0");
         map.insert(X25519_CIPHER_L1, "X25519_CIPHER_L1");
@@ -387,7 +377,6 @@ pub mod cix_dex {
         map
     });
 
-
     pub static TUPLE: [&'static str; 20] = [
         X25519_CIPHER_L0,
         X25519_CIPHER_L1,
@@ -408,16 +397,18 @@ pub mod cix_dex {
         X25519_CIPHER_QB2_L2,
         X25519_CIPHER_QB2_BIG_L0,
         X25519_CIPHER_QB2_BIG_L1,
-        X25519_CIPHER_QB2_BIG_L2
+        X25519_CIPHER_QB2_BIG_L2,
     ];
 }
 
-use sodiumoxide::crypto::sign::ed25519;
-use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
 use crate::errors::MatterError;
+use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
+use sodiumoxide::crypto::sign::ed25519;
 
 /// Convert an Ed25519 public key to an X25519 public key
-pub fn ed25519_pk_to_x25519_pk(ed_pk: &ed25519::PublicKey) -> Result<crypto_box::PublicKey, MatterError> {
+pub fn ed25519_pk_to_x25519_pk(
+    ed_pk: &ed25519::PublicKey,
+) -> Result<crypto_box::PublicKey, MatterError> {
     // In libsodium, there's a crypto_sign_ed25519_pk_to_curve25519 function
     // We need to implement this conversion for sodiumoxide
 
@@ -433,21 +424,26 @@ pub fn ed25519_pk_to_x25519_pk(ed_pk: &ed25519::PublicKey) -> Result<crypto_box:
     let result = unsafe {
         libsodium_sys::crypto_sign_ed25519_pk_to_curve25519(
             curve_pk.as_mut_ptr(),
-            ed_pk_bytes.as_ptr()
+            ed_pk_bytes.as_ptr(),
         )
     };
 
     if result != 0 {
-        return Err(MatterError::CryptoError("Failed to convert Ed25519 public key to X25519".to_string()));
+        return Err(MatterError::CryptoError(
+            "Failed to convert Ed25519 public key to X25519".to_string(),
+        ));
     }
 
     // Convert the raw bytes to a sodiumoxide X25519 public key
-    crypto_box::PublicKey::from_slice(&curve_pk)
-        .ok_or(MatterError::CryptoError("Failed to convert Ed25519 public key to X25519".to_string()))
+    crypto_box::PublicKey::from_slice(&curve_pk).ok_or(MatterError::CryptoError(
+        "Failed to convert Ed25519 public key to X25519".to_string(),
+    ))
 }
 
 /// Convert an Ed25519 secret key to an X25519 secret key
-pub fn ed25519_sk_to_x25519_sk(ed_sk: &ed25519::SecretKey) -> Result<crypto_box::SecretKey, MatterError> {
+pub fn ed25519_sk_to_x25519_sk(
+    ed_sk: &ed25519::SecretKey,
+) -> Result<crypto_box::SecretKey, MatterError> {
     // In libsodium, there's a crypto_sign_ed25519_sk_to_curve25519 function
 
     // Extract the raw bytes from the Ed25519 secret key
@@ -459,17 +455,18 @@ pub fn ed25519_sk_to_x25519_sk(ed_sk: &ed25519::SecretKey) -> Result<crypto_box:
     let result = unsafe {
         libsodium_sys::crypto_sign_ed25519_sk_to_curve25519(
             curve_sk.as_mut_ptr(),
-            ed_sk_bytes.as_ptr()
+            ed_sk_bytes.as_ptr(),
         )
     };
 
     if result != 0 {
-        return Err(MatterError::CryptoError("Failed to convert Ed25519 secret key to X25519".to_string()));
+        return Err(MatterError::CryptoError(
+            "Failed to convert Ed25519 secret key to X25519".to_string(),
+        ));
     }
 
     // Convert the raw bytes to a sodiumoxide X25519 secret key
-    crypto_box::SecretKey::from_slice(&curve_sk)
-        .ok_or(MatterError::CryptoError("Failed to convert Ed25519 secret key to X25519".to_string()))
+    crypto_box::SecretKey::from_slice(&curve_sk).ok_or(MatterError::CryptoError(
+        "Failed to convert Ed25519 secret key to X25519".to_string(),
+    ))
 }
-
-

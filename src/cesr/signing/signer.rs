@@ -1,17 +1,17 @@
-use std::any::Any;
+use crate::cesr::cigar::Cigar;
+use crate::cesr::indexing::idr_dex;
+use crate::cesr::indexing::siger::Siger;
+use crate::cesr::verfer::Verfer;
+use crate::cesr::{mtr_dex, BaseMatter, Parsable};
+use crate::errors::MatterError;
+use crate::Matter;
+use p256::ecdsa::SigningKey;
 use rand_core::{OsRng, RngCore};
-use p256::ecdsa::{SigningKey};
-use secp256k1::{Secp256k1, SecretKey, Message};
+use secp256k1::{Message, Secp256k1, SecretKey};
 use sha3::{Digest, Sha3_256};
 use sodiumoxide::crypto::sign::ed25519;
 use sodiumoxide::randombytes;
-use crate::cesr::indexing::idr_dex;
-use crate::cesr::{mtr_dex, BaseMatter, Parsable};
-use crate::cesr::verfer::Verfer;
-use crate::cesr::cigar::Cigar;
-use crate::errors::MatterError;
-use crate::cesr::indexing::siger::Siger;
-use crate::Matter;
+use std::any::Any;
 
 /// Signer is a Matter subclass with method to create signature of serialization
 /// using:
@@ -29,7 +29,11 @@ pub struct Signer {
 
 impl Signer {
     /// Create a new Signer with the given parameters
-    pub fn new(raw: Option<&[u8]>, code: Option<&str>, transferable: Option<bool>) -> Result<Self, MatterError> {
+    pub fn new(
+        raw: Option<&[u8]>,
+        code: Option<&str>,
+        transferable: Option<bool>,
+    ) -> Result<Self, MatterError> {
         // Default code is Ed25519_Seed
         let code = code.unwrap_or(mtr_dex::ED25519_SEED);
         let transferable = transferable.unwrap_or(true);
@@ -40,21 +44,28 @@ impl Signer {
             None => {
                 match code {
                     mtr_dex::ED25519_SEED => {
-                        sodiumoxide::init().map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
+                        sodiumoxide::init().map_err(|_| {
+                            MatterError::CryptoError("Sodium initialization failed".into())
+                        })?;
                         let seed = randombytes::randombytes(ed25519::SEEDBYTES);
                         seed[..].to_vec()
-                    },
+                    }
                     mtr_dex::ECDSA_256R1_SEED => {
                         let mut seed = vec![0u8; 32]; // P256 seeds are 32 bytes
                         OsRng.fill_bytes(&mut seed);
                         seed
-                    },
+                    }
                     mtr_dex::ECDSA_256K1_SEED => {
                         let mut seed = vec![0u8; 32]; // Secp256k1 seeds are 32 bytes
                         OsRng.fill_bytes(&mut seed);
                         seed
-                    },
-                    _ => return Err(MatterError::UnexpectedCode(format!("Unsupported signer code: {}", code))),
+                    }
+                    _ => {
+                        return Err(MatterError::UnexpectedCode(format!(
+                            "Unsupported signer code: {}",
+                            code
+                        )))
+                    }
                 }
             }
         };
@@ -65,25 +76,40 @@ impl Signer {
         // Generate verfer based on the signing key
         let verfer = match code {
             mtr_dex::ED25519_SEED => {
-                let raw_bytes: [u8; 32] = raw_bytes.try_into()
+                let raw_bytes: [u8; 32] = raw_bytes
+                    .try_into()
                     .map_err(|_| MatterError::CryptoError("Invalid Ed25519 seed".into()))?;
 
-                sodiumoxide::init().map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
+                sodiumoxide::init()
+                    .map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
                 let seed = ed25519::Seed::from_slice(&raw_bytes)
                     .ok_or_else(|| MatterError::CryptoError("Invalid Ed25519 seed".to_string()))?;
                 let (pk, _) = ed25519::keypair_from_seed(&seed);
-                let verfer_code = if transferable { mtr_dex::ED25519 } else { mtr_dex::ED25519N };
+                let verfer_code = if transferable {
+                    mtr_dex::ED25519
+                } else {
+                    mtr_dex::ED25519N
+                };
                 Verfer::new(Some(&pk[..]), Some(verfer_code))?
-            },
+            }
             mtr_dex::ECDSA_256R1_SEED => {
                 let signing_key = SigningKey::from_slice(&raw_bytes)
                     .map_err(|_| MatterError::CryptoError("Invalid P256 seed".into()))?;
-                let verkey = signing_key.verifying_key().to_encoded_point(true).as_bytes().to_vec();
-                let verfer_code = if transferable { mtr_dex::ECDSA_256R1 } else { mtr_dex::ECDSA_256R1N };
+                let verkey = signing_key
+                    .verifying_key()
+                    .to_encoded_point(true)
+                    .as_bytes()
+                    .to_vec();
+                let verfer_code = if transferable {
+                    mtr_dex::ECDSA_256R1
+                } else {
+                    mtr_dex::ECDSA_256R1N
+                };
                 Verfer::new(Some(&verkey), Some(verfer_code))?
-            },
+            }
             mtr_dex::ECDSA_256K1_SEED => {
-                let raw_bytes: [u8; 32] = raw_bytes.try_into()
+                let raw_bytes: [u8; 32] = raw_bytes
+                    .try_into()
                     .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
 
                 let secp = Secp256k1::new();
@@ -91,10 +117,19 @@ impl Signer {
                     .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
                 let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
                 let verkey = public_key.serialize();
-                let verfer_code = if transferable { mtr_dex::ECDSA_256K1 } else { mtr_dex::ECDSA_256K1N };
+                let verfer_code = if transferable {
+                    mtr_dex::ECDSA_256K1
+                } else {
+                    mtr_dex::ECDSA_256K1N
+                };
                 Verfer::new(Some(&verkey), Some(verfer_code))?
-            },
-            _ => return Err(MatterError::UnexpectedCode(format!("Unsupported signer code: {}", code))),
+            }
+            _ => {
+                return Err(MatterError::UnexpectedCode(format!(
+                    "Unsupported signer code: {}",
+                    code
+                )))
+            }
         };
 
         Ok(Self { base, verfer })
@@ -114,20 +149,36 @@ impl Signer {
     }
 
     /// Sign the serialization and return a signature (Cigar or Siger)
-    pub fn sign(&self, ser: &[u8], index: Option<u32>, only: Option<bool>, ondex: Option<u32>) -> Result<Box<dyn Matter>, MatterError> {
+    pub fn sign(
+        &self,
+        ser: &[u8],
+        index: Option<u32>,
+        only: Option<bool>,
+        ondex: Option<u32>,
+    ) -> Result<Box<dyn Matter>, MatterError> {
         let only = only.unwrap_or(false);
 
         match self.base.code() {
             mtr_dex::ED25519_SEED => self.sign_ed25519(ser, index, only, ondex),
             mtr_dex::ECDSA_256R1_SEED => self.sign_secp256r1(ser, index, only, ondex),
             mtr_dex::ECDSA_256K1_SEED => self.sign_secp256k1(ser, index, only, ondex),
-            _ => Err(MatterError::UnexpectedCode(format!("Unsupported signer code: {}", self.base.code()))),
+            _ => Err(MatterError::UnexpectedCode(format!(
+                "Unsupported signer code: {}",
+                self.base.code()
+            ))),
         }
     }
 
     /// Sign using Ed25519
-    fn sign_ed25519(&self, ser: &[u8], index: Option<u32>, only: bool, ondex: Option<u32>) -> Result<Box<dyn Matter>, MatterError> {
-        sodiumoxide::init().map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
+    fn sign_ed25519(
+        &self,
+        ser: &[u8],
+        index: Option<u32>,
+        only: bool,
+        ondex: Option<u32>,
+    ) -> Result<Box<dyn Matter>, MatterError> {
+        sodiumoxide::init()
+            .map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
 
         let seed = ed25519::Seed::from_slice(self.base.raw())
             .ok_or_else(|| MatterError::CryptoError("Invalid Ed25519 seed".into()))?;
@@ -140,26 +191,32 @@ impl Signer {
         match index {
             None => {
                 // Non-indexed signature (Cigar)
-                let cigar = Cigar::new(Some(sig), Some(mtr_dex::ED25519_SIG), None, None, Some(self.verfer.clone()))?;
+                let cigar = Cigar::new(
+                    Some(sig),
+                    Some(mtr_dex::ED25519_SIG),
+                    None,
+                    None,
+                    Some(self.verfer.clone()),
+                )?;
                 Ok(Box::new(cigar))
-            },
+            }
             Some(idx) => {
                 // Indexed signature (Siger)
                 let code = if only {
                     // Only main index
                     ondex = None;
                     if idx <= 63 {
-                        idr_dex::ED25519_CRT_SIG  // Small current only
+                        idr_dex::ED25519_CRT_SIG // Small current only
                     } else {
-                        idr_dex::ED25519_BIG_CRT_SIG  // Big current only
+                        idr_dex::ED25519_BIG_CRT_SIG // Big current only
                     }
                 } else {
                     // Both indices
-                    let ondex_val = ondex.unwrap_or(idx);  // Default to same as index
+                    let ondex_val = ondex.unwrap_or(idx); // Default to same as index
                     if ondex_val == idx && idx <= 63 {
-                        idr_dex::ED25519_SIG  // Small both same
+                        idr_dex::ED25519_SIG // Small both same
                     } else {
-                        idr_dex::ED25519_BIG_SIG  // Big both
+                        idr_dex::ED25519_BIG_SIG // Big both
                     }
                 };
 
@@ -168,7 +225,7 @@ impl Signer {
                     Some(code),
                     Some(idx),
                     ondex,
-                    Some(self.verfer.clone())
+                    Some(self.verfer.clone()),
                 )?;
 
                 Ok(Box::new(siger))
@@ -177,15 +234,23 @@ impl Signer {
     }
 
     /// Sign using SECP256R1 (P-256)
-    fn sign_secp256r1(&self, ser: &[u8], index: Option<u32>, only: bool, ondex: Option<u32>) -> Result<Box<dyn Matter>, MatterError> {
+    fn sign_secp256r1(
+        &self,
+        ser: &[u8],
+        index: Option<u32>,
+        only: bool,
+        ondex: Option<u32>,
+    ) -> Result<Box<dyn Matter>, MatterError> {
         let signing_key = SigningKey::from_slice(self.base.raw())
             .map_err(|_| MatterError::CryptoError("Invalid P256 seed".into()))?;
 
         // Sign the message
         let (signature, _) = match signing_key.sign_recoverable(ser) {
-            Ok(sig) => {sig}
+            Ok(sig) => sig,
             Err(_) => {
-                return Err(MatterError::CryptoError("Invalid message for signing".into()));
+                return Err(MatterError::CryptoError(
+                    "Invalid message for signing".into(),
+                ));
             }
         };
 
@@ -201,25 +266,31 @@ impl Signer {
         match index {
             None => {
                 // Non-indexed signature (Cigar)
-                let cigar = Cigar::new(Some(&sig), Some(mtr_dex::ECDSA_256R1_SIG), None, None, Some(self.verfer.clone()))?;
+                let cigar = Cigar::new(
+                    Some(&sig),
+                    Some(mtr_dex::ECDSA_256R1_SIG),
+                    None,
+                    None,
+                    Some(self.verfer.clone()),
+                )?;
                 Ok(Box::new(cigar))
-            },
+            }
             Some(idx) => {
                 // Indexed signature (Siger)
                 let code = if only {
                     // Only main index
                     if idx <= 63 {
-                        idr_dex::ECDSA_256R1_CRT_SIG  // Small current only
+                        idr_dex::ECDSA_256R1_CRT_SIG // Small current only
                     } else {
-                        idr_dex::ECDSA_256R1_BIG_CRT_SIG  // Big current only
+                        idr_dex::ECDSA_256R1_BIG_CRT_SIG // Big current only
                     }
                 } else {
                     // Both indices
-                    let ondex_val = ondex.unwrap_or(idx);  // Default to same as index
+                    let ondex_val = ondex.unwrap_or(idx); // Default to same as index
                     if ondex_val == idx && idx <= 63 {
-                        idr_dex::ECDSA_256R1_SIG  // Small both same
+                        idr_dex::ECDSA_256R1_SIG // Small both same
                     } else {
-                        idr_dex::ECDSA_256R1_BIG_SIG  // Big both
+                        idr_dex::ECDSA_256R1_BIG_SIG // Big both
                     }
                 };
 
@@ -228,7 +299,7 @@ impl Signer {
                     Some(code),
                     Some(idx),
                     ondex,
-                    Some(self.verfer.clone())
+                    Some(self.verfer.clone()),
                 )?;
 
                 Ok(Box::new(siger))
@@ -237,7 +308,13 @@ impl Signer {
     }
 
     /// Sign using SECP256K1
-    fn sign_secp256k1(&self, ser: &[u8], index: Option<u32>, only: bool, ondex: Option<u32>) -> Result<Box<dyn Matter>, MatterError> {
+    fn sign_secp256k1(
+        &self,
+        ser: &[u8],
+        index: Option<u32>,
+        only: bool,
+        ondex: Option<u32>,
+    ) -> Result<Box<dyn Matter>, MatterError> {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(self.base.raw())
             .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
@@ -260,25 +337,31 @@ impl Signer {
         match index {
             None => {
                 // Non-indexed signature (Cigar)
-                let cigar = Cigar::new(Some(&sig_bytes), Some(mtr_dex::ECDSA_256K1_SIG), None, None, Some(self.verfer.clone()))?;
+                let cigar = Cigar::new(
+                    Some(&sig_bytes),
+                    Some(mtr_dex::ECDSA_256K1_SIG),
+                    None,
+                    None,
+                    Some(self.verfer.clone()),
+                )?;
                 Ok(Box::new(cigar))
-            },
+            }
             Some(idx) => {
                 // Indexed signature (Siger)
                 let code = if only {
                     // Only main index
                     if idx <= 63 {
-                        idr_dex::ECDSA_256K1_CRT_SIG  // Small current only
+                        idr_dex::ECDSA_256K1_CRT_SIG // Small current only
                     } else {
-                        idr_dex::ECDSA_256K1_BIG_CRT_SIG  // Big current only
+                        idr_dex::ECDSA_256K1_BIG_CRT_SIG // Big current only
                     }
                 } else {
                     // Both indices
-                    let ondex_val = ondex.unwrap_or(idx);  // Default to same as index
+                    let ondex_val = ondex.unwrap_or(idx); // Default to same as index
                     if ondex_val == idx && idx <= 63 {
-                        idr_dex::ECDSA_256K1_SIG  // Small both same
+                        idr_dex::ECDSA_256K1_SIG // Small both same
                     } else {
-                        idr_dex::ECDSA_256K1_BIG_SIG  // Big both
+                        idr_dex::ECDSA_256K1_BIG_SIG // Big both
                     }
                 };
 
@@ -287,7 +370,7 @@ impl Signer {
                     Some(code),
                     Some(idx),
                     ondex,
-                    Some(self.verfer.clone())
+                    Some(self.verfer.clone()),
                 )?;
 
                 Ok(Box::new(siger))
@@ -295,30 +378,51 @@ impl Signer {
         }
     }
 
-    pub fn from_qb64b_and_transferable(data: &mut Vec<u8>, strip: Option<bool>, transferable: bool)  -> Result<Self, MatterError> {
+    pub fn from_qb64b_and_transferable(
+        data: &mut Vec<u8>,
+        strip: Option<bool>,
+        transferable: bool,
+    ) -> Result<Self, MatterError> {
         let mut signer = Signer::from_qb64b(data, strip)?;
         // Generate verfer based on the signing key
         let verfer = match signer.code() {
             mtr_dex::ED25519_SEED => {
-                let raw_bytes: [u8; 32] = signer.raw().try_into()
+                let raw_bytes: [u8; 32] = signer
+                    .raw()
+                    .try_into()
                     .map_err(|_| MatterError::CryptoError("Invalid Ed25519 seed".into()))?;
 
-                sodiumoxide::init().map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
+                sodiumoxide::init()
+                    .map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
                 let seed = ed25519::Seed::from_slice(&raw_bytes)
                     .ok_or_else(|| MatterError::CryptoError("Invalid Ed25519 seed".to_string()))?;
                 let (pk, _) = ed25519::keypair_from_seed(&seed);
-                let verfer_code = if transferable { mtr_dex::ED25519 } else { mtr_dex::ED25519N };
+                let verfer_code = if transferable {
+                    mtr_dex::ED25519
+                } else {
+                    mtr_dex::ED25519N
+                };
                 Verfer::new(Some(&pk[..]), Some(verfer_code))?
-            },
+            }
             mtr_dex::ECDSA_256R1_SEED => {
                 let signing_key = SigningKey::from_slice(&signer.raw())
                     .map_err(|_| MatterError::CryptoError("Invalid P256 seed".into()))?;
-                let verkey = signing_key.verifying_key().to_encoded_point(true).as_bytes().to_vec();
-                let verfer_code = if transferable { mtr_dex::ECDSA_256R1 } else { mtr_dex::ECDSA_256R1N };
+                let verkey = signing_key
+                    .verifying_key()
+                    .to_encoded_point(true)
+                    .as_bytes()
+                    .to_vec();
+                let verfer_code = if transferable {
+                    mtr_dex::ECDSA_256R1
+                } else {
+                    mtr_dex::ECDSA_256R1N
+                };
                 Verfer::new(Some(&verkey), Some(verfer_code))?
-            },
+            }
             mtr_dex::ECDSA_256K1_SEED => {
-                let raw_bytes: [u8; 32] = signer.raw().try_into()
+                let raw_bytes: [u8; 32] = signer
+                    .raw()
+                    .try_into()
                     .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
 
                 let secp = Secp256k1::new();
@@ -326,10 +430,19 @@ impl Signer {
                     .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
                 let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
                 let verkey = public_key.serialize();
-                let verfer_code = if transferable { mtr_dex::ECDSA_256K1 } else { mtr_dex::ECDSA_256K1N };
+                let verfer_code = if transferable {
+                    mtr_dex::ECDSA_256K1
+                } else {
+                    mtr_dex::ECDSA_256K1N
+                };
                 Verfer::new(Some(&verkey), Some(verfer_code))?
-            },
-            _ => return Err(MatterError::UnexpectedCode(format!("Unsupported signer code: {}", signer.code()))),
+            }
+            _ => {
+                return Err(MatterError::UnexpectedCode(format!(
+                    "Unsupported signer code: {}",
+                    signer.code()
+                )))
+            }
         };
 
         signer.set_verfer(verfer);
@@ -396,16 +509,18 @@ impl Matter for Signer {
     fn is_special(&self) -> bool {
         self.base.is_special()
     }
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sodiumoxide::randombytes;
     use crate::cesr::indexing::siger::Siger;
     use crate::cesr::indexing::{raw_size, Indexer};
     use crate::cesr::raw_size as mtr_raw_size;
+    use sodiumoxide::randombytes;
 
     #[test]
     fn test_signer_creation() {
@@ -495,7 +610,10 @@ mod tests {
         assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
         assert_eq!(signer.raw().len(), mtr_raw_size(mtr_dex::ED25519_SEED)?);
         assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
-        assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ED25519N)?);
+        assert_eq!(
+            signer.verfer().raw().len(),
+            mtr_raw_size(mtr_dex::ED25519N)?
+        );
 
         let cigar = signer.sign(ser, None, None, None)?;
         let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
@@ -629,7 +747,7 @@ mod tests {
         // Test with invalid code
         let result = Signer::new(Some(&seed), Some(mtr_dex::ED25519N), None);
         assert!(result.is_err());
-        
+
         Ok(())
     }
 
@@ -638,9 +756,15 @@ mod tests {
         // Test Secp256r1, default seed
         let signer = Signer::new(None, Some(mtr_dex::ECDSA_256R1_SEED), None).unwrap();
         assert_eq!(signer.code(), mtr_dex::ECDSA_256R1_SEED);
-        assert_eq!(signer.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap());
+        assert_eq!(
+            signer.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap()
+        );
         assert_eq!(signer.verfer().code(), mtr_dex::ECDSA_256R1);
-        assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap());
+        assert_eq!(
+            signer.verfer().raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap()
+        );
 
         // Create something to sign and verify
         let ser = b"abcdefghijklmnopqrstuvwxyz0123456789";
@@ -648,7 +772,10 @@ mod tests {
         let cigar = signer.sign(ser, None, None, None).unwrap();
         let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
         assert_eq!(cigar.code(), mtr_dex::ECDSA_256R1_SIG);
-        assert_eq!(cigar.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SIG).unwrap());
+        assert_eq!(
+            cigar.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SIG).unwrap()
+        );
         let result = signer.verfer().verify(cigar.raw(), ser).unwrap();
         assert!(result);
 
@@ -657,21 +784,39 @@ mod tests {
         let seed = randombytes::randombytes(32);
         let signer = Signer::new(Some(&seed), Some(mtr_dex::ECDSA_256R1_SEED), None).unwrap();
         assert_eq!(signer.code(), mtr_dex::ECDSA_256R1_SEED);
-        assert_eq!(signer.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap());
+        assert_eq!(
+            signer.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap()
+        );
         assert_eq!(signer.raw(), seed);
         assert_eq!(signer.verfer().code(), mtr_dex::ECDSA_256R1);
-        assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap());
+        assert_eq!(
+            signer.verfer().raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap()
+        );
 
         // Test hardcoded seed
         let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\xc9\xbd\x04\x9d\x85)~\x93";
         let signer = Signer::new(Some(seed), Some(mtr_dex::ECDSA_256R1_SEED), None).unwrap();
         assert_eq!(signer.code(), mtr_dex::ECDSA_256R1_SEED);
-        assert_eq!(signer.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap());
+        assert_eq!(
+            signer.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap()
+        );
         assert_eq!(signer.raw(), seed);
         assert_eq!(signer.verfer().code(), mtr_dex::ECDSA_256R1);
-        assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap());
-        assert_eq!(signer.qb64(), "QJ97qKeoQzmWJvqxmeuqIMQbRxHErlNBUsm9BJ2FKX6T");
-        assert_eq!(signer.verfer().qb64(), "1AAJA3cK_P2CDlh-_EMFPvyqTPI1POkw-dr14DANx5JEXDCZ");
+        assert_eq!(
+            signer.verfer().raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap()
+        );
+        assert_eq!(
+            signer.qb64(),
+            "QJ97qKeoQzmWJvqxmeuqIMQbRxHErlNBUsm9BJ2FKX6T"
+        );
+        assert_eq!(
+            signer.verfer().qb64(),
+            "1AAJA3cK_P2CDlh-_EMFPvyqTPI1POkw-dr14DANx5JEXDCZ"
+        );
 
         // Test vectors from CERSide
         let ser = b"abc";
@@ -688,23 +833,31 @@ mod tests {
         let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
 
         assert_eq!(signer.code(), mtr_dex::ECDSA_256R1_SEED);
-        assert_eq!(signer.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap());
+        assert_eq!(
+            signer.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SEED).unwrap()
+        );
         assert_eq!(signer.raw(), seed);
         assert_eq!(signer.qb64(), signerqb64);
 
         assert_eq!(signer.verfer().code(), mtr_dex::ECDSA_256R1);
-        assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap());
+        assert_eq!(
+            signer.verfer().raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1).unwrap()
+        );
         assert_eq!(signer.verfer().raw(), verkey);
         assert_eq!(signer.verfer().qb64(), verferqb64);
 
         assert_eq!(cigar.code(), mtr_dex::ECDSA_256R1_SIG);
-        assert_eq!(cigar.raw().len(), mtr_raw_size(mtr_dex::ECDSA_256R1_SIG).unwrap());
+        assert_eq!(
+            cigar.raw().len(),
+            mtr_raw_size(mtr_dex::ECDSA_256R1_SIG).unwrap()
+        );
         assert!(signer.verfer().verify(cigar.raw(), ser).unwrap());
         assert!(signer.verfer().verify(sig, ser).unwrap());
 
-        let cigar = Cigar::new(Some(sig), Some(mtr_dex::ECDSA_256R1_SIG), None, None, None).unwrap();
+        let cigar =
+            Cigar::new(Some(sig), Some(mtr_dex::ECDSA_256R1_SIG), None, None, None).unwrap();
         assert_eq!(cigar.qb64(), cigarqb64);
     }
-    
-    
 }

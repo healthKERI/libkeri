@@ -1,14 +1,12 @@
-use std::any::Any;
-use sodiumoxide::crypto::sign::ed25519;
 use crate::cesr::{mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
+use sodiumoxide::crypto::sign::ed25519;
+use std::any::Any;
 
-use secp256k1::{Secp256k1, Message, PublicKey};
+use p256::ecdsa::{signature::Verifier, Signature as p256Signature, VerifyingKey};
 use secp256k1::ecdsa::Signature;
-use p256::{
-    ecdsa::{signature::Verifier, Signature as p256Signature, VerifyingKey}
-};
+use secp256k1::{Message, PublicKey, Secp256k1};
 use sha2::{Digest, Sha256};
 
 ///  Verfer is Matter subclass with method to verify signature of serialization
@@ -32,7 +30,9 @@ impl Verfer {
             mtr_dex::ECDSA_256R1,
             mtr_dex::ECDSA_256K1N,
             mtr_dex::ECDSA_256K1,
-        ].contains(&base.code()) {
+        ]
+        .contains(&base.code())
+        {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
@@ -40,7 +40,9 @@ impl Verfer {
     }
 
     pub fn new(code: Option<&[u8]>, raw: Option<&str>) -> Result<Self, MatterError> {
-        let verfer = Self { base: BaseMatter::new(code, raw, None, None)? };
+        let verfer = Self {
+            base: BaseMatter::new(code, raw, None, None)?,
+        };
 
         // Validate the code is supported
         if ![
@@ -50,8 +52,12 @@ impl Verfer {
             mtr_dex::ECDSA_256R1,
             mtr_dex::ECDSA_256K1N,
             mtr_dex::ECDSA_256K1,
-        ].contains(&verfer.code()) {
-            return Err(MatterError::UnsupportedCodeError(String::from(verfer.code())));
+        ]
+        .contains(&verfer.code())
+        {
+            return Err(MatterError::UnsupportedCodeError(String::from(
+                verfer.code(),
+            )));
         }
 
         Ok(verfer)
@@ -62,13 +68,13 @@ impl Verfer {
         match self.code() {
             code if code == mtr_dex::ED25519N || code == mtr_dex::ED25519 => {
                 self.ed25519_verify(sig, ser)
-            },
+            }
             code if code == mtr_dex::ECDSA_256R1N || code == mtr_dex::ECDSA_256R1 => {
                 self.secp256r1_verify(sig, ser)
-            },
+            }
             code if code == mtr_dex::ECDSA_256K1N || code == mtr_dex::ECDSA_256K1 => {
                 self.secp256k1_verify(sig, ser)
-            },
+            }
             // This should never happen because we validate in the constructor
             _ => Err(MatterError::UnsupportedCodeError(String::from(self.code()))),
         }
@@ -80,7 +86,7 @@ impl Verfer {
         if self.raw().len() != ed25519::PUBLICKEYBYTES {
             return Err(MatterError::InvalidKeyLength {
                 expected: ed25519::PUBLICKEYBYTES,
-                actual: self.raw().len()
+                actual: self.raw().len(),
             });
         }
 
@@ -88,20 +94,28 @@ impl Verfer {
         if sig.len() != ed25519::SIGNATUREBYTES {
             return Err(MatterError::InvalidSignatureLength {
                 expected: ed25519::SIGNATUREBYTES,
-                actual: sig.len()
+                actual: sig.len(),
             });
         }
 
         // Convert raw key bytes to sodiumoxide PublicKey
         let pk = match ed25519::PublicKey::from_slice(&self.raw()) {
             Some(key) => key,
-            None => return Err(MatterError::VerificationError("Invalid public key format".to_string())),
+            None => {
+                return Err(MatterError::VerificationError(
+                    "Invalid public key format".to_string(),
+                ))
+            }
         };
 
         // Convert signature bytes to sodiumoxide Signature
         let signature = match ed25519::Signature::from_bytes(sig) {
             Ok(sig) => sig,
-            Err(_) => return Err(MatterError::VerificationError("Invalid signature format".to_string())),
+            Err(_) => {
+                return Err(MatterError::VerificationError(
+                    "Invalid signature format".to_string(),
+                ))
+            }
         };
         // Verify the signature
         let result = ed25519::verify_detached(&signature, ser, &pk);
@@ -109,13 +123,12 @@ impl Verfer {
         Ok(result)
     }
 
-
     fn secp256r1_verify(&self, sig: &[u8], ser: &[u8]) -> Result<bool, MatterError> {
         // P-256 public keys are typically 33 bytes (compressed) or 65 bytes (uncompressed)
         if self.raw().len() != 33 && self.raw().len() != 65 {
             return Err(MatterError::InvalidKeyLength {
                 expected: 33, // We can expect compressed keys as standard
-                actual: self.raw().len()
+                actual: self.raw().len(),
             });
         }
 
@@ -133,8 +146,9 @@ impl Verfer {
             Ok(sig) => sig,
             Err(_) => {
                 // If not DER, try ASN.1
-                p256Signature::try_from(sig)
-                    .map_err(|e| MatterError::Secp256r1Error(format!("Invalid signature format: {}", e)))?
+                p256Signature::try_from(sig).map_err(|e| {
+                    MatterError::Secp256r1Error(format!("Invalid signature format: {}", e))
+                })?
             }
         };
 
@@ -145,7 +159,6 @@ impl Verfer {
         }
     }
 
-
     fn secp256k1_verify(&self, sig: &[u8], ser: &[u8]) -> Result<bool, MatterError> {
         // Create a secp256k1 context for verification only
         let secp = Secp256k1::verification_only();
@@ -155,7 +168,7 @@ impl Verfer {
         if self.raw().len() != 33 && self.raw().len() != 65 {
             return Err(MatterError::InvalidKeyLength {
                 expected: 33, // We can expect compressed keys as standard
-                actual: self.raw().len()
+                actual: self.raw().len(),
             });
         }
 
@@ -168,8 +181,9 @@ impl Verfer {
 
         // Attempt to parse as compact first (most common in many systems)
         let signature = if sig.len() == 64 {
-            Signature::from_compact(sig)
-                .map_err(|e| MatterError::Secp256k1Error(format!("Invalid compact signature: {}", e)))?
+            Signature::from_compact(sig).map_err(|e| {
+                MatterError::Secp256k1Error(format!("Invalid compact signature: {}", e))
+            })?
         } else {
             // Try as DER format
             Signature::from_der(sig)
@@ -183,7 +197,6 @@ impl Verfer {
         let result = hasher.finalize();
         let message_hash: [u8; 32] = result.into();
 
-
         // Create a Message object from the 32-byte hash
         let message = Message::from_digest(message_hash);
 
@@ -193,7 +206,6 @@ impl Verfer {
             Err(_) => Ok(false), // Verification failed but function succeeded
         }
     }
-
 }
 
 impl Parsable for Verfer {
@@ -206,15 +218,14 @@ impl Parsable for Verfer {
             mtr_dex::ECDSA_256R1,
             mtr_dex::ECDSA_256K1N,
             mtr_dex::ECDSA_256K1,
-        ].contains(&base.code()) {
+        ]
+        .contains(&base.code())
+        {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Verfer {
-            base
-        })
+        Ok(Verfer { base })
     }
-
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb2(data, strip)?;
@@ -225,40 +236,66 @@ impl Parsable for Verfer {
             mtr_dex::ECDSA_256R1,
             mtr_dex::ECDSA_256K1N,
             mtr_dex::ECDSA_256K1,
-        ].contains(&base.code()) {
+        ]
+        .contains(&base.code())
+        {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Verfer {
-            base
-        })
+        Ok(Verfer { base })
     }
 }
 
 impl Matter for Verfer {
-    fn code(&self) -> &str { self.base.code() }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn qb64(&self) -> String { self.base.qb64() }
-    fn qb64b(&self) -> Vec<u8> { self.base.qb64b() }
-    fn qb2(&self) -> Vec<u8> { self.base.qb2() }
-    fn soft(&self) -> &str { self.base.soft() }
-    fn full_size(&self) -> usize { self.base.full_size() }
-    fn size(&self) -> usize { self.base.size() }
-    fn is_transferable(&self) -> bool { self.base.is_transferable() }
-    fn is_digestive(&self) -> bool { self.base.is_digestive() }
-    fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
-    fn is_special(&self) -> bool { self.base.is_special() }
-    fn as_any(&self) -> &dyn Any { self }
+    fn code(&self) -> &str {
+        self.base.code()
+    }
+    fn raw(&self) -> &[u8] {
+        self.base.raw()
+    }
+    fn qb64(&self) -> String {
+        self.base.qb64()
+    }
+    fn qb64b(&self) -> Vec<u8> {
+        self.base.qb64b()
+    }
+    fn qb2(&self) -> Vec<u8> {
+        self.base.qb2()
+    }
+    fn soft(&self) -> &str {
+        self.base.soft()
+    }
+    fn full_size(&self) -> usize {
+        self.base.full_size()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
+    }
+    fn is_transferable(&self) -> bool {
+        self.base.is_transferable()
+    }
+    fn is_digestive(&self) -> bool {
+        self.base.is_digestive()
+    }
+    fn is_prefixive(&self) -> bool {
+        self.base.is_prefixive()
+    }
+    fn is_special(&self) -> bool {
+        self.base.is_special()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sodiumoxide::crypto::sign::ed25519;
-    use p256::{ecdsa::{SigningKey, signature::Signer}};
+    use p256::ecdsa::{signature::Signer, SigningKey};
     use rand_core::OsRng;
-    use secp256k1::{rand, Secp256k1, SecretKey, PublicKey};
-    use sha2::{Sha256, Digest};
+    use secp256k1::{rand, PublicKey, Secp256k1, SecretKey};
+    use sha2::{Digest, Sha256};
+    use sodiumoxide::crypto::sign::ed25519;
 
     #[test]
     fn test_verfer_ed25519() {
@@ -299,7 +336,10 @@ mod tests {
 
         // Test with invalid code
         let blake_result = Verfer::new(Some(verkey), Some(mtr_dex::BLAKE3_256));
-        assert!(matches!(blake_result, Err(MatterError::UnsupportedCodeError(_))));
+        assert!(matches!(
+            blake_result,
+            Err(MatterError::UnsupportedCodeError(_))
+        ));
     }
 
     #[test]
@@ -333,7 +373,6 @@ mod tests {
         };
         assert!(result);
 
-
         // Convert the ASN.1 DER signature to raw R and S values
         // (equivalent to decode_dss_signature in Python)
         let der_bytes = signature.to_bytes();
@@ -349,12 +388,14 @@ mod tests {
         raw_sig.extend_from_slice(&s);
 
         // Verify the signature
-        let result = verfer.verify(&raw_sig, ser)
+        let result = verfer
+            .verify(&raw_sig, ser)
             .expect("Verification failed with error");
         assert!(result);
 
         // Test negative case
-        let result = verfer.verify(&der_bytes, b"ABC")
+        let result = verfer
+            .verify(&der_bytes, b"ABC")
             .expect("Verification failed with error");
         assert!(!result);
 

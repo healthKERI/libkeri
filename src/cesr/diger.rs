@@ -1,11 +1,11 @@
-use std::any::Any;
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
 use blake2::{Blake2b512, Blake2s256, Digest as Blake2Digest};
-use blake3::{Hasher as Blake3Hasher};
+use blake3::Hasher as Blake3Hasher;
 use sha2::{Sha256, Sha512};
-use sha3::{Sha3_256, Sha3_512, Digest as Sha3Digest};
+use sha3::{Digest as Sha3Digest, Sha3_256, Sha3_512};
+use std::any::Any;
 
 ///  Diger is Matter subclass with method to verify digest of serialization
 #[derive(Debug, Clone)]
@@ -14,24 +14,25 @@ pub struct Diger {
 }
 
 impl Diger {
-    pub fn new(raw: Option<&[u8]>, code: Option<&str>, soft: Option<&str>, rize: Option<usize>) -> Result<Self, MatterError> {
+    pub fn new(
+        raw: Option<&[u8]>,
+        code: Option<&str>,
+        soft: Option<&str>,
+        rize: Option<usize>,
+    ) -> Result<Self, MatterError> {
         let code = code.unwrap_or_else(|| mtr_dex::BLAKE3_256);
         if !dig_dex::TUPLE.contains(&(code)) {
             return Err(MatterError::UnsupportedCodeError(String::from(code)));
         }
 
         let base = BaseMatter::new(raw, Some(code), soft, rize)?;
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
 
     pub fn from_raw(raw: Option<&[u8]>) -> Result<Self, MatterError> {
         let base = BaseMatter::new(raw, Some(mtr_dex::BLAKE3_256), None, None)?;
 
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
 
     pub fn from_qb64(qb64: &str) -> Result<Self, MatterError> {
@@ -40,9 +41,7 @@ impl Diger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
 
     pub fn from_ser(ser: &[u8], code: Option<&str>) -> Result<Self, MatterError> {
@@ -53,9 +52,7 @@ impl Diger {
     pub fn from_ser_and_code(ser: &[u8], code: &str) -> Result<Self, MatterError> {
         let raw = Diger::digest(ser, code)?;
         let base = BaseMatter::new(Some(&raw), Some(code), None, None)?;
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
 
     pub fn digest(ser: &[u8], code: &str) -> Result<Vec<u8>, MatterError> {
@@ -63,35 +60,35 @@ impl Diger {
             code if code == dig_dex::BLAKE3_256 => {
                 let result = Diger::digest_blake3_256(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::BLAKE3_512 => {
                 let result = Diger::digest_blake3_512(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::SHA3_256 => {
                 let result = Diger::digest_sha3_256(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::SHA2_256 => {
                 let result = Diger::digest_sha2_256(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::SHA3_512 => {
                 let result = Diger::digest_sha3_512(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::SHA2_512 => {
                 let result = Diger::digest_sha2_512(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::BLAKE2S_256 => {
                 let result = Diger::digest_blake2s_256(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             code if code == dig_dex::BLAKE2B_512 => {
                 let result = Diger::digest_blake2b_512(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             // code if code == dig_dex::BLAKE2B_256 => {
             //     let result = Diger::digest_blake2b_256(ser)?;
             //     Ok(result.to_vec())
@@ -127,7 +124,6 @@ impl Diger {
     //     Ok(digest)
     // }
     //
-
 
     /// Calculate Blake2s 256-bit hash
     fn digest_blake2s_256(data: &[u8]) -> Result<[u8; 32], MatterError> {
@@ -196,11 +192,11 @@ impl Diger {
 
     fn compare_with_diger(&self, ser: &[u8], other: &Self) -> bool {
         if self.base.qb64() == other.base.qb64() {
-            return true
+            return true;
         }
 
         if self.code() == other.code() {
-            return false
+            return false;
         }
 
         other.verify(ser) && self.verify(ser)
@@ -222,11 +218,8 @@ impl Parsable for Diger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
-
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb2(data, strip)?;
@@ -234,38 +227,60 @@ impl Parsable for Diger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Diger {
-            base,
-        })
+        Ok(Diger { base })
     }
-
 }
 
 impl Matter for Diger {
-    fn code(&self) -> &str { self.base.code() }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn qb64(&self) -> String { self.base.qb64() }
-    fn qb64b(&self) -> Vec<u8> { self.base.qb64b() }
-    fn qb2(&self) -> Vec<u8> { self.base.qb2() }
-    fn soft(&self) -> &str { self.base.soft() }
-    fn full_size(&self) -> usize { self.base.full_size() }
-    fn size(&self) -> usize { self.base.size() }
-    fn is_transferable(&self) -> bool { self.base.is_transferable() }
-    fn is_digestive(&self) -> bool { self.base.is_digestive() }
-    fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
-    fn is_special(&self) -> bool { self.base.is_special() }
-    fn as_any(&self) -> &dyn Any { self }
+    fn code(&self) -> &str {
+        self.base.code()
+    }
+    fn raw(&self) -> &[u8] {
+        self.base.raw()
+    }
+    fn qb64(&self) -> String {
+        self.base.qb64()
+    }
+    fn qb64b(&self) -> Vec<u8> {
+        self.base.qb64b()
+    }
+    fn qb2(&self) -> Vec<u8> {
+        self.base.qb2()
+    }
+    fn soft(&self) -> &str {
+        self.base.soft()
+    }
+    fn full_size(&self) -> usize {
+        self.base.full_size()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
+    }
+    fn is_transferable(&self) -> bool {
+        self.base.is_transferable()
+    }
+    fn is_digestive(&self) -> bool {
+        self.base.is_digestive()
+    }
+    fn is_prefixive(&self) -> bool {
+        self.base.is_prefixive()
+    }
+    fn is_special(&self) -> bool {
+        self.base.is_special()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cesr::raw_size;
     use blake2::{Blake2b512, Blake2s256, Digest};
     use blake3;
     use sha2::Sha256;
     use sha3::Sha3_256;
-    use crate::cesr::{raw_size};
-
 
     #[test]
     fn test_diger() {
@@ -275,7 +290,6 @@ mod tests {
         // Test EmptyMaterialError
         let result = Diger::new(None, None, None, None);
         assert!(result.is_err());
-
 
         // Create something to digest and verify
         let ser = b"abcdefghijklmnopqrstuvwxyz0123456789";
@@ -304,7 +318,10 @@ mod tests {
         assert_eq!(diger.code(), mtr_dex::BLAKE3_256);
         assert_eq!(diger.raw().len(), raw_size(diger.code()).unwrap());
         assert!(diger.verify(ser));
-        assert_eq!(diger.qb64b(), b"ELC5L3iBVD77d_MYbYGGCUQgqQBju1o4x1Ud-z2sL-ux");
+        assert_eq!(
+            diger.qb64b(),
+            b"ELC5L3iBVD77d_MYbYGGCUQgqQBju1o4x1Ud-z2sL-ux"
+        );
 
         // Test constructor with qb64b
         let digb = b"ELC5L3iBVD77d_MYbYGGCUQgqQBju1o4x1Ud-z2sL-ux";

@@ -7,6 +7,6 @@ async fn main() {
         eprintln!("Failed to initialize KERI library: {}", e);
         return;
     }
-    
+
     println!("Hello KERI!");
 }

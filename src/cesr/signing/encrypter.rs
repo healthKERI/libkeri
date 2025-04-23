@@ -1,13 +1,15 @@
-use std::any::Any;
+use crate::cesr::signing::cipher::Cipher;
+use crate::cesr::signing::{
+    cix_all_qb64_dex, cix_var_qb2_dex, cix_var_strm_dex, ed25519_pk_to_x25519_pk, Signer,
+};
+use crate::cesr::verfer::Verfer;
+use crate::cesr::{mtr_dex, BaseMatter, Parsable};
+use crate::errors::MatterError;
+use crate::Matter;
 use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
 use sodiumoxide::crypto::sealedbox::seal;
 use sodiumoxide::crypto::sign::ed25519;
-use crate::cesr::{mtr_dex, BaseMatter, Parsable};
-use crate::cesr::signing::cipher::Cipher;
-use crate::cesr::signing::{cix_all_qb64_dex, cix_var_qb2_dex, cix_var_strm_dex, ed25519_pk_to_x25519_pk, Signer};
-use crate::cesr::verfer::Verfer;
-use crate::errors::MatterError;
-use crate::Matter;
+use std::any::Any;
 
 #[derive(Debug, Clone)]
 pub struct Encrypter {
@@ -28,26 +30,32 @@ impl Encrypter {
 
             if verfer.code() != mtr_dex::ED25519N && verfer.code() != mtr_dex::ED25519 {
                 return Err(MatterError::ValueError(format!(
-                    "Unsupported verkey derivation code = {}", verfer.code()
-                )).into());
+                    "Unsupported verkey derivation code = {}",
+                    verfer.code()
+                ))
+                .into());
             }
 
             // Convert signing public key to encryption public key
-            let signing_pk = ed25519::PublicKey::from_slice(verfer.raw())
-                .ok_or_else(|| MatterError::ValueError("Invalid verkey format".to_string()).into())?;
+            let signing_pk = ed25519::PublicKey::from_slice(verfer.raw()).ok_or_else(|| {
+                MatterError::ValueError("Invalid verkey format".to_string()).into()
+            })?;
             let encryption_pk = ed25519_pk_to_x25519_pk(&signing_pk)?;
             encryption_pk.as_ref().to_vec()
         } else if let Some(r) = raw {
             r.to_vec()
         } else {
-            return Err(MatterError::ValueError("Either raw or verkey must be provided".to_string()).into());
+            return Err(MatterError::ValueError(
+                "Either raw or verkey must be provided".to_string(),
+            )
+            .into());
         };
 
         // Check supported encryption code
         if code != mtr_dex::X25519 {
-            return Err(MatterError::ValueError(format!(
-                "Unsupported encrypter code = {}", code
-            )).into());
+            return Err(
+                MatterError::ValueError(format!("Unsupported encrypter code = {}", code)).into(),
+            );
         }
 
         let base = BaseMatter {
@@ -105,7 +113,8 @@ impl Encrypter {
                     return Err(MatterError::ValueError(format!(
                         "Unsupported primitive with code = {} when cipher code is missing",
                         p.code()
-                    )).into());
+                    ))
+                    .into());
                 }
             } else {
                 // Use appropriate serialization based on code
@@ -120,13 +129,15 @@ impl Encrypter {
                     return Err(MatterError::InvalidCode(format!(
                         "Invalid primitive cipher code = {} not qb64 or qb2",
                         code.unwrap()
-                    )).into());
+                    ))
+                    .into());
                 }
             }
         } else {
             return Err(MatterError::EmptyMaterialError(
-                "Neither serialization or primitive are provided".to_string()
-            ).into());
+                "Neither serialization or primitive are provided".to_string(),
+            )
+            .into());
         };
 
         // Default code if none provided
@@ -137,8 +148,9 @@ impl Encrypter {
 
     fn encrypt_x25519(&self, ser: &[u8], code: &str) -> Result<Cipher, MatterError> {
         // Create PublicKey from raw bytes
-        let public_key = crypto_box::PublicKey::from_slice(self.raw())
-            .ok_or_else(|| MatterError::ValueError("Invalid public key format".to_string()).into())?;
+        let public_key = crypto_box::PublicKey::from_slice(self.raw()).ok_or_else(|| {
+            MatterError::ValueError("Invalid public key format".to_string()).into()
+        })?;
 
         // Encrypt data using sealed box
         let cipher_raw = seal(ser, &public_key);
@@ -245,11 +257,11 @@ impl Matter for Encrypter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cesr::prefixer::Prefixer;
+    use crate::cesr::signing::ed25519_sk_to_x25519_sk;
     use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
     use sodiumoxide::crypto::sealedbox::open;
     use sodiumoxide::crypto::sign::ed25519;
-    use crate::cesr::prefixer::Prefixer;
-    use crate::cesr::signing::ed25519_sk_to_x25519_sk;
 
     #[test]
     fn test_encrypter() {
@@ -268,28 +280,27 @@ mod tests {
         let seed = &[
             0x18, 0x3b, 0x30, 0xc4, 0x0f, 0x2a, 0x76, 0x46, 0xfa, 0xe3, 0xa2, 0x45, 0x65, 0x65,
             0x1f, 0x96, 0x6f, 0xce, 0x29, 0x47, 0x85, 0xe3, 0x58, 0x86, 0xda, 0x04, 0xf0, 0xdc,
-            0xde, 0x06, 0xc0, 0x2b
+            0xde, 0x06, 0xc0, 0x2b,
         ];
 
         // Create seed matter and verify its qb64b representation
-        let seed_matter = BaseMatter::new(Some(seed), Some(mtr_dex::ED25519_SEED), None, None).unwrap();
+        let seed_matter =
+            BaseMatter::new(Some(seed), Some(mtr_dex::ED25519_SEED), None, None).unwrap();
         let seed_qb64b = seed_matter.qb64b();
         assert_eq!(
-            seed_qb64b,
-            b"ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr",
+            seed_qb64b, b"ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr",
             "Seed qb64b encoding is incorrect"
         );
 
         // Create and verify salt matter
         let salt = &[
             0x36, 0x08, 0x64, 0x0d, 0xa1, 0xbb, 0x39, 0x8d, 0x70, 0x8d, 0xa0, 0xc0, 0x13, 0x4a,
-            0x87, 0x72
+            0x87, 0x72,
         ];
         let salt_matter = BaseMatter::new(Some(salt), Some(mtr_dex::SALT_128), None, None).unwrap();
         let salt_qb64b = salt_matter.qb64b();
         assert_eq!(
-            salt_qb64b,
-            b"0AA2CGQNobs5jXCNoMATSody",
+            salt_qb64b, b"0AA2CGQNobs5jXCNoMATSody",
             "Salt qb64b encoding is incorrect"
         );
 
@@ -297,15 +308,12 @@ mod tests {
         let crypt_seed = &[
             0x68, 0x2c, 0x23, 0x7c, 0x8a, 0x70, 0x22, 0x12, 0xc4, 0x33, 0x74, 0x32, 0xa6, 0xe1,
             0x18, 0x19, 0xf0, 0x66, 0x32, 0x2c, 0x79, 0xc4, 0xc2, 0x31, 0x40, 0xf5, 0x40, 0x15,
-            0x2e, 0xa2, 0x1a, 0xcf
+            0x2e, 0xa2, 0x1a, 0xcf,
         ];
 
         // Create a signer with the crypto seed
-        let crypt_signer = Signer::new(
-            Some(crypt_seed),
-            Some(mtr_dex::ED25519_SEED),
-            Some(true)
-        ).unwrap();
+        let crypt_signer =
+            Signer::new(Some(crypt_seed), Some(mtr_dex::ED25519_SEED), Some(true)).unwrap();
 
         // Generate key pairs from seed
         let seed_bytes = ed25519::Seed::from_slice(crypt_seed).unwrap();
@@ -321,13 +329,21 @@ mod tests {
 
         // Test constructor with raw pubkey
         let encrypter = Encrypter::new(Some(&pubkey.as_ref()), None, None).unwrap();
-        assert_eq!(encrypter.code(), mtr_dex::X25519, "Default code should be X25519");
+        assert_eq!(
+            encrypter.code(),
+            mtr_dex::X25519,
+            "Default code should be X25519"
+        );
         assert_eq!(
             encrypter.qb64(),
             "CAF7Wr3XNq5hArcOuBJzaY6Nd23jgtUVI6KDfb3VngkR",
             "Encrypter qb64 is incorrect"
         );
-        assert_eq!(encrypter.raw(), &pubkey.0, "Encrypter raw should match pubkey");
+        assert_eq!(
+            encrypter.raw(),
+            &pubkey.0,
+            "Encrypter raw should match pubkey"
+        );
 
         // Test seed verification
         let verify_result = encrypter.verify_seed(&crypt_signer.qb64b()).unwrap();
@@ -353,11 +369,8 @@ mod tests {
         );
 
         // Test verkey constructor using bytes
-        let encrypter_from_verkey_bytes = Encrypter::new(
-            None,
-            None,
-            Some(verfer.qb64b().as_slice())
-        ).unwrap();
+        let encrypter_from_verkey_bytes =
+            Encrypter::new(None, None, Some(verfer.qb64b().as_slice())).unwrap();
         assert_eq!(
             encrypter_from_verkey_bytes.code(),
             mtr_dex::X25519,
@@ -376,11 +389,8 @@ mod tests {
 
         // Test with Prefixer
         let prefixer = Prefixer::from_qb64b(&mut verfer.qb64b(), None).unwrap();
-        let encrypter_from_prefixer = Encrypter::new(
-            None,
-            None,
-            Some(prefixer.qb64b().as_slice())
-        ).unwrap();
+        let encrypter_from_prefixer =
+            Encrypter::new(None, None, Some(prefixer.qb64b().as_slice())).unwrap();
         assert_eq!(
             encrypter_from_prefixer.code(),
             mtr_dex::X25519,
@@ -405,17 +415,19 @@ mod tests {
             "CAF7Wr3XNq5hArcOuBJzaY6Nd23jgtUVI6KDfb3VngkR",
             "Encrypter qb64 is incorrect"
         );
-        assert_eq!(encrypter.raw(), &pubkey.0, "Encrypter raw should match pubkey");
+        assert_eq!(
+            encrypter.raw(),
+            &pubkey.0,
+            "Encrypter raw should match pubkey"
+        );
 
         let verify_result = encrypter.verify_seed(&crypt_signer.qb64b()).unwrap();
         assert!(verify_result, "Seed verification should succeed");
 
         // Encrypt seed qb64b
-        let cipher = encrypter.encrypt(
-            Some(&seed_qb64b),
-            None,
-            Some(mtr_dex::X25519_CIPHER_SEED)
-        ).unwrap();
+        let cipher = encrypter
+            .encrypt(Some(&seed_qb64b), None, Some(mtr_dex::X25519_CIPHER_SEED))
+            .unwrap();
         assert_eq!(
             cipher.code(),
             mtr_dex::X25519_CIPHER_SEED,
@@ -423,19 +435,13 @@ mod tests {
         );
 
         // Decrypt and verify the encrypted seed
-        let uncb = open(
-            &cipher.raw(),
-            &crypto_box::PublicKey(pubkey.0),
-            &prikey
-        ).unwrap();
+        let uncb = open(&cipher.raw(), &crypto_box::PublicKey(pubkey.0), &prikey).unwrap();
         assert_eq!(uncb, seed_qb64b, "Decrypted seed should match original");
 
         // Encrypt salt qb64b
-        let cipher = encrypter.encrypt(
-            Some(&salt_qb64b),
-            None,
-            Some(mtr_dex::X25519_CIPHER_SALT)
-        ).unwrap();
+        let cipher = encrypter
+            .encrypt(Some(&salt_qb64b), None, Some(mtr_dex::X25519_CIPHER_SALT))
+            .unwrap();
         assert_eq!(
             cipher.code(),
             mtr_dex::X25519_CIPHER_SALT,
@@ -443,11 +449,7 @@ mod tests {
         );
 
         // Decrypt and verify the encrypted salt
-        let uncb = open(
-            &cipher.raw(),
-            &crypto_box::PublicKey(pubkey.0),
-            &prikey
-        ).unwrap();
+        let uncb = open(&cipher.raw(), &crypto_box::PublicKey(pubkey.0), &prikey).unwrap();
         assert_eq!(uncb, salt_qb64b, "Decrypted salt should match original");
     }
 }

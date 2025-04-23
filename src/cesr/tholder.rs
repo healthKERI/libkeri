@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
-use std::fmt;
 use crate::cesr::bexter::Bexter;
 use crate::cesr::number::Number;
-use std::fmt::Debug;
-use num_rational::Rational32;
 use crate::cesr::{bex_dex, num_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
+use num_rational::Rational32;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Debug;
 
 /// Represents a weight specification for weighted thresholds
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +81,6 @@ pub enum TholderThold {
     Weighted(Vec<Vec<WeightSpec>>),
 }
 
-
 impl Default for Tholder {
     fn default() -> Self {
         Tholder {
@@ -117,14 +116,16 @@ impl Tholder {
         } else if let Some(l) = limen {
             let mut tholder = Tholder::default();
             tholder.process_limen(l.as_slice(), Some(false))?;
-            return Ok(tholder)
+            return Ok(tholder);
         } else if let Some(s) = sith {
             let mut tholder = Tholder::default();
             tholder.process_sith(s)?;
-            return Ok(tholder)
+            return Ok(tholder);
         }
 
-        Err(MatterError::EmptyMaterialError("Missing threshold expression.".to_string()))
+        Err(MatterError::EmptyMaterialError(
+            "Missing threshold expression.".to_string(),
+        ))
     }
 
     /// Process a computed threshold representation
@@ -133,7 +134,7 @@ impl Tholder {
         match thold {
             TholderThold::Integer(num) => {
                 tholder.process_unweighted(num)?;
-            },
+            }
             TholderThold::Weighted(clauses) => {
                 tholder.process_weighted(clauses)?;
             }
@@ -173,7 +174,8 @@ impl Tholder {
                         let v = &e[(k_pos + 1)..];
 
                         let v_parts: Vec<&str> = v.split('v').collect();
-                        let weights: Vec<Rational32> = v_parts.iter()
+                        let weights: Vec<Rational32> = v_parts
+                            .iter()
                             .map(|w| Self::weight(w))
                             .collect::<Result<Vec<Rational32>, _>>()?;
 
@@ -188,7 +190,10 @@ impl Tholder {
 
             // self.process_weighted(thold)?;
         } else {
-            return Err(MatterError::InvalidCode(format!("Invalid code for limen = {}", matter.code())));
+            return Err(MatterError::InvalidCode(format!(
+                "Invalid code for limen = {}",
+                matter.code()
+            )));
         }
 
         Ok(())
@@ -205,17 +210,18 @@ impl Tholder {
     ///   - ComplexWeights: multiple clauses of fractional weights (AND conditions)
     pub fn process_sith(&mut self, sith: TholderSith) -> Result<(), MatterError> {
         match sith {
-            TholderSith::Integer(threshold) => {
-                self.process_unweighted(threshold)
-            },
+            TholderSith::Integer(threshold) => self.process_unweighted(threshold),
 
             TholderSith::HexString(hex_str) => {
                 // Parse the hex string to get the integer threshold
                 match i32::from_str_radix(&hex_str, 16) {
                     Ok(threshold) => self.process_unweighted(threshold as usize),
-                    Err(_) => Err(MatterError::ValueError(format!("Invalid hex string sith = {}", hex_str))),
+                    Err(_) => Err(MatterError::ValueError(format!(
+                        "Invalid hex string sith = {}",
+                        hex_str
+                    ))),
                 }
-            },
+            }
 
             TholderSith::SimpleWeights(weights) => {
                 if weights.is_empty() {
@@ -226,7 +232,7 @@ impl Tholder {
                 let processed_clause = self.process_weight_clause(&weights)?;
                 Err(MatterError::ValueError("NOT IMPLEMENTED".to_string()))
                 // self.process_weighted(vec![processed_clause])
-            },
+            }
 
             TholderSith::ComplexWeights(clauses) => {
                 if clauses.is_empty() {
@@ -237,7 +243,9 @@ impl Tholder {
                 let mut thold = Vec::new();
                 for clause in clauses {
                     if clause.is_empty() {
-                        return Err(MatterError::ValueError("Empty clause in weight list".to_string()));
+                        return Err(MatterError::ValueError(
+                            "Empty clause in weight list".to_string(),
+                        ));
                     }
 
                     let processed_clause = self.process_weight_clause(&clause)?;
@@ -250,7 +258,10 @@ impl Tholder {
     }
 
     /// Helper function to process a clause of weight elements
-    fn process_weight_clause(&self, clause: &[WeightSithElement]) -> Result<Vec<ClauseItem>, MatterError> {
+    fn process_weight_clause(
+        &self,
+        clause: &[WeightSithElement],
+    ) -> Result<Vec<ClauseItem>, MatterError> {
         let mut processed_clause = Vec::new();
 
         for element in clause {
@@ -258,14 +269,13 @@ impl Tholder {
                 WeightSithElement::Simple(weight_str) => {
                     let weight = Self::weight(weight_str)?;
                     processed_clause.push(ClauseItem::Simple(weight));
-                },
+                }
 
                 WeightSithElement::Complex(key, weights) => {
                     let key_weight = Self::weight(key)?;
 
-                    let nested_weights: Result<Vec<Rational32>, _> = weights.iter()
-                        .map(|w| Self::weight(""))
-                        .collect();
+                    let nested_weights: Result<Vec<Rational32>, _> =
+                        weights.iter().map(|w| Self::weight("")).collect();
 
                     processed_clause.push(ClauseItem::Weighted(key_weight, nested_weights?));
                 }
@@ -340,7 +350,7 @@ impl Tholder {
                 // Convert weighted threshold back to sith format
                 // This is a simplified placeholder
                 TholderSith::ComplexWeights(vec![]) // Would need actual implementation
-            },
+            }
             TholderThold::Integer(n) => {
                 // Convert int to hex string
                 TholderSith::HexString(format!("{:x}", n))
@@ -376,20 +386,21 @@ impl Tholder {
 
                 if is_nested {
                     // Convert JSON array of arrays to TholderSith::ComplexWeights
-                    let clauses = arr.into_iter()
+                    let clauses = arr
+                        .into_iter()
                         .map(|clause_val| {
                             match clause_val {
                                 serde_json::Value::Array(clause_arr) => {
                                     // Convert each element in clause to WeightSithElement
-                                    clause_arr.into_iter()
-                                        .map(|elem| {
-                                            Self::json_value_to_weight_element(elem)
-                                        })
+                                    clause_arr
+                                        .into_iter()
+                                        .map(|elem| Self::json_value_to_weight_element(elem))
                                         .collect::<Result<Vec<_>, _>>()
-                                },
+                                }
                                 _ => Err(MatterError::ValueError(format!(
-                                    "Expected array of weights, got: {:?}", clause_val
-                                )))
+                                    "Expected array of weights, got: {:?}",
+                                    clause_val
+                                ))),
                             }
                         })
                         .collect::<Result<Vec<Vec<WeightSithElement>>, _>>()?;
@@ -397,30 +408,33 @@ impl Tholder {
                     Self::process_weighted_clauses(clauses)
                 } else {
                     // Convert JSON array to TholderSith::SimpleWeights
-                    let weights = arr.into_iter()
+                    let weights = arr
+                        .into_iter()
                         .map(|elem| Self::json_value_to_weight_element(elem))
                         .collect::<Result<Vec<_>, _>>()?;
 
                     // Wrap simple weights in a vector to make it a sequence of sequences
                     Self::process_weighted_clauses(vec![weights])
                 }
-            },
+            }
             _ => Err(MatterError::ValueError(format!(
-                "Expected array of weights, got: {:?}", json_val
-            )))
+                "Expected array of weights, got: {:?}",
+                json_val
+            ))),
         }
     }
 
     // Convert JSON value to WeightSithElement
-    fn json_value_to_weight_element(value: serde_json::Value) -> Result<WeightSithElement, MatterError> {
+    fn json_value_to_weight_element(
+        value: serde_json::Value,
+    ) -> Result<WeightSithElement, MatterError> {
         match value {
-            serde_json::Value::String(s) => {
-                Ok(WeightSithElement::Simple(s))
-            },
+            serde_json::Value::String(s) => Ok(WeightSithElement::Simple(s)),
             serde_json::Value::Object(map) => {
                 if map.len() != 1 {
                     return Err(MatterError::ValueError(format!(
-                        "Nested weight map must have exactly one key-value pair, got: {:?}", map
+                        "Nested weight map must have exactly one key-value pair, got: {:?}",
+                        map
                     )));
                 }
 
@@ -428,12 +442,14 @@ impl Tholder {
 
                 match val {
                     serde_json::Value::Array(arr) => {
-                        let weights = arr.into_iter()
+                        let weights = arr
+                            .into_iter()
                             .map(|v| match v {
                                 serde_json::Value::String(s) => Ok(s),
                                 _ => Err(MatterError::ValueError(format!(
-                                    "Weight value must be a string, got: {:?}", v
-                                )))
+                                    "Weight value must be a string, got: {:?}",
+                                    v
+                                ))),
                             })
                             .collect::<Result<Vec<String>, _>>()?;
 
@@ -441,15 +457,17 @@ impl Tholder {
                         weight_map.insert(key, weights);
 
                         Ok(WeightSithElement::Complex(String::from(""), weight_map))
-                    },
+                    }
                     _ => Err(MatterError::ValueError(format!(
-                        "Weight value must be an array, got: {:?}", val
-                    )))
+                        "Weight value must be an array, got: {:?}",
+                        val
+                    ))),
                 }
-            },
+            }
             _ => Err(MatterError::ValueError(format!(
-                "Weight element must be a string or object, got: {:?}", value
-            )))
+                "Weight element must be a string or object, got: {:?}",
+                value
+            ))),
         }
     }
 
@@ -466,18 +484,20 @@ impl Tholder {
                     WeightSithElement::Simple(weight_str) => {
                         let weight = Self::weight(&weight_str)?;
                         processed_clause.push(WeightSpec::Simple(weight));
-                    },
+                    }
                     WeightSithElement::Complex(key, weight_map) => {
                         if weight_map.len() != 1 {
                             return Err(MatterError::ValueError(format!(
-                                "Invalid nested weight map: {:?} - must have exactly one key", weight_map
+                                "Invalid nested weight map: {:?} - must have exactly one key",
+                                weight_map
                             )));
                         }
 
                         let (key, values) = weight_map.into_iter().next().unwrap();
                         let key_weight = Self::weight(&key)?;
 
-                        let value_weights = values.into_iter()
+                        let value_weights = values
+                            .into_iter()
                             .map(|v| Self::weight(&v))
                             .collect::<Result<Vec<_>, _>>()?;
 
@@ -507,7 +527,6 @@ impl Tholder {
             self._number = Some(Number::from_numh(format!("{:x}", thold).as_str())?);
 
             Ok(())
-
         } else {
             self._weighted = false;
             self._size = thold;
@@ -529,12 +548,12 @@ impl Tholder {
         // This is a placeholder implementation
         let bexter = Bexter::from_qb64("B")?;
 
-        self._weighted= true;
-        self._size= size;  // This should be calculated based on the threshold
-        self._sith= TholderSith::ComplexWeights(vec![]);  // This should be derived from thold
-        self._thold= TholderThold::Weighted(thold);
-        self._bexter= Some(bexter);
-        self._number= None;
+        self._weighted = true;
+        self._size = size; // This should be calculated based on the threshold
+        self._sith = TholderSith::ComplexWeights(vec![]); // This should be derived from thold
+        self._thold = TholderThold::Weighted(thold);
+        self._bexter = Some(bexter);
+        self._number = None;
 
         Ok(())
     }
@@ -555,59 +574,65 @@ impl Tholder {
 
         if let Some(idx) = weight_str.find('/') {
             let numerator_str = &weight_str[0..idx];
-            let denominator_str = &weight_str[idx+1..];
+            let denominator_str = &weight_str[idx + 1..];
 
             match (numerator_str.parse::<i32>(), denominator_str.parse::<i32>()) {
                 (Ok(num), Ok(denom)) => {
                     if denom <= 0 {
-                        return Err(MatterError::WeightError(
-                            format!("Denominator must be positive, got: {}", denom)
-                        ));
+                        return Err(MatterError::WeightError(format!(
+                            "Denominator must be positive, got: {}",
+                            denom
+                        )));
                     }
 
                     let rational = Rational32::new(num, denom);
 
                     // Check that 0 <= rational <= 1
-                    if rational < Rational32::new(0, 1) ||
-                        rational > Rational32::new(1, 1) {
-                        return Err(MatterError::WeightError(
-                            format!("Weight must be between 0 and 1, got: {}", weight_str)
-                        ));
+                    if rational < Rational32::new(0, 1) || rational > Rational32::new(1, 1) {
+                        return Err(MatterError::WeightError(format!(
+                            "Weight must be between 0 and 1, got: {}",
+                            weight_str
+                        )));
                     }
 
                     Ok(rational)
-                },
-                _ => Err(MatterError::ParseError(
-                    format!("Failed to parse rational number: {}", weight_str)
-                ))
+                }
+                _ => Err(MatterError::ParseError(format!(
+                    "Failed to parse rational number: {}",
+                    weight_str
+                ))),
             }
         } else {
             // Try to parse as an integer
             match weight_str.parse::<i32>() {
                 Ok(num) => {
                     if num != 0 && num != 1 {
-                        return Err(MatterError::WeightError(
-                            format!("Integer weight must be 0 or 1, got: {}", num)
-                        ));
+                        return Err(MatterError::WeightError(format!(
+                            "Integer weight must be 0 or 1, got: {}",
+                            num
+                        )));
                     }
 
                     Ok(Rational32::new(num, 1))
-                },
-                Err(_) => Err(MatterError::ParseError(
-                    format!("Failed to parse weight: {}", weight_str)
-                ))
+                }
+                Err(_) => Err(MatterError::ParseError(format!(
+                    "Failed to parse weight: {}",
+                    weight_str
+                ))),
             }
         }
     }
-
 }
 
 impl fmt::Display for Tholder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Tholder(weighted={}, size={})", self._weighted, self._size)
+        write!(
+            f,
+            "Tholder(weighted={}, size={})",
+            self._weighted, self._size
+        )
     }
 }
-
 
 /// Represents an item in a threshold clause
 #[derive(Debug, Clone)]
@@ -629,7 +654,9 @@ mod tests {
 
         // Create a Tholder with hex string "b" (which is 11 in decimal)
         let mut tholder = Tholder::default();
-        tholder.process_sith(TholderSith::HexString("b".to_string())).unwrap();
+        tholder
+            .process_sith(TholderSith::HexString("b".to_string()))
+            .unwrap();
 
         // Check all properties and behaviors
         assert!(!tholder.weighted());

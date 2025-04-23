@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use crate::cesr::Parsable;
 use crate::cesr::signing::{Decrypter, Encrypter, Signer};
 use crate::cesr::verfer::Verfer;
+use crate::cesr::Parsable;
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::subing::cesr::{CesrSuber, CesrSuberBase};
 use crate::keri::db::subing::SuberError;
 use crate::Matter;
+use std::sync::Arc;
 
 pub trait SignerTrait: Matter + Parsable {
     fn with_transferable(qb64b: &[u8], transferable: bool) -> Result<Self, SuberError>;
@@ -146,7 +146,12 @@ impl<'db> CryptSignerSuber<'db> {
     }
 
     // Delegate all methods to the base
-    pub fn pin<K: AsRef<[u8]>>(&self, keys: &[K], val: &Signer, encrypter: Option<Encrypter>) -> Result<bool, SuberError> {
+    pub fn pin<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        val: &Signer,
+        encrypter: Option<Encrypter>,
+    ) -> Result<bool, SuberError> {
         match encrypter {
             Some(encrypter) => {
                 let val = encrypter.encrypt(None, Some(val), None)?;
@@ -154,14 +159,17 @@ impl<'db> CryptSignerSuber<'db> {
                 let key = self.base.to_key(keys, false);
                 Ok(self.base.set_val(&key, &val_bytes)?)
             }
-            None => {
-                Ok(self.base.pin(keys, val)?)
-            }
+            None => Ok(self.base.pin(keys, val)?),
         }
     }
 
     // Delegate all methods to the base
-    pub fn put<K: AsRef<[u8]>>(&self, keys: &[K], val: &Signer, encrypter: Option<Encrypter>) -> Result<bool, SuberError> {
+    pub fn put<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        val: &Signer,
+        encrypter: Option<Encrypter>,
+    ) -> Result<bool, SuberError> {
         match encrypter {
             Some(encrypter) => {
                 let val = encrypter.encrypt(None, Some(val), None)?;
@@ -169,13 +177,15 @@ impl<'db> CryptSignerSuber<'db> {
                 let key = self.base.to_key(keys, false);
                 Ok(self.base.put_val(&key, &val_bytes)?)
             }
-            None => {
-                Ok(self.base.put(keys, val)?)
-            }
+            None => Ok(self.base.put(keys, val)?),
         }
     }
 
-    pub fn get<K: AsRef<[u8]>>(&self, keys: &[K], decrypter: Option<Decrypter>) -> Result<Option<Signer>, SuberError> {
+    pub fn get<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        decrypter: Option<Decrypter>,
+    ) -> Result<Option<Signer>, SuberError> {
         if keys.is_empty() {
             return Err(SuberError::EmptyKeys);
         }
@@ -201,11 +211,15 @@ impl<'db> CryptSignerSuber<'db> {
         match decrypter {
             Some(decrypter) => {
                 // Create Signer with the correct transferable property
-                let qb64 = std::str::from_utf8(raw_val)
-                    .map_err(|e| SuberError::DecryptionError(format!("Invalid raw value: {}", e)))?;
-                let signer = decrypter.decrypt(None, Some(qb64), None, Some(transferable), None)?
+                let qb64 = std::str::from_utf8(raw_val).map_err(|e| {
+                    SuberError::DecryptionError(format!("Invalid raw value: {}", e))
+                })?;
+                let signer = decrypter
+                    .decrypt(None, Some(qb64), None, Some(transferable), None)?
                     .downcast::<Signer>()
-                    .map_err(|_| SuberError::DecryptionError("Failed to downcast to Signer".to_string()))?;
+                    .map_err(|_| {
+                        SuberError::DecryptionError("Failed to downcast to Signer".to_string())
+                    })?;
 
                 Ok(Some(*signer))
             }
@@ -248,7 +262,7 @@ impl<'db> CryptSignerSuber<'db> {
         &self,
         keys: &[K],
         topive: bool,
-        decrypter: Option<Decrypter>
+        decrypter: Option<Decrypter>,
     ) -> Result<Vec<(Vec<Vec<u8>>, Signer)>, SuberError> {
         let items = self.base.get_full_item_iter(keys, topive)?;
         let mut result = Vec::with_capacity(items.len());
@@ -269,11 +283,15 @@ impl<'db> CryptSignerSuber<'db> {
             let signer = match &decrypter {
                 Some(decrypter) => {
                     // Create Signer with the correct transferable property
-                    let qb64 = std::str::from_utf8(&val)
-                        .map_err(|e| SuberError::DecryptionError(format!("Invalid raw value: {}", e)))?;
-                    let boxed_signer = decrypter.decrypt(None, Some(qb64), None, Some(transferable), None)?
+                    let qb64 = std::str::from_utf8(&val).map_err(|e| {
+                        SuberError::DecryptionError(format!("Invalid raw value: {}", e))
+                    })?;
+                    let boxed_signer = decrypter
+                        .decrypt(None, Some(qb64), None, Some(transferable), None)?
                         .downcast::<Signer>()
-                        .map_err(|_| SuberError::DecryptionError("Failed to downcast to Signer".to_string()))?;
+                        .map_err(|_| {
+                            SuberError::DecryptionError("Failed to downcast to Signer".to_string())
+                        })?;
 
                     *boxed_signer
                 }
@@ -290,7 +308,10 @@ impl<'db> CryptSignerSuber<'db> {
         Ok(result)
     }
 
-    pub fn process_items(&self, items: Vec<(Vec<Vec<u8>>, Vec<u8>)>) -> Result<Vec<(Vec<Vec<u8>>, Signer)>, SuberError> {
+    pub fn process_items(
+        &self,
+        items: Vec<(Vec<Vec<u8>>, Vec<u8>)>,
+    ) -> Result<Vec<(Vec<Vec<u8>>, Signer)>, SuberError> {
         self.base.process_items(items)
     }
 
@@ -299,21 +320,17 @@ impl<'db> CryptSignerSuber<'db> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use crate::cesr::mtr_dex;
     use crate::cesr::signing::{Salter, Signer};
+    use std::sync::Arc;
 
     #[test]
     fn test_signer_suber() -> Result<(), Box<dyn std::error::Error>> {
         // Open LMDB database
-        let db = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
+        let db = LMDBer::builder().name("test").temp(true).build()?;
 
         let db_arc = Arc::new(&db);
 
@@ -331,26 +348,38 @@ mod tests {
         let seed0 = &[
             0x18, 0x3b, 0x30, 0xc4, 0x0f, 0x2a, 0x76, 0x46, 0xfa, 0xe3, 0xa2, 0x45, 0x65, 0x65,
             0x1f, 0x96, 0x6f, 0xce, 0x29, 0x47, 0x85, 0xe3, 0x58, 0x86, 0xda, 0x04, 0xf0, 0xdc,
-            0xde, 0x06, 0xc0, 0x2b
+            0xde, 0x06, 0xc0, 0x2b,
         ];
 
         let signer0 = Signer::new(Some(seed0), Some(mtr_dex::ED25519_SEED), Some(true))?;
         assert_eq!(signer0.verfer().code(), mtr_dex::ED25519);
         assert!(signer0.verfer().is_transferable()); // default
-        assert_eq!(signer0.qb64b(), b"ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr");
-        assert_eq!(signer0.verfer().qb64b(), b"DIYsYWYwtVo9my0dUHQA0-_ZEts8B5XdvXpHGtHpcR4h");
+        assert_eq!(
+            signer0.qb64b(),
+            b"ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr"
+        );
+        assert_eq!(
+            signer0.verfer().qb64b(),
+            b"DIYsYWYwtVo9my0dUHQA0-_ZEts8B5XdvXpHGtHpcR4h"
+        );
 
         let seed1 = &[
             0x60, 0x05, 0x93, 0xb9, 0x9b, 0x36, 0x1e, 0xe0, 0xd7, 0x98, 0x5e, 0x94, 0xc8, 0x45,
             0x74, 0xf2, 0xc4, 0xcd, 0x94, 0x18, 0xc6, 0xae, 0xb9, 0xb6, 0x6d, 0x12, 0xc4, 0x80,
-            0x03, 0x07, 0xfc, 0xf7
+            0x03, 0x07, 0xfc, 0xf7,
         ];
 
         let signer1 = Signer::new(Some(seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
         assert_eq!(signer1.verfer().code(), mtr_dex::ED25519);
         assert!(signer1.verfer().is_transferable()); // default
-        assert_eq!(signer1.qb64b(), b"AGAFk7mbNh7g15helMhFdPLEzZQYxq65tm0SxIADB_z3");
-        assert_eq!(signer1.verfer().qb64b(), b"DIHpH-kgf2oMMfeplUmSOj0wtPY-EqfKlG4CoJTfLi42");
+        assert_eq!(
+            signer1.qb64b(),
+            b"AGAFk7mbNh7g15helMhFdPLEzZQYxq65tm0SxIADB_z3"
+        );
+        assert_eq!(
+            signer1.verfer().qb64b(),
+            b"DIHpH-kgf2oMMfeplUmSOj0wtPY-EqfKlG4CoJTfLi42"
+        );
 
         // Test put and get with keys
         let keys = [signer0.verfer().qb64()];
@@ -413,7 +442,7 @@ mod tests {
 
         // Test iteritems with new suber instance
         let db_arc = Arc::new(&db);
-        let sdb_new = SignerSuber::<>::new(db_arc, "pugs.", None, false)?;
+        let sdb_new = SignerSuber::new(db_arc, "pugs.", None, false)?;
 
         let result = sdb_new.put(&[signer0.verfer().qb64b()], &signer0)?;
         assert!(result);
@@ -459,7 +488,7 @@ mod tests {
         assert!(result);
 
         // Test iteration with topkeys
-        let top_keys = ["a", ""];  // append empty str to force trailing separator
+        let top_keys = ["a", ""]; // append empty str to force trailing separator
         let items = sdb_new.get_item_iter(&top_keys, true)?;
 
         let mut result_items: Vec<(Vec<String>, String)> = items
@@ -476,8 +505,14 @@ mod tests {
         result_items.sort();
 
         let mut expected_items = vec![
-            (vec!["a".to_string(), signer0.verfer().qb64()], signer0.qb64()),
-            (vec!["a".to_string(), signer1.verfer().qb64()], signer1.qb64()),
+            (
+                vec!["a".to_string(), signer0.verfer().qb64()],
+                signer0.qb64(),
+            ),
+            (
+                vec!["a".to_string(), signer1.verfer().qb64()],
+                signer1.qb64(),
+            ),
         ];
         expected_items.sort();
 
@@ -500,8 +535,14 @@ mod tests {
         let signer0 = Signer::new(Some(&seed0), Some(mtr_dex::ED25519_SEED), Some(true))?;
         assert_eq!(signer0.verfer.code(), mtr_dex::ED25519);
         assert!(signer0.verfer.is_transferable()); // default
-        assert_eq!(signer0.qb64(), "ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr");
-        assert_eq!(signer0.verfer.qb64(), "DIYsYWYwtVo9my0dUHQA0-_ZEts8B5XdvXpHGtHpcR4h");
+        assert_eq!(
+            signer0.qb64(),
+            "ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr"
+        );
+        assert_eq!(
+            signer0.verfer.qb64(),
+            "DIYsYWYwtVo9my0dUHQA0-_ZEts8B5XdvXpHGtHpcR4h"
+        );
 
         let seed1: Vec<u8> = vec![
             0x60, 0x05, 0x93, 0xb9, 0x9b, 0x36, 0x1e, 0xe0, 0xd7, 0x98, 0x5e, 0x94, 0xc8, 0x45,
@@ -512,8 +553,14 @@ mod tests {
         let signer1 = Signer::new(Some(&seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
         assert_eq!(signer1.verfer.code(), mtr_dex::ED25519);
         assert!(signer1.verfer.is_transferable()); // default
-        assert_eq!(signer1.qb64(), "AGAFk7mbNh7g15helMhFdPLEzZQYxq65tm0SxIADB_z3");
-        assert_eq!(signer1.verfer.qb64(), "DIHpH-kgf2oMMfeplUmSOj0wtPY-EqfKlG4CoJTfLi42");
+        assert_eq!(
+            signer1.qb64(),
+            "AGAFk7mbNh7g15helMhFdPLEzZQYxq65tm0SxIADB_z3"
+        );
+        assert_eq!(
+            signer1.verfer.qb64(),
+            "DIHpH-kgf2oMMfeplUmSOj0wtPY-EqfKlG4CoJTfLi42"
+        );
 
         let rawsalt = b"0123456789abcdef".to_vec();
         let salter = Salter::new(Some(&rawsalt), None, None)?;
@@ -526,7 +573,8 @@ mod tests {
             0x18, 0x19, 0xf0, 0x66, 0x32, 0x2c, 0x79, 0xc4, 0xc2, 0x31, 0x40, 0xf5, 0x40, 0x15,
             0x2e, 0xa2, 0x1a, 0xcf,
         ];
-        let cryptsigner0 = Signer::new(Some(&cryptseed0), Some(mtr_dex::ED25519_SEED), Some(false))?;
+        let cryptsigner0 =
+            Signer::new(Some(&cryptseed0), Some(mtr_dex::ED25519_SEED), Some(false))?;
         let seed0 = cryptsigner0.qb64();
         let aeid0 = cryptsigner0.verfer.qb64();
         assert_eq!(aeid0, "BCa7mK96FwxkU0TdF54Yqg3qBDXUWpOhQ_Mtr7E77yZB");
@@ -540,15 +588,13 @@ mod tests {
             0xc0, 0xf9, 0x97, 0xd0, 0x8f, 0x39, 0x1d, 0x79, 0x4e, 0x49, 0x49, 0x98, 0xbd, 0xa4,
             0xf6, 0xfe, 0xbb, 0x03,
         ];
-        let cryptsigner1 = Signer::new(Some(&cryptseed1), Some(mtr_dex::ED25519_SEED), Some(false))?;
+        let cryptsigner1 =
+            Signer::new(Some(&cryptseed1), Some(mtr_dex::ED25519_SEED), Some(false))?;
 
         // Create temporary directory for the LMDB database
         // Open LMDB database
         // Open LMDB database
-        let db = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
+        let db = LMDBer::builder().name("test").temp(true).build()?;
 
         let db_arc = Arc::new(&db);
 
@@ -609,7 +655,6 @@ mod tests {
 
         // Test iteritems
         {
-
             let db_arc = Arc::new(&db);
             let sdb = CryptSignerSuber::new(db_arc.clone(), "pugs.", None, true)?;
 
@@ -620,7 +665,10 @@ mod tests {
             let mut items_qb64 = items
                 .iter()
                 .map(|(keys, sgnr)| {
-                    let key_strs: Vec<String> = keys.iter().map(|k| String::from_utf8(k.clone()).unwrap()).collect();
+                    let key_strs: Vec<String> = keys
+                        .iter()
+                        .map(|k| String::from_utf8(k.clone()).unwrap())
+                        .collect();
                     (key_strs, sgnr.qb64())
                 })
                 .collect::<Vec<_>>();
@@ -639,15 +687,33 @@ mod tests {
             let decrypter0 = Decrypter::new(None, None, Some(&cryptsigner0.qb64b()))?;
 
             // First pin with encrypter
-            assert!(sdb.pin(&[signer0.verfer.qb64().as_bytes()], &signer0, Some(encrypter0.clone()))?);
-            assert!(sdb.pin(&[signer1.verfer.qb64().as_bytes()], &signer1, Some(encrypter0.clone()))?);
+            assert!(sdb.pin(
+                &[signer0.verfer.qb64().as_bytes()],
+                &signer0,
+                Some(encrypter0.clone())
+            )?);
+            assert!(sdb.pin(
+                &[signer1.verfer.qb64().as_bytes()],
+                &signer1,
+                Some(encrypter0.clone())
+            )?);
 
             // Now get with decrypter
-            let actual0 = sdb.get(&[signer0.verfer.qb64().as_bytes()], Some(decrypter0.clone()))?.unwrap();
+            let actual0 = sdb
+                .get(
+                    &[signer0.verfer.qb64().as_bytes()],
+                    Some(decrypter0.clone()),
+                )?
+                .unwrap();
             assert_eq!(actual0.qb64(), signer0.qb64());
             assert_eq!(actual0.verfer.qb64(), signer0.verfer.qb64());
 
-            let actual1 = sdb.get(&[signer1.verfer.qb64().as_bytes()], Some(decrypter0.clone()))?.unwrap();
+            let actual1 = sdb
+                .get(
+                    &[signer1.verfer.qb64().as_bytes()],
+                    Some(decrypter0.clone()),
+                )?
+                .unwrap();
             assert_eq!(actual1.qb64(), signer1.qb64());
             assert_eq!(actual1.verfer.qb64(), signer1.verfer.qb64());
 
@@ -664,20 +730,35 @@ mod tests {
 
             // Remove and test put
             assert!(sdb.rem(&[signer0.verfer.qb64b()])?);
-            assert!(sdb.get(&[signer0.verfer.qb64b()], Some(decrypter0.clone()))?.is_none());
+            assert!(sdb
+                .get(&[signer0.verfer.qb64b()], Some(decrypter0.clone()))?
+                .is_none());
 
             assert!(sdb.rem(&[signer1.verfer.qb64b()])?);
-            assert!(sdb.get(&[signer1.verfer.qb64b()], Some(decrypter0.clone()))?.is_none());
+            assert!(sdb
+                .get(&[signer1.verfer.qb64b()], Some(decrypter0.clone()))?
+                .is_none());
 
-            assert!(sdb.put(&[signer0.verfer.qb64b()], &signer0, Some(encrypter0.clone()))?);
-            assert!(sdb.put(&[signer1.verfer.qb64b()], &signer1, Some(encrypter0.clone()))?);
+            assert!(sdb.put(
+                &[signer0.verfer.qb64b()],
+                &signer0,
+                Some(encrypter0.clone())
+            )?);
+            assert!(sdb.put(
+                &[signer1.verfer.qb64b()],
+                &signer1,
+                Some(encrypter0.clone())
+            )?);
 
             // Test getItemIter with decrypter
             let items = sdb.get_item_iter(&[] as &[&[u8]], false, Some(decrypter0.clone()))?;
             let mut items_qb64 = items
                 .iter()
                 .map(|(keys, sgnr)| {
-                    let key_strs: Vec<String> = keys.iter().map(|k| String::from_utf8(k.clone()).unwrap()).collect();
+                    let key_strs: Vec<String> = keys
+                        .iter()
+                        .map(|k| String::from_utf8(k.clone()).unwrap())
+                        .collect();
                     (key_strs, sgnr.qb64())
                 })
                 .collect::<Vec<_>>();
@@ -692,10 +773,26 @@ mod tests {
             assert_eq!(items_qb64[1].1, signer1.qb64());
 
             // Test composite keys
-            assert!(sdb.put(&["a".as_bytes(), signer0.verfer.qb64().as_bytes()], &signer0, Some(encrypter0.clone()))?);
-            assert!(sdb.put(&["a".as_bytes(), signer1.verfer.qb64().as_bytes()], &signer1, Some(encrypter0.clone()))?);
-            assert!(sdb.put(&["ab".as_bytes(), signer0.verfer.qb64().as_bytes()], &signer0, Some(encrypter0.clone()))?);
-            assert!(sdb.put(&["ab".as_bytes(), signer1.verfer.qb64().as_bytes()], &signer1, Some(encrypter0.clone()))?);
+            assert!(sdb.put(
+                &["a".as_bytes(), signer0.verfer.qb64().as_bytes()],
+                &signer0,
+                Some(encrypter0.clone())
+            )?);
+            assert!(sdb.put(
+                &["a".as_bytes(), signer1.verfer.qb64().as_bytes()],
+                &signer1,
+                Some(encrypter0.clone())
+            )?);
+            assert!(sdb.put(
+                &["ab".as_bytes(), signer0.verfer.qb64().as_bytes()],
+                &signer0,
+                Some(encrypter0.clone())
+            )?);
+            assert!(sdb.put(
+                &["ab".as_bytes(), signer1.verfer.qb64().as_bytes()],
+                &signer1,
+                Some(encrypter0.clone())
+            )?);
 
             // Test prefix iteration
             let top_keys = &["a".as_bytes(), "".as_bytes()]; // append empty str to force trailing .sep
@@ -704,26 +801,38 @@ mod tests {
             let items_qb64 = items
                 .iter()
                 .map(|(keys, sgnr)| {
-                    let key_strs: Vec<String> = keys.iter().map(|k| String::from_utf8(k.clone()).unwrap()).collect();
+                    let key_strs: Vec<String> = keys
+                        .iter()
+                        .map(|k| String::from_utf8(k.clone()).unwrap())
+                        .collect();
                     (key_strs, sgnr.qb64())
                 })
                 .collect::<Vec<_>>();
 
             assert_eq!(items_qb64.len(), 2);
             // Check that we have both signer0 and signer1 with prefix "a"
-            let has_signer0 = items_qb64.iter().any(|(keys, qb64)|
-                keys[0] == "a" && keys[1] == signer0.verfer.qb64() && *qb64 == signer0.qb64());
-            let has_signer1 = items_qb64.iter().any(|(keys, qb64)|
-                keys[0] == "a" && keys[1] == signer1.verfer.qb64() && *qb64 == signer1.qb64());
+            let has_signer0 = items_qb64.iter().any(|(keys, qb64)| {
+                keys[0] == "a" && keys[1] == signer0.verfer.qb64() && *qb64 == signer0.qb64()
+            });
+            let has_signer1 = items_qb64.iter().any(|(keys, qb64)| {
+                keys[0] == "a" && keys[1] == signer1.verfer.qb64() && *qb64 == signer1.qb64()
+            });
             assert!(has_signer0);
             assert!(has_signer1);
 
             // Test re-encrypt
-            let encrypter1 = Encrypter::new(None, None, Some(cryptsigner1.verfer.qb64().as_bytes()))?;
+            let encrypter1 =
+                Encrypter::new(None, None, Some(cryptsigner1.verfer.qb64().as_bytes()))?;
             let decrypter1 = Decrypter::new(None, None, Some(cryptsigner1.qb64().as_bytes()))?;
 
-            for (keys, sgnr) in sdb.get_item_iter(&[] as &[&[u8]], false, Some(decrypter0.clone()))? {
-                sdb.pin(&keys.iter().map(|k| k.as_slice()).collect::<Vec<_>>(), &sgnr, Some(encrypter1.clone()))?;
+            for (keys, sgnr) in
+                sdb.get_item_iter(&[] as &[&[u8]], false, Some(decrypter0.clone()))?
+            {
+                sdb.pin(
+                    &keys.iter().map(|k| k.as_slice()).collect::<Vec<_>>(),
+                    &sgnr,
+                    Some(encrypter1.clone()),
+                )?;
             }
 
             // Verify re-encrypted data is accessible with new decrypter
@@ -734,14 +843,24 @@ mod tests {
             let items_map: std::collections::HashMap<String, Vec<(Vec<String>, String)>> = items
                 .iter()
                 .map(|(keys, sgnr)| {
-                    let key_strs: Vec<String> = keys.iter().map(|k| String::from_utf8(k.clone()).unwrap()).collect();
-                    let prefix = if key_strs.len() > 1 { key_strs[0].clone() } else { "root".to_string() };
+                    let key_strs: Vec<String> = keys
+                        .iter()
+                        .map(|k| String::from_utf8(k.clone()).unwrap())
+                        .collect();
+                    let prefix = if key_strs.len() > 1 {
+                        key_strs[0].clone()
+                    } else {
+                        "root".to_string()
+                    };
                     (prefix, (key_strs, sgnr.qb64()))
                 })
-                .fold(std::collections::HashMap::new(), |mut acc, (prefix, entry)| {
-                    acc.entry(prefix).or_insert_with(Vec::new).push(entry);
-                    acc
-                });
+                .fold(
+                    std::collections::HashMap::new(),
+                    |mut acc, (prefix, entry)| {
+                        acc.entry(prefix).or_insert_with(Vec::new).push(entry);
+                        acc
+                    },
+                );
 
             // Verify the expected entries
             assert_eq!(items_map.get("root").unwrap().len(), 2);

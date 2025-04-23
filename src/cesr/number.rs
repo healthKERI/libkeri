@@ -1,9 +1,9 @@
-use std::any::Any;
-use num_bigint::BigUint;
 use crate::cesr::{num_dex, raw_size, BaseMatter, Parsable};
-use num_traits::pow;
 use crate::errors::MatterError;
 use crate::Matter;
+use num_bigint::BigUint;
+use num_traits::pow;
+use std::any::Any;
 
 /// Number represents ordinal counting numbers
 #[derive(Debug, Clone)]
@@ -13,7 +13,6 @@ pub struct Number {
 
 #[allow(dead_code)]
 impl Number {
-
     pub fn from_num(num: &BigUint) -> Result<Self, MatterError> {
         let code = number_code(num)?;
         let raw = num.to_bytes_be();
@@ -28,13 +27,10 @@ impl Number {
         bytes[start..].copy_from_slice(raw.as_slice());
 
         let base = BaseMatter::new(Some(&bytes), Some(code), None, None)?;
-        Ok(Number {
-            base
-        })
+        Ok(Number { base })
     }
 
     pub fn from_numh(numh: &str) -> Result<Self, MatterError> {
-
         let num = if numh.len() == 0 {
             0
         } else {
@@ -45,19 +41,22 @@ impl Number {
         Number::from_num(&biguint)
     }
 
-
     /// Creates a new Number from a numeric value
-    pub fn new(raw: Option<&[u8]>, code: Option<&str>, soft: Option<&str>, rize: Option<usize>) -> Result<Self, MatterError> {
+    pub fn new(
+        raw: Option<&[u8]>,
+        code: Option<&str>,
+        soft: Option<&str>,
+        rize: Option<usize>,
+    ) -> Result<Self, MatterError> {
         if !num_dex::TUPLE.contains(&(code.unwrap())) {
-            return Err(MatterError::UnsupportedCodeError(String::from(code.unwrap_or("None"))));
+            return Err(MatterError::UnsupportedCodeError(String::from(
+                code.unwrap_or("None"),
+            )));
         }
 
         let base = BaseMatter::new(raw, code, soft, rize)?;
-        Ok(Number {
-            base
-        })
+        Ok(Number { base })
     }
-
 
     pub fn from_qb64(qb64: &str) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb64(qb64)?;
@@ -65,9 +64,7 @@ impl Number {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Number {
-            base
-        })
+        Ok(Number { base })
     }
 
     /// Returns the numeric value
@@ -111,7 +108,7 @@ impl Number {
     pub fn huge(&self) -> String {
         let num = self.num();
         // MaxON represents 256^16 - 1
-        let max_on =  (256 ^ 16)-1;
+        let max_on = (256 ^ 16) - 1;
 
         if num > max_on {
             // In an actual implementation, you would return an error
@@ -125,7 +122,8 @@ impl Number {
 
         // Create a new Number with the same num but with NumDex::Huge code
         // and return its qb64 representation
-        let huge_number = Number::new(Some(&bytes[..]), Some(num_dex::HUGE), None, None).expect("Failed to create huge number");
+        let huge_number = Number::new(Some(&bytes[..]), Some(num_dex::HUGE), None, None)
+            .expect("Failed to create huge number");
         huge_number.qb64()
     }
 
@@ -146,7 +144,6 @@ impl Number {
     pub fn inceptive(&self) -> bool {
         self.num() == 0
     }
-
 }
 
 impl Parsable for Number {
@@ -156,9 +153,7 @@ impl Parsable for Number {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Number {
-            base
-        })
+        Ok(Number { base })
     }
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
@@ -167,9 +162,7 @@ impl Parsable for Number {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Number {
-            base
-        })
+        Ok(Number { base })
     }
 }
 
@@ -217,21 +210,46 @@ pub fn number_code(num: &BigUint) -> Result<&str, MatterError> {
 }
 
 impl Matter for Number {
-    fn code(&self) -> &str { self.base.code() }
-    fn raw(&self) -> &[u8] { self.base.raw() }
-    fn qb64(&self) -> String { self.base.qb64() }
-    fn qb64b(&self) -> Vec<u8> { self.base.qb64b() }
-    fn qb2(&self) -> Vec<u8> { self.base.qb2() }
-    fn soft(&self) -> &str { self.base.soft() }
-    fn full_size(&self) -> usize { self.base.full_size() }
-    fn size(&self) -> usize { self.base.size() }
-    fn is_transferable(&self) -> bool { self.base.is_transferable() }
-    fn is_digestive(&self) -> bool { self.base.is_digestive() }
-    fn is_prefixive(&self) -> bool { self.base.is_prefixive() }
-    fn is_special(&self) -> bool { self.base.is_special() }
-    fn as_any(&self) -> &dyn Any { self }
+    fn code(&self) -> &str {
+        self.base.code()
+    }
+    fn raw(&self) -> &[u8] {
+        self.base.raw()
+    }
+    fn qb64(&self) -> String {
+        self.base.qb64()
+    }
+    fn qb64b(&self) -> Vec<u8> {
+        self.base.qb64b()
+    }
+    fn qb2(&self) -> Vec<u8> {
+        self.base.qb2()
+    }
+    fn soft(&self) -> &str {
+        self.base.soft()
+    }
+    fn full_size(&self) -> usize {
+        self.base.full_size()
+    }
+    fn size(&self) -> usize {
+        self.base.size()
+    }
+    fn is_transferable(&self) -> bool {
+        self.base.is_transferable()
+    }
+    fn is_digestive(&self) -> bool {
+        self.base.is_digestive()
+    }
+    fn is_prefixive(&self) -> bool {
+        self.base.is_prefixive()
+    }
+    fn is_special(&self) -> bool {
+        self.base.is_special()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
-
 
 impl Default for Number {
     fn default() -> Self {
@@ -327,5 +345,4 @@ mod tests {
         // Adjust based on actual implementation
         assert!(!number.inceptive());
     }
-
 }

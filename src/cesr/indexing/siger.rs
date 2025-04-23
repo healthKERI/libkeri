@@ -1,9 +1,9 @@
-use std::any::Any;
 use crate::cesr::indexing::{idx_sig_dex, BaseIndexer, Indexer};
-use crate::cesr::Parsable;
 use crate::cesr::verfer::Verfer;
+use crate::cesr::Parsable;
 use crate::errors::MatterError;
 use crate::Matter;
+use std::any::Any;
 
 ///  Cigar is Matter subclass holding a nonindexed signature with verfer property.
 ///  From Matter .raw is signature and .code is signature cipher suite
@@ -17,27 +17,28 @@ pub struct Siger {
 }
 
 impl Siger {
-    pub fn new(raw: Option<&[u8]>, code: Option<&str>, index: Option<u32>, ondex: Option<u32>, verfer: Option<Verfer>) -> Result<Self, MatterError> {
+    pub fn new(
+        raw: Option<&[u8]>,
+        code: Option<&str>,
+        index: Option<u32>,
+        ondex: Option<u32>,
+        verfer: Option<Verfer>,
+    ) -> Result<Self, MatterError> {
         if !idx_sig_dex::TUPLE.contains(&(code.unwrap())) {
-            return Err(MatterError::UnsupportedCodeError(String::from(code.unwrap())));
+            return Err(MatterError::UnsupportedCodeError(String::from(
+                code.unwrap(),
+            )));
         }
 
         let base = BaseIndexer::new(raw, code, index, ondex)?;
-        Ok(Siger {
-            base,
-            verfer,
-        })
+        Ok(Siger { base, verfer })
     }
 
     pub fn from_raw(raw: Option<&[u8]>, verfer: Option<Verfer>) -> Result<Self, MatterError> {
         let base = BaseIndexer::from_raw(raw)?;
 
-        Ok(Siger {
-            base,
-            verfer
-        })
+        Ok(Siger { base, verfer })
     }
-
 
     pub fn from_qb64(qb64: &str, verfer: Option<Verfer>) -> Result<Self, MatterError> {
         let base = BaseIndexer::from_qb64(qb64)?;
@@ -45,12 +46,8 @@ impl Siger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Siger {
-            base,
-            verfer
-        })
+        Ok(Siger { base, verfer })
     }
-
 
     pub fn verfer(&self) -> &Verfer {
         self.verfer.as_ref().unwrap()
@@ -64,10 +61,7 @@ impl Parsable for Siger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Siger {
-            base,
-            verfer: None
-        })
+        Ok(Siger { base, verfer: None })
     }
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
@@ -76,17 +70,17 @@ impl Parsable for Siger {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
-        Ok(Siger {
-            base,
-            verfer: None
-        })
+        Ok(Siger { base, verfer: None })
     }
-
 }
 
 impl Indexer for Siger {
-    fn index(&self) -> u32 { self.base.index() }
-    fn ondex(&self) -> Option<u32> { self.base.ondex() }
+    fn index(&self) -> u32 {
+        self.base.index()
+    }
+    fn ondex(&self) -> Option<u32> {
+        self.base.ondex()
+    }
 }
 
 impl Matter for Siger {
@@ -138,7 +132,7 @@ impl Matter for Siger {
         false
     }
 
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
-
-

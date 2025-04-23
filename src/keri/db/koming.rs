@@ -1,12 +1,12 @@
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::fmt::Debug;
-use serde::{Serialize, Deserialize};
-use thiserror::Error;
-use heed::types::*;
-use heed::{Database};
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
+use heed::types::*;
+use heed::Database;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use thiserror::Error;
 
 #[allow(dead_code)]
 #[derive(Debug, Error)]
@@ -47,7 +47,7 @@ where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// LMDB database environment
-    db: Arc<&'db LMDBer>,               // The base LMDB database
+    db: Arc<&'db LMDBer>, // The base LMDB database
 
     /// LMDB database instance for this Komer
     pub sdb: Database<Bytes, Bytes>,
@@ -163,8 +163,9 @@ where
 
     /// Deserialize from MsgPack
     fn deserialize_msgpack(&self, val: &[u8]) -> Result<T, KomerError> {
-        rmp_serde::from_slice(val)
-            .map_err(|e| KomerError::Deserialization(format!("MsgPack deserialization error: {}", e)))
+        rmp_serde::from_slice(val).map_err(|e| {
+            KomerError::Deserialization(format!("MsgPack deserialization error: {}", e))
+        })
     }
 
     /// Serialize to CBOR
@@ -180,10 +181,7 @@ where
     }
 
     /// Get an iterator over items with keys starting with the provided prefix
-    pub fn get_item_iter<K>(
-        &self,
-        keys: &[K],
-    ) -> Result<Vec<(Vec<String>, T)>, KomerError>
+    pub fn get_item_iter<K>(&self, keys: &[K]) -> Result<Vec<(Vec<String>, T)>, KomerError>
     where
         K: AsRef<[u8]>,
     {
@@ -192,21 +190,21 @@ where
 
         // Create a prefix iterator
         let mut result = Vec::new();
-        self.db.get_top_items_iter(&self.sdb, &key_prefix, |key, value| {
-            let key_strings = self.to_keys(&key);
-            let deserialized = self.deserialize(&value).map_err(|_| DBError::ValueError("Failed to deserialize value".to_string()))?;
-            result.push((key_strings, deserialized));
-            Ok(true)
-        })?;
+        self.db
+            .get_top_items_iter(&self.sdb, &key_prefix, |key, value| {
+                let key_strings = self.to_keys(&key);
+                let deserialized = self
+                    .deserialize(&value)
+                    .map_err(|_| DBError::ValueError("Failed to deserialize value".to_string()))?;
+                result.push((key_strings, deserialized));
+                Ok(true)
+            })?;
 
         Ok(result)
     }
 
     /// Get full item iterator (same as get_item_iter in this implementation)
-    pub fn get_full_item_iter<K>(
-        &self,
-        keys: &[K],
-    ) -> Result<Vec<(Vec<String>, T)>, KomerError>
+    pub fn get_full_item_iter<K>(&self, keys: &[K]) -> Result<Vec<(Vec<String>, T)>, KomerError>
     where
         K: AsRef<[u8]>,
     {
@@ -256,7 +254,6 @@ where
     }
 }
 
-
 /// Keyspace Object Mapper factory struct.
 #[allow(dead_code)]
 pub struct Komer<'db, T>
@@ -279,11 +276,7 @@ where
     ///
     /// # Returns
     /// A Result containing the Komer instance or a KomerError
-    pub fn new(
-        db: Arc<&'db LMDBer>,
-        subkey: &str,
-        kind: SerialKind,
-    ) -> Result<Self, KomerError> {
+    pub fn new(db: Arc<&'db LMDBer>, subkey: &str, kind: SerialKind) -> Result<Self, KomerError> {
         let base = KomerBase::new(db, subkey, kind, false, None)?;
 
         Ok(Self { base })
@@ -369,10 +362,7 @@ where
         }
     }
 
-    pub fn get_item_iter<K>(
-        &self,
-        keys: &[K],
-    ) -> Result<Vec<(Vec<String>, T)>, KomerError>
+    pub fn get_item_iter<K>(&self, keys: &[K]) -> Result<Vec<(Vec<String>, T)>, KomerError>
     where
         K: AsRef<[u8]>,
     {
@@ -416,33 +406,31 @@ where
     ///
     /// # Returns
     /// Number of items in the database
-    pub fn cnt_all(&self, ) -> Result<usize, KomerError> {
+    pub fn cnt_all(&self) -> Result<usize, KomerError> {
         self.base.cnt_all()
     }
-
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use super::*;
-    use std::sync::Arc;
     use serde::{Deserialize, Serialize};
+    use std::collections::HashMap;
     use std::fmt::Debug;
+    use std::sync::Arc;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
     struct Record {
-        first: String,    // first name
-        last: String,     // last name
-        street: String,   // street address
-        city: String,     // city name
-        state: String,    // state code
-        zip: u32,         // zip code
+        first: String,  // first name
+        last: String,   // last name
+        street: String, // street address
+        city: String,   // city name
+        state: String,  // state code
+        zip: u32,       // zip code
     }
 
     #[test]
     fn test_kom_happy_path() -> Result<(), Box<dyn std::error::Error>> {
-
         // Create and serialize a Record
         let jim = Record {
             first: "Jim".to_string(),
@@ -458,10 +446,7 @@ mod tests {
         assert_eq!(jim_deserialized, jim);
 
         // Open database
-        let lmdber = LMDBer::builder()
-            .name("test_db")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
         let db_ref = Arc::new(&lmdber);
 
         // Create Komer instance
@@ -488,7 +473,10 @@ mod tests {
         let key = mydb.base.to_key(&keys, false);
         let str = std::str::from_utf8(&key)?;
         assert_eq!(key, b"test_key.0001");
-        assert_eq!(mydb.base.to_keys(&key), vec!["test_key".to_string(), "0001".to_string()]);
+        assert_eq!(
+            mydb.base.to_keys(&key),
+            vec!["test_key".to_string(), "0001".to_string()]
+        );
 
         // Test put and get
         mydb.put(&keys, &sue)?;
@@ -561,7 +549,7 @@ mod tests {
         assert_eq!(actual.zip, 84043);
 
         // Test get_json
-        let actual_json = mydb.get_json( &keys)?.unwrap();
+        let actual_json = mydb.get_json(&keys)?.unwrap();
         let expected_json = serde_json::to_value(&bob)?;
         assert_eq!(actual_json, expected_json);
 
@@ -584,10 +572,7 @@ mod tests {
     #[test]
     fn test_komer_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         // Open database
-        let lmdber = LMDBer::builder()
-            .name("test_db")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
         let db_ref = Arc::new(&lmdber);
 
         // Test empty keys
@@ -613,10 +598,7 @@ mod tests {
     #[test]
     fn test_serialization_formats() -> Result<(), Box<dyn std::error::Error>> {
         // Open database
-        let lmdber = LMDBer::builder()
-            .name("test_db")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
         let db_ref = Arc::new(&lmdber);
 
         // Test record
@@ -631,7 +613,11 @@ mod tests {
 
         // Test with different serialization formats
         for serial_kind in [SerialKind::Json, SerialKind::MsgPack, SerialKind::Cbor] {
-            let mydb = Komer::<Record>::new(db_ref.clone(), &format!("records_{:?}.", serial_kind), serial_kind)?;
+            let mydb = Komer::<Record>::new(
+                db_ref.clone(),
+                &format!("records_{:?}.", serial_kind),
+                serial_kind,
+            )?;
 
             let keys = ["test_key"];
             mydb.put(&keys, &record)?;
@@ -678,33 +664,30 @@ mod tests {
             a: "Eat".to_string(),
             b: "White".to_string(),
         };
-    
+
         // Open test database
-        let lmdber = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
-    
+        let lmdber = LMDBer::builder().name("test").temp(true).build()?;
+
         let db_ref = Arc::new(&lmdber);
         assert_eq!(lmdber.name(), "test");
         assert!(lmdber.opened());
-    
+
         // Create Komer instance
         let mydb = Komer::<Stuff>::new(db_ref.clone(), "recs.", SerialKind::Json)?;
-    
+
         // Add initial data
         mydb.put(&["a", "1"], &w)?;
         mydb.put(&["a", "2"], &x)?;
         mydb.put(&["a", "3"], &y)?;
         mydb.put(&["a", "4"], &z)?;
-    
+
         // Test iteration with getItemIter
         let items: Vec<(Vec<String>, HashMap<String, String>)> = mydb
             .get_item_iter(&[] as &[&str])?
             .into_iter()
             .map(|(keys, data)| (keys, data.to_map()))
             .collect();
-    
+
         assert_eq!(
             items,
             vec![
@@ -714,13 +697,13 @@ mod tests {
                 (vec!["a".to_string(), "4".to_string()], z.to_map()),
             ]
         );
-    
+
         // Add more data
         mydb.put(&["b", "1"], &w)?;
         mydb.put(&["b", "2"], &x)?;
         mydb.put(&["bc", "3"], &y)?;
         mydb.put(&["bc", "4"], &z)?;
-    
+
         // Test iteration with specific top-level keys
         let topkeys = ["b", ""];
         let items: Vec<(Vec<String>, HashMap<String, String>)> = mydb
@@ -728,7 +711,7 @@ mod tests {
             .into_iter()
             .map(|(keys, data)| (keys, data.to_map()))
             .collect();
-    
+
         assert_eq!(
             items,
             vec![
@@ -736,14 +719,14 @@ mod tests {
                 (vec!["b".to_string(), "2".to_string()], x.to_map()),
             ]
         );
-    
+
         // Test full iteration
         let items: Vec<(Vec<String>, HashMap<String, String>)> = mydb
             .get_item_iter(&[] as &[&str])?
             .into_iter()
             .map(|(keys, data)| (keys, data.to_map()))
             .collect();
-    
+
         assert_eq!(
             items,
             vec![
@@ -757,19 +740,19 @@ mod tests {
                 (vec!["bc".to_string(), "4".to_string()], z.to_map()),
             ]
         );
-    
+
         // Test count all entries
         assert_eq!(mydb.cnt_all()?, 8);
-    
+
         // Test trim by b prefix
         assert!(mydb.trim(&["b", ""])?);
-    
+
         let items: Vec<(Vec<String>, HashMap<String, String>)> = mydb
             .get_item_iter(&[] as &[&str])?
             .into_iter()
             .map(|(keys, data)| (keys, data.to_map()))
             .collect();
-    
+
         assert_eq!(
             items,
             vec![
@@ -781,31 +764,27 @@ mod tests {
                 (vec!["bc".to_string(), "4".to_string()], z.to_map()),
             ]
         );
-    
+
         // Test trim all
-        assert!(mydb.trim::<[u8;0]>(&[])?);
-    
-        let items: Vec<(Vec<String>, Stuff)> = mydb
-            .get_item_iter(&[] as &[&str])?;
-    
+        assert!(mydb.trim::<[u8; 0]>(&[])?);
+
+        let items: Vec<(Vec<String>, Stuff)> = mydb.get_item_iter(&[] as &[&str])?;
+
         assert_eq!(items, vec![]);
-    
+
         // Drop database
         drop(lmdber);
-    
+
         // Check database is closed and files are removed
         // No need to check manually as it's handled by the LMDBer drop implementation
-    
+
         Ok(())
     }
 
     #[test]
     fn test_kom_put_get() -> Result<(), Box<dyn std::error::Error>> {
         // Open test database
-        let lmdber = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
         let db_ref = Arc::new(&lmdber);
 
@@ -859,10 +838,7 @@ mod tests {
     #[test]
     fn test_kom_serialization_formats() -> Result<(), Box<dyn std::error::Error>> {
         // Open test database
-        let lmdber = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
         let db_ref = Arc::new(&lmdber);
 
@@ -889,10 +865,7 @@ mod tests {
     #[test]
     fn test_kom_empty_keys() -> Result<(), Box<dyn std::error::Error>> {
         // Open test database
-        let lmdber = LMDBer::builder()
-            .name("test")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
         let db_ref = Arc::new(&lmdber);
 
@@ -912,5 +885,4 @@ mod tests {
 
         Ok(())
     }
-
 }

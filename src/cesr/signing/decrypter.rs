@@ -1,12 +1,14 @@
-use std::any::Any;
+use crate::cesr::signing::cipher::Cipher;
+use crate::cesr::signing::{
+    cix_var_qb2_dex, cix_var_strm_dex, ed25519_sk_to_x25519_sk, Salter, Signer,
+};
+use crate::cesr::{mtr_dex, BaseMatter, Parsable};
+use crate::errors::MatterError;
+use crate::Matter;
 use sodiumoxide::crypto::box_::SecretKey;
 use sodiumoxide::crypto::sealedbox;
 use sodiumoxide::crypto::sign::ed25519;
-use crate::cesr::{mtr_dex, BaseMatter, Parsable};
-use crate::cesr::signing::cipher::Cipher;
-use crate::cesr::signing::{cix_var_qb2_dex, cix_var_strm_dex, ed25519_sk_to_x25519_sk, Salter, Signer};
-use crate::errors::MatterError;
-use crate::Matter;
+use std::any::Any;
 
 /// Decrypter is a Matter subclass with methods to decrypt plain text from a
 /// cipher text of a fully qualified (qb64) private key/seed where private
@@ -47,7 +49,8 @@ impl Decrypter {
                     // Derive decryption key from signing key
                     let signer = Signer::from_qb64b(&mut seed.unwrap().to_vec(), None)?;
 
-                    if signer.code() != mtr_dex::ED25519_SEED { // Ed25519_Seed code
+                    if signer.code() != mtr_dex::ED25519_SEED {
+                        // Ed25519_Seed code
                         return Err(MatterError::InvalidCode(format!(
                             "Unsupported signing seed derivation code = {}",
                             signer.code()
@@ -63,9 +66,10 @@ impl Decrypter {
                     let ed_sk = ed25519::SecretKey::from_slice(&sigkey).unwrap();
                     let sk = ed25519_sk_to_x25519_sk(&ed_sk)?;
                     &sk.as_ref().to_vec()
-                }
-                else {
-                    return Err(MatterError::ValueError("Either seed or raw must be provided".to_string()));
+                } else {
+                    return Err(MatterError::ValueError(
+                        "Either seed or raw must be provided".to_string(),
+                    ));
                 }
             }
         };
@@ -79,10 +83,7 @@ impl Decrypter {
             )));
         }
 
-
-        Ok(Decrypter {
-            base,
-        })
+        Ok(Decrypter { base })
     }
 
     /// Create a Decrypter from a qualified base64 string
@@ -132,7 +133,9 @@ impl Decrypter {
             let mut qb2_vec = q.to_vec();
             Cipher::from_qb2(&mut qb2_vec, Some(true))?
         } else {
-            return Err(MatterError::EmptyMaterialError("qb64, qb2, or cipher must be provided".to_string()));
+            return Err(MatterError::EmptyMaterialError(
+                "qb64, qb2, or cipher must be provided".to_string(),
+            ));
         };
 
         // X25519 is currently the only supported cipher suite
@@ -152,11 +155,8 @@ impl Decrypter {
         let public_key = private_key.public_key();
 
         // Decrypt the cipher text
-        let mut plain = sealedbox::open(
-            cipher.raw(),
-            &public_key,
-            &private_key,
-        ).map_err(|_| MatterError::VerificationError("Decryption failed".to_string()))?;
+        let mut plain = sealedbox::open(cipher.raw(), &public_key, &private_key)
+            .map_err(|_| MatterError::VerificationError("Decryption failed".to_string()))?;
 
         if bare {
             return Ok(Box::new(plain));
@@ -178,7 +178,8 @@ impl Decrypter {
                     let signer = Signer::from_qb2(&mut plain, None)?;
                     Ok(Box::new(signer))
                 } else {
-                    let signer = Signer::from_qb64b_and_transferable(&mut plain, None, transferable)?;
+                    let signer =
+                        Signer::from_qb64b_and_transferable(&mut plain, None, transferable)?;
                     Ok(Box::new(signer))
                 }
             }
@@ -283,9 +284,9 @@ impl Matter for Decrypter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sodiumoxide::crypto::sign;
     use crate::cesr::signing::ed25519_pk_to_x25519_pk;
     use crate::cesr::signing::encrypter::Encrypter;
+    use sodiumoxide::crypto::sign;
 
     #[test]
     fn test_decrypter() {
@@ -307,7 +308,10 @@ mod tests {
         assert_eq!(seedqb64b, b"ABg7MMQPKnZG-uOiRWVlH5ZvzilHheNYhtoE8NzeBsAr");
 
         // Verify Matter basic functionality using same seed
-        let matter_seedqb64b = BaseMatter::new(Some(&seed), Some(mtr_dex::ED25519_SEED), None, None).unwrap().qb64b();
+        let matter_seedqb64b =
+            BaseMatter::new(Some(&seed), Some(mtr_dex::ED25519_SEED), None, None)
+                .unwrap()
+                .qb64b();
         assert_eq!(seedqb64b, matter_seedqb64b);
 
         // Create salt for testing
@@ -323,7 +327,10 @@ mod tests {
         assert_eq!(saltqb64b, b"0AA2CGQNobs5jXCNoMATSody");
 
         // Verify Matter basic functionality using same salt
-        let matter_saltqb64b = BaseMatter::new(Some(&salt_raw), Some(mtr_dex::SALT_128), None, None).unwrap().qb64b();
+        let matter_saltqb64b =
+            BaseMatter::new(Some(&salt_raw), Some(mtr_dex::SALT_128), None, None)
+                .unwrap()
+                .qb64b();
         assert_eq!(saltqb64b, matter_saltqb64b);
 
         // Create cryptographic seed for key generation
@@ -334,7 +341,8 @@ mod tests {
         ];
 
         // Create cryptsigner
-        let cryptsigner = Signer::new(Some(&cryptseed), Some(mtr_dex::ED25519_SEED), Some(true)).unwrap();
+        let cryptsigner =
+            Signer::new(Some(&cryptseed), Some(mtr_dex::ED25519_SEED), Some(true)).unwrap();
 
         // Generate key pairs
         let seed_key = sign::Seed::from_slice(&cryptseed).unwrap();
@@ -354,27 +362,38 @@ mod tests {
         // Create encrypter with public key
         let encrypter = Encrypter::new(Some(pubkey.as_ref()), Some(mtr_dex::X25519), None).unwrap();
         assert_eq!(encrypter.code(), mtr_dex::X25519);
-        assert_eq!(encrypter.qb64(), "CAF7Wr3XNq5hArcOuBJzaY6Nd23jgtUVI6KDfb3VngkR");
+        assert_eq!(
+            encrypter.qb64(),
+            "CAF7Wr3XNq5hArcOuBJzaY6Nd23jgtUVI6KDfb3VngkR"
+        );
         assert_eq!(encrypter.raw(), pubkey.as_ref());
 
         // Encrypt seed
-        let seedcipher = encrypter.encrypt(Some(&seedqb64b), None, Some(mtr_dex::X25519_CIPHER_SEED)).unwrap();
+        let seedcipher = encrypter
+            .encrypt(Some(&seedqb64b), None, Some(mtr_dex::X25519_CIPHER_SEED))
+            .unwrap();
         assert_eq!(seedcipher.code(), mtr_dex::X25519_CIPHER_SEED);
 
         // Create decrypter from private key
-        let decrypter = Decrypter::new(Some(prikey.as_ref()), Some(mtr_dex::X25519_PRIVATE), None).unwrap();
+        let decrypter =
+            Decrypter::new(Some(prikey.as_ref()), Some(mtr_dex::X25519_PRIVATE), None).unwrap();
         assert_eq!(decrypter.code(), mtr_dex::X25519_PRIVATE);
-        assert_eq!(decrypter.qb64(), "OLCFxqMz1z1UUS0TEJnvZP_zXHcuYdQsSGBWdOZeY5VQ");
+        assert_eq!(
+            decrypter.qb64(),
+            "OLCFxqMz1z1UUS0TEJnvZP_zXHcuYdQsSGBWdOZeY5VQ"
+        );
         assert_eq!(decrypter.raw(), prikey.as_ref());
 
         // Decrypt seed cipher using qb64
-        let designer = decrypter.decrypt(
-            None,
-            Some(&seedcipher.qb64()),
-            None,
-            Some(signer.verfer().is_transferable()),
-            Some(false)
-        ).unwrap();
+        let designer = decrypter
+            .decrypt(
+                None,
+                Some(&seedcipher.qb64()),
+                None,
+                Some(signer.verfer().is_transferable()),
+                Some(false),
+            )
+            .unwrap();
 
         let designer = designer.downcast_ref::<Signer>().unwrap();
         assert_eq!(designer.qb64b(), seedqb64b);
@@ -383,25 +402,29 @@ mod tests {
         assert!(designer.verfer().is_transferable());
 
         // Test bare decryption returns plain bytes not instance
-        let plain = decrypter.decrypt(
-            None,
-            Some(&seedcipher.qb64()),
-            None,
-            Some(signer.verfer().is_transferable()),
-            Some(true)
-        ).unwrap();
+        let plain = decrypter
+            .decrypt(
+                None,
+                Some(&seedcipher.qb64()),
+                None,
+                Some(signer.verfer().is_transferable()),
+                Some(true),
+            )
+            .unwrap();
 
         let plain = plain.downcast_ref::<Vec<u8>>().unwrap();
         assert_eq!(plain, &seedqb64b);
 
         // Decrypt seed cipher using cipher
-        let designer = decrypter.decrypt(
-            Some(&seedcipher),
-            None,
-            None,
-            Some(signer.verfer().is_transferable()),
-            Some(false)
-        ).unwrap();
+        let designer = decrypter
+            .decrypt(
+                Some(&seedcipher),
+                None,
+                None,
+                Some(signer.verfer().is_transferable()),
+                Some(false),
+            )
+            .unwrap();
 
         let designer = designer.downcast_ref::<Signer>().unwrap();
         assert_eq!(designer.qb64b(), seedqb64b);
@@ -410,42 +433,36 @@ mod tests {
         assert!(designer.verfer().is_transferable());
 
         // Encrypt salt
-        let saltcipher = encrypter.encrypt(Some(saltqb64b.as_ref()), None, Some(mtr_dex::X25519_CIPHER_SALT)).unwrap();
+        let saltcipher = encrypter
+            .encrypt(
+                Some(saltqb64b.as_ref()),
+                None,
+                Some(mtr_dex::X25519_CIPHER_SALT),
+            )
+            .unwrap();
         assert_eq!(saltcipher.code(), mtr_dex::X25519_CIPHER_SALT);
 
         // Decrypt salt cipher using qb64
-        let desalter = decrypter.decrypt(
-            None,
-            Some(&saltcipher.qb64()),
-            None,
-            None,
-            Some(false)
-        ).unwrap();
+        let desalter = decrypter
+            .decrypt(None, Some(&saltcipher.qb64()), None, None, Some(false))
+            .unwrap();
 
         let desalter = desalter.downcast_ref::<Salter>().unwrap();
         assert_eq!(desalter.qb64b(), saltqb64b);
         assert_eq!(desalter.code(), mtr_dex::SALT_128);
 
         // Test bare decryption returns plain bytes not instance
-        let plain = decrypter.decrypt(
-            None,
-            Some(&saltcipher.qb64()),
-            None,
-            None,
-            Some(true)
-        ).unwrap();
+        let plain = decrypter
+            .decrypt(None, Some(&saltcipher.qb64()), None, None, Some(true))
+            .unwrap();
 
         let plain = plain.downcast_ref::<Vec<u8>>().unwrap();
         assert_eq!(plain, &saltqb64b);
 
         // Decrypt salt cipher using cipher
-        let desalter = decrypter.decrypt(
-            Some(&saltcipher),
-            None,
-            None,
-            None,
-            Some(false)
-        ).unwrap();
+        let desalter = decrypter
+            .decrypt(Some(&saltcipher), None, None, None, Some(false))
+            .unwrap();
 
         let desalter = desalter.downcast_ref::<Salter>().unwrap();
         assert_eq!(desalter.qb64b(), saltqb64b);
@@ -453,13 +470,15 @@ mod tests {
 
         // Use previously stored fully qualified seed cipher with different nonce
         let cipherseed = "PM9jOGWNYfjM_oLXJNaQ8UlFSAV5ACjsUY7J16xfzrlpc9Ve3A5WYrZ4o_NHtP5lhp78Usspl9fyFdnCdItNd5JyqZ6dt8SXOt6TOqOCs-gy0obrwFkPPqBvVkEw";
-        let designer = decrypter.decrypt(
-            None,
-            Some(cipherseed),
-            None,
-            Some(signer.verfer().is_transferable()),
-            Some(false)
-        ).unwrap();
+        let designer = decrypter
+            .decrypt(
+                None,
+                Some(cipherseed),
+                None,
+                Some(signer.verfer().is_transferable()),
+                Some(false),
+            )
+            .unwrap();
 
         let designer = designer.downcast_ref::<Signer>().unwrap();
         assert_eq!(designer.qb64b(), seedqb64b);
@@ -468,37 +487,28 @@ mod tests {
 
         // Use previously stored fully qualified salt cipher with different nonce
         let ciphersalt = "1AAHjlR2QR9J5Et67Wy-ZaVdTryN6T6ohg44r73GLRPnHw-5S3ABFkhWyIwLOI6TXUB_5CT13S8JvknxLxBaF8ANPK9FSOPD8tYu";
-        let desalter = decrypter.decrypt(
-            None,
-            Some(ciphersalt),
-            None,
-            None,
-            Some(false)
-        ).unwrap();
+        let desalter = decrypter
+            .decrypt(None, Some(ciphersalt), None, None, Some(false))
+            .unwrap();
 
         let desalter = desalter.downcast_ref::<Salter>().unwrap();
         assert_eq!(desalter.qb64b(), saltqb64b);
         assert_eq!(desalter.code(), mtr_dex::SALT_128);
 
         // Create new decrypter using seed parameter to init prikey
-        let decrypter = Decrypter::new(
-            None,
-            None,
-            Some(cryptsigner.qb64b().as_ref())
-        ).unwrap();
+        let decrypter = Decrypter::new(None, None, Some(cryptsigner.qb64b().as_ref())).unwrap();
 
         assert_eq!(decrypter.code(), mtr_dex::X25519_PRIVATE);
-        assert_eq!(decrypter.qb64(), "OLCFxqMz1z1UUS0TEJnvZP_zXHcuYdQsSGBWdOZeY5VQ");
+        assert_eq!(
+            decrypter.qb64(),
+            "OLCFxqMz1z1UUS0TEJnvZP_zXHcuYdQsSGBWdOZeY5VQ"
+        );
         assert_eq!(decrypter.raw(), prikey.as_ref());
 
         // Decrypt ciphersalt with new decrypter
-        let desalter = decrypter.decrypt(
-            None,
-            Some(&saltcipher.qb64()),
-            None,
-            None,
-            Some(false)
-        ).unwrap();
+        let desalter = decrypter
+            .decrypt(None, Some(&saltcipher.qb64()), None, None, Some(false))
+            .unwrap();
 
         let desalter = desalter.downcast_ref::<Salter>().unwrap();
         assert_eq!(desalter.qb64b(), saltqb64b);

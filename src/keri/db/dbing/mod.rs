@@ -1,17 +1,16 @@
 pub mod keys;
 
-use std::collections::HashSet;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
+use crate::keri::db::dbing::keys::{on_key, split_on_key, suffix, unsuffix};
 use crate::keri::db::errors::DBError;
 use heed::{Database, DatabaseFlags, Env, EnvOpenOptions};
+use std::collections::HashSet;
 use std::fs;
-use std::ops::{Bound};
+use std::ops::Bound;
 use std::path::PathBuf;
 use std::sync::Arc;
-use crate::keri::db::dbing::keys::{on_key, split_on_key, suffix, unsuffix};
 
 const MAX_ON: u64 = u64::MAX;
-
 
 impl LMDBer {
     pub fn builder() -> LMDBerBuilder {
@@ -31,8 +30,7 @@ impl Default for LMDBerBuilder {
         Self {
             name: "test".to_string(),
             temp: true,
-            reopen: true
-            // other defaults
+            reopen: true, // other defaults
         }
     }
 }
@@ -61,17 +59,17 @@ impl LMDBerBuilder {
             self.name,
             "".to_string(), // base parameter
             self.temp,
-            None,  // head_dir_path
-            None,  // perm
-            self.reopen,  // reopen
-            false, // clear
-            false, // reuse
-            false, // clean
-            false, // filed
-            false, // extensioned
-            None,  // mode
-            None,  // fext
-            false, // readonly
+            None,        // head_dir_path
+            None,        // perm
+            self.reopen, // reopen
+            false,       // clear
+            false,       // reuse
+            false,       // clean
+            false,       // filed
+            false,       // extensioned
+            None,        // mode
+            None,        // fext
+            false,       // readonly
         )
     }
 }
@@ -79,7 +77,6 @@ impl LMDBerBuilder {
 // Define our database type
 // Using a type alias for a database that stores bytes as both keys and values
 pub type BytesDatabase = Database<heed::types::Bytes, heed::types::Bytes>;
-
 
 /// LMDBer is a wrapper around LMDB database providing an interface similar to Filer
 pub struct LMDBer {
@@ -138,16 +135,15 @@ impl Filer for LMDBer {
             perm: base_defaults.perm,
             mode: base_defaults.mode,
             fext: base_defaults.fext,
-
         }
     }
 
-   #[cfg(target_os = "windows")]
+    #[cfg(target_os = "windows")]
     const TAIL_DIR_PATH: &'static str = "keri\\db";
     #[cfg(not(target_os = "windows"))]
     const TAIL_DIR_PATH: &'static str = "keri/db";
 
-   #[cfg(target_os = "windows")]
+    #[cfg(target_os = "windows")]
     const CLEAN_TAIL_DIR_PATH: &'static str = "keri\\clean\\db";
     #[cfg(not(target_os = "windows"))]
     const CLEAN_TAIL_DIR_PATH: &'static str = "keri/clean/db";
@@ -164,7 +160,6 @@ impl Filer for LMDBer {
 
     const TEMP_PREFIX: &'static str = "keri_lmdb_";
 }
-
 
 impl LMDBer {
     // Constants specific to LMDBer
@@ -206,7 +201,7 @@ impl LMDBer {
             extensioned,
             mode,
             fext,
-            Some(Self::defaults())
+            Some(Self::defaults()),
         );
 
         let filer = match filer {
@@ -276,7 +271,6 @@ impl LMDBer {
             .map_size(Self::MAP_SIZE)
             .max_dbs(Self::MAX_NAMED_DBS);
 
-
         let env = if self.readonly {
             unsafe { Arc::new(env_builder.open(&dir_path)?) }
         } else {
@@ -318,7 +312,8 @@ impl LMDBer {
             }
         }
 
-        let result = self.filer
+        let result = self
+            .filer
             .close(clear)
             .map_err(|e| DBError::FilerError(format!("{}", e)))?;
 
@@ -328,7 +323,11 @@ impl LMDBer {
     // Database operations with heed
 
     // Create a database
-    pub fn create_database(&self, name: Option<&str>, dup_sort: Option<bool>) -> Result<BytesDatabase, DBError> {
+    pub fn create_database(
+        &self,
+        name: Option<&str>,
+        dup_sort: Option<bool>,
+    ) -> Result<BytesDatabase, DBError> {
         let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
         let mut txn = env.write_txn()?;
         let dup_sort = dup_sort.unwrap_or(false);
@@ -336,8 +335,7 @@ impl LMDBer {
         let mut binding = env
             .database_options()
             .types::<heed::types::Bytes, heed::types::Bytes>();
-        let options = binding
-            .name(name.unwrap_or(""));
+        let options = binding.name(name.unwrap_or(""));
 
         if dup_sort {
             options.flags(DatabaseFlags::DUP_SORT);
@@ -366,8 +364,8 @@ impl LMDBer {
         let rtxn = env.read_txn()?;
 
         let result = match db.len(&rtxn) {
-            Ok(val) => {val}
-            Err(_) => {0}
+            Ok(val) => val,
+            Err(_) => 0,
         };
 
         Ok(result)
@@ -459,7 +457,12 @@ impl LMDBer {
     /// # Returns
     /// - `Ok(count)`: Number of items processed
     /// - `Err(DBError)`: If a database error occurs
-    pub fn get_top_items_iter<F>(&self, db: &BytesDatabase, prefix: &[u8], cb: F) -> Result<usize, DBError>
+    pub fn get_top_items_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        prefix: &[u8],
+        cb: F,
+    ) -> Result<usize, DBError>
     where
         F: FnMut(&[u8], &[u8]) -> Result<bool, DBError>,
     {
@@ -486,7 +489,7 @@ impl LMDBer {
                             break;
                         }
                     }
-                },
+                }
                 Err(e) => return Err(DBError::EnvError(e)),
             }
         }
@@ -504,17 +507,15 @@ impl LMDBer {
         let iter = db.iter(&read_txn)?;
 
         let keys_to_delete: Vec<Vec<u8>> = iter
-            .filter_map(|result| {
-                match result {
-                    Ok((k, _)) => {
-                        if k.starts_with(prefix) {
-                            Some(Ok(k.to_vec()))
-                        } else {
-                            None
-                        }
-                    },
-                    Err(e) => Some(Err(DBError::EnvError(e))),
+            .filter_map(|result| match result {
+                Ok((k, _)) => {
+                    if k.starts_with(prefix) {
+                        Some(Ok(k.to_vec()))
+                    } else {
+                        None
+                    }
                 }
+                Err(e) => Some(Err(DBError::EnvError(e))),
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -563,10 +564,15 @@ impl LMDBer {
         let on = on.unwrap_or(0);
 
         // Get the environment
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Not opened".to_string()))?;
+        let env = self
+            .env
+            .as_ref()
+            .ok_or(DBError::DatabaseError("Not opened".to_string()))?;
 
         // Begin a write transaction
-        let mut txn = env.write_txn().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        let mut txn = env
+            .write_txn()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         // Create the onkey (composite key with ordinal number)
         let onkey = if !key.is_empty() {
@@ -594,7 +600,8 @@ impl LMDBer {
         };
 
         // Commit the transaction
-        txn.commit().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        txn.commit()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         Ok(result)
     }
@@ -645,7 +652,7 @@ impl LMDBer {
             let (onkey, _) = result?;
             let (ckey, cn) = split_on_key(onkey.as_ref(), Some(sep))?;
             if ckey != key {
-                break
+                break;
             }
             last_entry = Some(cn);
         }
@@ -670,7 +677,8 @@ impl LMDBer {
         // Check if the key already exists (should not happen if our algorithm is correct)
         if db.get(&wtxn, &onkey)?.is_some() {
             return Err(DBError::ValueError(format!(
-                "Key already exists: {:?}", onkey
+                "Key already exists: {:?}",
+                onkey
             )));
         }
 
@@ -697,10 +705,22 @@ impl LMDBer {
     /// - on: ordinal number at which write
     /// - val: to be written at onkey
     /// - sep: separator bytes for split
-    pub fn put_on_val(&self, db: &BytesDatabase, key: &[u8], on: u32, val: &[u8], sep: Option<[u8; 1]>) -> Result<bool, DBError> {
+    pub fn put_on_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: u32,
+        val: &[u8],
+        sep: Option<[u8; 1]>,
+    ) -> Result<bool, DBError> {
         let sep = sep.unwrap_or(*b".");
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Not opened".to_string()))?;
-        let mut txn = env.write_txn().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        let env = self
+            .env
+            .as_ref()
+            .ok_or(DBError::DatabaseError("Not opened".to_string()))?;
+        let mut txn = env
+            .write_txn()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         let onkey = if !key.is_empty() {
             on_key(key, on as u64, Some(sep))
@@ -718,16 +738,19 @@ impl LMDBer {
             return Ok(false);
         }
 
-        db.put(&mut txn, &onkey, val)
-            .map_err(|e| {
-                if let heed::Error::Mdb(heed::MdbError::BadValSize) = e {
-                    DBError::ValueError(format!("Key: `{:?}` is either empty, too big, or wrong DUPFIXED size", onkey))
-                } else {
-                    DBError::DatabaseError(format!("{}", e))
-                }
-            })?;
+        db.put(&mut txn, &onkey, val).map_err(|e| {
+            if let heed::Error::Mdb(heed::MdbError::BadValSize) = e {
+                DBError::ValueError(format!(
+                    "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                    onkey
+                ))
+            } else {
+                DBError::DatabaseError(format!("{}", e))
+            }
+        })?;
 
-        txn.commit().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        txn.commit()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
         Ok(true)
     }
 
@@ -741,10 +764,21 @@ impl LMDBer {
     /// - key: key within sub db's keyspace
     /// - on: ordinal number at which to retrieve
     /// - sep: separator bytes for split
-    pub fn get_on_val(&self, db: &BytesDatabase, key: &[u8], on: u32, sep: Option<[u8; 1]>) -> Result<Option<Vec<u8>>, DBError> {
+    pub fn get_on_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: u32,
+        sep: Option<[u8; 1]>,
+    ) -> Result<Option<Vec<u8>>, DBError> {
         let sep = sep.unwrap_or(*b".");
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Not opened".to_string()))?;
-        let txn = env.read_txn().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        let env = self
+            .env
+            .as_ref()
+            .ok_or(DBError::DatabaseError("Not opened".to_string()))?;
+        let txn = env
+            .read_txn()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         let onkey = if !key.is_empty() {
             on_key(key, on as u64, Some(sep))
@@ -754,7 +788,10 @@ impl LMDBer {
 
         match db.get(&txn, &onkey).map_err(|e| {
             if let heed::Error::Mdb(heed::MdbError::BadValSize) = e {
-                DBError::ValueError(format!("Key: `{:?}` is either empty, too big, or wrong DUPFIXED size", onkey))
+                DBError::ValueError(format!(
+                    "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                    onkey
+                ))
             } else {
                 DBError::DatabaseError(format!("{}", e))
             }
@@ -774,10 +811,21 @@ impl LMDBer {
     /// - key: key within sub db's keyspace
     /// - on: ordinal number at which to delete
     /// - sep: separator bytes for split
-    pub fn del_on_val(&self, db: &BytesDatabase, key: &[u8], on: u32, sep: Option<[u8; 1]>) -> Result<bool, DBError> {
+    pub fn del_on_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: u32,
+        sep: Option<[u8; 1]>,
+    ) -> Result<bool, DBError> {
         let sep = sep.unwrap_or(*b".");
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Not opened".to_string()))?;
-        let mut txn = env.write_txn().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        let env = self
+            .env
+            .as_ref()
+            .ok_or(DBError::DatabaseError("Not opened".to_string()))?;
+        let mut txn = env
+            .write_txn()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         let onkey = if !key.is_empty() {
             on_key(key, on as u64, Some(sep))
@@ -785,16 +833,19 @@ impl LMDBer {
             key.to_vec()
         };
 
-        let result = db.delete(&mut txn, &onkey)
-            .map_err(|e| {
-                if let heed::Error::Mdb(heed::MdbError::BadValSize) = e {
-                    DBError::ValueError(format!("Key: `{:?}` is either empty, too big, or wrong DUPFIXED size", onkey))
-                } else {
-                    DBError::DatabaseError(format!("{}", e))
-                }
-            })?;
+        let result = db.delete(&mut txn, &onkey).map_err(|e| {
+            if let heed::Error::Mdb(heed::MdbError::BadValSize) = e {
+                DBError::ValueError(format!(
+                    "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                    onkey
+                ))
+            } else {
+                DBError::DatabaseError(format!("{}", e))
+            }
+        })?;
 
-        txn.commit().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        txn.commit()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
         Ok(result)
     }
 
@@ -821,7 +872,9 @@ impl LMDBer {
         let on = on.unwrap_or(0);
 
         // Get environment from the Arc
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Environment not available".to_string()))?;
+        let env = self.env.as_ref().ok_or(DBError::DatabaseError(
+            "Environment not available".to_string(),
+        ))?;
 
         let mut count = 0;
 
@@ -851,10 +904,14 @@ impl LMDBer {
                     }
                     // Increment the count for valid entries
                     count += 1;
-                },
+                }
                 Err(_) => {
                     // Not a splittable key, we're done
-                    println!("{:?} = {:?}", String::from_utf8(ckey.to_vec()), String::from_utf8(cval.to_vec()));
+                    println!(
+                        "{:?} = {:?}",
+                        String::from_utf8(ckey.to_vec()),
+                        String::from_utf8(cval.to_vec())
+                    );
                     break;
                 }
             }
@@ -870,8 +927,8 @@ impl LMDBer {
         key: Option<&[u8]>,
         on: Option<u64>,
         sep: Option<[u8; 1]>,
-        mut callback: F
-    )  -> Result<(), DBError>
+        mut callback: F,
+    ) -> Result<(), DBError>
     where
         F: FnMut(Vec<u8>, u64, Vec<u8>) -> Result<bool, DBError>,
     {
@@ -879,8 +936,13 @@ impl LMDBer {
         let key = key.unwrap_or(&[]);
         let on = on.unwrap_or(0);
 
-        let env = self.env.as_ref().ok_or(DBError::DatabaseError("Not opened".to_string()))?;
-        let txn = env.read_txn().map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
+        let env = self
+            .env
+            .as_ref()
+            .ok_or(DBError::DatabaseError("Not opened".to_string()))?;
+        let txn = env
+            .read_txn()
+            .map_err(|e| DBError::DatabaseError(format!("{}", e)))?;
 
         // Create the starting key for the range
         let mut iter = if !key.is_empty() {
@@ -921,14 +983,12 @@ impl LMDBer {
         key: Option<&[u8]>,
         on: Option<u64>,
         sep: Option<[u8; 1]>,
-        mut callback: F
-    )  -> Result<(), DBError>
+        mut callback: F,
+    ) -> Result<(), DBError>
     where
         F: FnMut(Vec<u8>) -> Result<bool, DBError>,
     {
-        self.get_on_item_iter(&db, key, on, sep, |ckey, cn, cval| {
-            callback(cval)
-        })?;
+        self.get_on_item_iter(&db, key, on, sep, |ckey, cn, cval| callback(cval))?;
 
         Ok(())
     }
@@ -1570,7 +1630,6 @@ impl LMDBer {
 
         Ok(count)
     }
-
 }
 
 impl Drop for LMDBer {
@@ -1647,7 +1706,9 @@ mod tests {
         assert!(databaser.env().is_none());
 
         // Reopen the database
-        databaser.reopen(Some(false), None, None, false, false, false, None, None).expect("Failed to reopen database");
+        databaser
+            .reopen(Some(false), None, None, false, false, false, None, None)
+            .expect("Failed to reopen database");
 
         assert!(databaser.opened());
         assert!(databaser.env().is_some());
@@ -1676,9 +1737,7 @@ mod tests {
     #[test]
     fn test_lmdb_basic_operations() -> Result<(), DBError> {
         // Create a temporary LMDBer instance
-        let mut lmdber = LMDBer::builder()
-            .temp(true)
-            .build()?;
+        let mut lmdber = LMDBer::builder().temp(true).build()?;
 
         // Scope to ensure dber is dropped properly (similar to Python's with statement)
         {
@@ -1690,7 +1749,9 @@ mod tests {
             let val = b"whatever".to_vec();
 
             // Open a database named "beep."
-            let db = lmdber.create_database(Some("beeb."), None).expect("Failed to create database");
+            let db = lmdber
+                .create_database(Some("beeb."), None)
+                .expect("Failed to create database");
 
             // Test get_val on non-existent key
             let result = lmdber.get_val(&db, &key)?;
@@ -1725,7 +1786,6 @@ mod tests {
             assert_eq!(result, None);
         }
 
-
         lmdber.close(true)?;
         Ok(())
     }
@@ -1734,24 +1794,24 @@ mod tests {
     fn test_get_top_item_iter_and_del_top_val() -> Result<(), DBError> {
         // Create a new LMDBer instance with a temporary database
         let mut lmdber = LMDBer::new(
-            "test_db",
-            "",
-            true,           // temp
-            None,           // head dir path
-            None,           // perm
-            true,          // reopen
-            true,           // clear
-            false,          // reuse
-            false,          // clean
-            false,          // filed
-            false,          // extensioned
-            None,           // mode
-            None,           // fext
-            false,          // readonly
+            "test_db", "", true,  // temp
+            None,  // head dir path
+            None,  // perm
+            true,  // reopen
+            true,  // clear
+            false, // reuse
+            false, // clean
+            false, // filed
+            false, // extensioned
+            None,  // mode
+            None,  // fext
+            false, // readonly
         )?;
 
         // Create a test database
-        let db = lmdber.create_database(Some("test_db"), None).expect("Failed to open database");
+        let db = lmdber
+            .create_database(Some("test_db"), None)
+            .expect("Failed to open database");
 
         // Insert test values
         let key = b"a.1".to_vec();
@@ -1792,12 +1852,7 @@ mod tests {
             Ok(true)
         })?;
 
-        assert_eq!(
-            items,
-            vec![
-                (b"b.1".to_vec(), b"woo".to_vec()),
-            ]
-        );
+        assert_eq!(items, vec![(b"b.1".to_vec(), b"woo".to_vec()),]);
 
         // Clean up
         lmdber.close(true)?;
@@ -1810,24 +1865,24 @@ mod tests {
         // Create a temporary directory for the database
         // Create a new LMDBer instance with a temporary database
         let mut lmdber = LMDBer::new(
-            "test_db",
-            "",
-            true,           // temp
+            "test_db", "", true,  // temp
             None,  // head_dir_path
-            None,           // perm
-            true,          // reopen
-            true,           // clear
-            false,          // reuse
-            false,          // clean
-            false,          // filed
-            false,          // extensioned
-            None,           // mode
-            None,           // fext
-            false,          // readonly
+            None,  // perm
+            true,  // reopen
+            true,  // clear
+            false, // reuse
+            false, // clean
+            false, // filed
+            false, // extensioned
+            None,  // mode
+            None,  // fext
+            false, // readonly
         )?;
 
         // Create a test database with dupsort flag
-        let db = lmdber.create_database(Some("test_db"), Some(true)).expect("Failed to open database");
+        let db = lmdber
+            .create_database(Some("test_db"), Some(true))
+            .expect("Failed to open database");
 
         // Test empty database count
         assert_eq!(lmdber.cnt(&db)?, 0);
@@ -1839,7 +1894,7 @@ mod tests {
         let val2 = b"val2".to_vec();
 
         assert!(lmdber.put_val(&db, &key0, &val1)?);
-        assert!(lmdber.put_val(&db, &key1, &val2)?);  // With DUP_SORT, we can have multiple values for the same key
+        assert!(lmdber.put_val(&db, &key1, &val2)?); // With DUP_SORT, we can have multiple values for the same key
 
         // Test count after insertion
         assert_eq!(lmdber.cnt(&db)?, 2);
@@ -1868,10 +1923,7 @@ mod tests {
     fn test_on_key_value_methods() -> Result<(), DBError> {
         // Set up a temporary directory for the test
         // Create a new LMDBer instance for testing
-        let lmdber = LMDBer::builder()
-            .name("test_db")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
 
         // Create "seen." database
         let db = lmdber.create_database(Some("seen."), None)?;
@@ -1912,17 +1964,26 @@ mod tests {
         assert_eq!(lmdber.put_val(&db, &key_a0, dig_a)?, false);
         assert_eq!(lmdber.set_val(&db, &key_a0, dig_a)?, true);
         assert_eq!(lmdber.get_val(&db, &key_a0)?, Some(dig_a.to_vec()));
-        assert_eq!(lmdber.get_on_val(&db, pre_a, 0, None)?, Some(dig_a.to_vec()));
+        assert_eq!(
+            lmdber.get_on_val(&db, pre_a, 0, None)?,
+            Some(dig_a.to_vec())
+        );
         assert_eq!(lmdber.del_val(&db, &key_a0)?, true);
         assert_eq!(lmdber.get_val(&db, &key_a0)?, None);
         assert_eq!(lmdber.get_on_val(&db, pre_a, 0, None)?, None);
 
         // Test ordinal-numbered key-value operations
         assert_eq!(lmdber.put_on_val(&db, pre_a, 0, dig_a, None)?, true);
-        assert_eq!(lmdber.get_on_val(&db, pre_a, 0, None)?, Some(dig_a.to_vec()));
+        assert_eq!(
+            lmdber.get_on_val(&db, pre_a, 0, None)?,
+            Some(dig_a.to_vec())
+        );
         assert_eq!(lmdber.put_on_val(&db, pre_a, 0, dig_a, None)?, false);
         assert_eq!(lmdber.set_on_val(&db, pre_a, Some(0), dig_a, None)?, true);
-        assert_eq!(lmdber.get_on_val(&db, pre_a, 0, None)?, Some(dig_a.to_vec()));
+        assert_eq!(
+            lmdber.get_on_val(&db, pre_a, 0, None)?,
+            Some(dig_a.to_vec())
+        );
         assert_eq!(lmdber.del_on_val(&db, pre_a, 0, None)?, true);
         assert_eq!(lmdber.get_on_val(&db, pre_a, 0, None)?, None);
 
@@ -2007,21 +2068,24 @@ mod tests {
 
         // Test cnt_on_vals
         assert_eq!(lmdber.cnt_on_vals(&db, Some(pre_b), None, None)?, 5);
-        assert_eq!(lmdber.cnt_on_vals(&db, Some(&[]), None, None)?, 6);  // all keys
-        assert_eq!(lmdber.cnt_on_vals(&db, None, None, None)?, 6);  // all keys
+        assert_eq!(lmdber.cnt_on_vals(&db, Some(&[]), None, None)?, 6); // all keys
+        assert_eq!(lmdber.cnt_on_vals(&db, None, None, None)?, 6); // all keys
 
         let mut items = Vec::new();
         lmdber.get_on_item_iter(&db, Some(pre_b), None, Some(sep), |ckey, cn, cval| {
             items.push((ckey, cn, cval));
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            (pre_b.to_vec(), 0, dig_u.to_vec()),
-            (pre_b.to_vec(), 1, dig_v.to_vec()),
-            (pre_b.to_vec(), 2, dig_w.to_vec()),
-            (pre_b.to_vec(), 3, dig_x.to_vec()),
-            (pre_b.to_vec(), 4, dig_y.to_vec())
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                (pre_b.to_vec(), 0, dig_u.to_vec()),
+                (pre_b.to_vec(), 1, dig_v.to_vec()),
+                (pre_b.to_vec(), 2, dig_w.to_vec()),
+                (pre_b.to_vec(), 3, dig_x.to_vec()),
+                (pre_b.to_vec(), 4, dig_y.to_vec())
+            ]
+        );
 
         // // Resume replay pre_b events at on = 3
         let mut items = Vec::new();
@@ -2029,10 +2093,13 @@ mod tests {
             items.push((ckey, cn, cval));
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            (pre_b.to_vec(), 3, dig_x.to_vec()),
-            (pre_b.to_vec(), 4, dig_y.to_vec())
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                (pre_b.to_vec(), 3, dig_x.to_vec()),
+                (pre_b.to_vec(), 4, dig_y.to_vec())
+            ]
+        );
 
         // // Resume replay pre_b events at on = 5
         let mut items = Vec::new();
@@ -2052,32 +2119,38 @@ mod tests {
             Ok(true)
         })?;
 
-        assert_eq!(items, vec![
-            (pre_a.to_vec(), 0, dig_a.to_vec()),
-            (pre_d.to_vec(), 0, dig_y.to_vec()),
-            (pre_b.to_vec(), 0, dig_u.to_vec()),
-            (pre_b.to_vec(), 1, dig_v.to_vec()),
-            (pre_b.to_vec(), 2, dig_w.to_vec()),
-            (pre_b.to_vec(), 3, dig_x.to_vec()),
-            (pre_b.to_vec(), 4, dig_y.to_vec()),
-            (pre_c.to_vec(), 0, dig_c.to_vec())
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                (pre_a.to_vec(), 0, dig_a.to_vec()),
+                (pre_d.to_vec(), 0, dig_y.to_vec()),
+                (pre_b.to_vec(), 0, dig_u.to_vec()),
+                (pre_b.to_vec(), 1, dig_v.to_vec()),
+                (pre_b.to_vec(), 2, dig_w.to_vec()),
+                (pre_b.to_vec(), 3, dig_x.to_vec()),
+                (pre_b.to_vec(), 4, dig_y.to_vec()),
+                (pre_c.to_vec(), 0, dig_c.to_vec())
+            ]
+        );
 
         let mut items = Vec::new();
         lmdber.get_on_item_iter(&db, None, None, Some(sep), |ckey, cn, cval| {
             items.push((ckey, cn, cval));
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            (pre_a.to_vec(), 0, dig_a.to_vec()),
-            (pre_d.to_vec(), 0, dig_y.to_vec()),
-            (pre_b.to_vec(), 0, dig_u.to_vec()),
-            (pre_b.to_vec(), 1, dig_v.to_vec()),
-            (pre_b.to_vec(), 2, dig_w.to_vec()),
-            (pre_b.to_vec(), 3, dig_x.to_vec()),
-            (pre_b.to_vec(), 4, dig_y.to_vec()),
-            (pre_c.to_vec(), 0, dig_c.to_vec())
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                (pre_a.to_vec(), 0, dig_a.to_vec()),
+                (pre_d.to_vec(), 0, dig_y.to_vec()),
+                (pre_b.to_vec(), 0, dig_u.to_vec()),
+                (pre_b.to_vec(), 1, dig_v.to_vec()),
+                (pre_b.to_vec(), 2, dig_w.to_vec()),
+                (pre_b.to_vec(), 3, dig_x.to_vec()),
+                (pre_b.to_vec(), 4, dig_y.to_vec()),
+                (pre_c.to_vec(), 0, dig_c.to_vec())
+            ]
+        );
 
         // Resume replay all starting at pre_b on=2
         let (top, on) = split_on_key(&key_b2, Some(*b"."))?;
@@ -2086,11 +2159,14 @@ mod tests {
             items.push((ckey, cn, cval));
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            (top.clone(), 2, dig_w.to_vec()),
-            (top.clone(), 3, dig_x.to_vec()),
-            (top.clone(), 4, dig_y.to_vec())
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                (top.clone(), 2, dig_w.to_vec()),
+                (top.clone(), 3, dig_x.to_vec()),
+                (top.clone(), 4, dig_y.to_vec())
+            ]
+        );
 
         // Resume replay all starting at pre_c on=1
         let mut items = Vec::new();
@@ -2105,13 +2181,16 @@ mod tests {
             items.push(cval);
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            dig_u.to_vec(),
-            dig_v.to_vec(),
-            dig_w.to_vec(),
-            dig_x.to_vec(),
-            dig_y.to_vec()
-        ]);
+        assert_eq!(
+            items,
+            vec![
+                dig_u.to_vec(),
+                dig_v.to_vec(),
+                dig_w.to_vec(),
+                dig_x.to_vec(),
+                dig_y.to_vec()
+            ]
+        );
 
         // // Resume replay pre_b events at on = 3
         let mut items = Vec::new();
@@ -2119,11 +2198,8 @@ mod tests {
             items.push(cval);
             Ok(true)
         })?;
-        assert_eq!(items, vec![
-            dig_x.to_vec(),
-            dig_y.to_vec()
-        ]);
-        
+        assert_eq!(items, vec![dig_x.to_vec(), dig_y.to_vec()]);
+
         Ok(())
     }
 
@@ -2170,7 +2246,6 @@ mod tests {
         assert_eq!(result3[2], b"value5".to_vec());
 
         Ok(())
-
     }
 
     #[test]
@@ -2468,7 +2543,11 @@ mod tests {
 
         // Check last value for key1
         let result3 = lmdber.get_io_set_val_last(&db, key1, None)?;
-        assert_eq!(result3, Some(val3.to_vec()), "Should return the last added value");
+        assert_eq!(
+            result3,
+            Some(val3.to_vec()),
+            "Should return the last added value"
+        );
 
         // Add values to key2, which lexicographically follows key1
         let val4 = b"value4";
@@ -2476,11 +2555,19 @@ mod tests {
 
         // Check last value for key1 again (should be unaffected by key2)
         let result4 = lmdber.get_io_set_val_last(&db, key1, None)?;
-        assert_eq!(result4, Some(val3.to_vec()), "Should still return the last value for key1");
+        assert_eq!(
+            result4,
+            Some(val3.to_vec()),
+            "Should still return the last value for key1"
+        );
 
         // Check last value for key2
         let result5 = lmdber.get_io_set_val_last(&db, key2, None)?;
-        assert_eq!(result5, Some(val4.to_vec()), "Should return the only value for key2");
+        assert_eq!(
+            result5,
+            Some(val4.to_vec()),
+            "Should return the only value for key2"
+        );
 
         // Add values to a key that lexicographically precedes key1
         let key0 = b"test_key0";
@@ -2489,24 +2576,34 @@ mod tests {
 
         // Check last values for all keys
         let result6 = lmdber.get_io_set_val_last(&db, key0, None)?;
-        assert_eq!(result6, Some(val5.to_vec()), "Should return the only value for key0");
+        assert_eq!(
+            result6,
+            Some(val5.to_vec()),
+            "Should return the only value for key0"
+        );
 
         let result7 = lmdber.get_io_set_val_last(&db, key1, None)?;
-        assert_eq!(result7, Some(val3.to_vec()), "Should still return the last value for key1");
+        assert_eq!(
+            result7,
+            Some(val3.to_vec()),
+            "Should still return the last value for key1"
+        );
 
         // Delete all values for key1
         lmdber.del_io_set_vals(&db, key1, None)?;
 
         // Check last value for key1 after deletion
         let result8 = lmdber.get_io_set_val_last(&db, key1, None)?;
-        assert_eq!(result8, None, "Should return None after all values are deleted");
+        assert_eq!(
+            result8, None,
+            "Should return None after all values are deleted"
+        );
 
         Ok(())
     }
 
     #[test]
     fn test_io_set_methods() -> Result<(), DBError> {
-
         Ok(())
     }
 }

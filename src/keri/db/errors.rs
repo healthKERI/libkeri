@@ -30,5 +30,4 @@ pub enum DBError {
     PathError(String),
     #[error("Operation on closed database")]
     DbClosed,
-
 }

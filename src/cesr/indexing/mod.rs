@@ -1,12 +1,15 @@
 pub mod siger;
 
+use crate::cesr::{
+    b64_to_int, code_b2_to_b64, code_b64_to_b2, decode_b64, encode_b64, int_to_b64, nab_sextets,
+    Parsable,
+};
+use crate::errors::MatterError;
+use crate::Matter;
+use num_bigint::BigUint;
 use std::any::Any;
 use std::collections::HashMap;
-use crate::cesr::{b64_to_int, code_b2_to_b64, code_b64_to_b2, decode_b64, encode_b64, int_to_b64, nab_sextets, Parsable};
-use crate::errors::MatterError;
 use std::str;
-use num_bigint::BigUint;
-use crate::Matter;
 
 #[allow(dead_code)]
 pub mod idr_dex {
@@ -33,25 +36,25 @@ pub mod idr_dex {
     /// Only provide defined codes.
     /// Undefined are left out so that inclusion(exclusion) via 'in' operator works.
 
-    pub const ED25519_SIG: &str = "A";  // Ed25519 sig appears same in both lists if any.
-    pub const ED25519_CRT_SIG: &str = "B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_SIG: &str = "C";  // ECDSA secp256k1 sig appears same in both lists if any.
-    pub const ECDSA_256K1_CRT_SIG: &str = "D";  // ECDSA secp256k1 sig appears in current list.
-    pub const ECDSA_256R1_SIG: &str = "E";  // ECDSA secp256r1 sig appears same in both lists if any.
-    pub const ECDSA_256R1_CRT_SIG: &str = "F";  // ECDSA secp256r1 sig appears in current list.
-    pub const ED448_SIG: &str = "0A";  // Ed448 signature appears in both lists.
-    pub const ED448_CRT_SIG: &str = "0B";  // Ed448 signature appears in current list only.
-    pub const ED25519_BIG_SIG: &str = "2A";  // Ed25519 sig appears in both lists.
-    pub const ED25519_BIG_CRT_SIG: &str = "2B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_BIG_SIG: &str = "2C";  // ECDSA secp256k1 sig appears in both lists.
-    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D";  // ECDSA secp256k1 sig appears in current list only.
-    pub const ECDSA_256R1_BIG_SIG: &str = "2E";  // ECDSA secp256r1 sig appears in both lists.
-    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F";  // ECDSA secp256r1 sig appears in current list only.
-    pub const ED448_BIG_SIG: &str = "3A";  // Ed448 signature appears in both lists.
-    pub const ED448_BIG_CRT_SIG: &str = "3B";  // Ed448 signature appears in current list only.
-    pub const TBD0: &str = "0z";  // Test of Var len label L=N*4 <= 4095 char quadlets includes code
-    pub const TBD1: &str = "1z";  // Test of index sig lead 1
-    pub const TBD4: &str = "4z";  // Test of index sig lead 1 big
+    pub const ED25519_SIG: &str = "A"; // Ed25519 sig appears same in both lists if any.
+    pub const ED25519_CRT_SIG: &str = "B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_SIG: &str = "C"; // ECDSA secp256k1 sig appears same in both lists if any.
+    pub const ECDSA_256K1_CRT_SIG: &str = "D"; // ECDSA secp256k1 sig appears in current list.
+    pub const ECDSA_256R1_SIG: &str = "E"; // ECDSA secp256r1 sig appears same in both lists if any.
+    pub const ECDSA_256R1_CRT_SIG: &str = "F"; // ECDSA secp256r1 sig appears in current list.
+    pub const ED448_SIG: &str = "0A"; // Ed448 signature appears in both lists.
+    pub const ED448_CRT_SIG: &str = "0B"; // Ed448 signature appears in current list only.
+    pub const ED25519_BIG_SIG: &str = "2A"; // Ed25519 sig appears in both lists.
+    pub const ED25519_BIG_CRT_SIG: &str = "2B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_BIG_SIG: &str = "2C"; // ECDSA secp256k1 sig appears in both lists.
+    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D"; // ECDSA secp256k1 sig appears in current list only.
+    pub const ECDSA_256R1_BIG_SIG: &str = "2E"; // ECDSA secp256r1 sig appears in both lists.
+    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F"; // ECDSA secp256r1 sig appears in current list only.
+    pub const ED448_BIG_SIG: &str = "3A"; // Ed448 signature appears in both lists.
+    pub const ED448_BIG_CRT_SIG: &str = "3B"; // Ed448 signature appears in current list only.
+    pub const TBD0: &str = "0z"; // Test of Var len label L=N*4 <= 4095 char quadlets includes code
+    pub const TBD1: &str = "1z"; // Test of index sig lead 1
+    pub const TBD4: &str = "4z"; // Test of index sig lead 1 big
 
     // Create a HashMap from name to value
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -102,7 +105,6 @@ pub mod idr_dex {
     ];
 }
 
-
 #[allow(dead_code)]
 pub mod idx_sig_dex {
     use once_cell::sync::Lazy;
@@ -113,22 +115,22 @@ pub mod idx_sig_dex {
     /// Only provide defined codes.
     /// Undefined are left out so that inclusion(exclusion) via 'in' operator works.
 
-    pub const ED25519_SIG: &str = "A";  // Ed25519 sig appears same in both lists if any.
-    pub const ED25519_CRT_SIG: &str = "B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_SIG: &str = "C";  // ECDSA secp256k1 sig appears same in both lists if any.
-    pub const ECDSA_256K1_CRT_SIG: &str = "D";  // ECDSA secp256k1 sig appears in current list.
-    pub const ECDSA_256R1_SIG: &str = "E";  // ECDSA secp256r1 sig appears same in both lists if any.
-    pub const ECDSA_256R1_CRT_SIG: &str = "F";  // ECDSA secp256r1 sig appears in current list.
-    pub const ED448_SIG: &str = "0A";  // Ed448 signature appears in both lists.
-    pub const ED448_CRT_SIG: &str = "0B";  // Ed448 signature appears in current list only.
-    pub const ED25519_BIG_SIG: &str = "2A";  // Ed25519 sig appears in both lists.
-    pub const ED25519_BIG_CRT_SIG: &str = "2B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_BIG_SIG: &str = "2C";  // ECDSA secp256k1 sig appears in both lists.
-    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D";  // ECDSA secp256k1 sig appears in current list only.
-    pub const ECDSA_256R1_BIG_SIG: &str = "2E";  // ECDSA secp256r1 sig appears in both lists.
-    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F";  // ECDSA secp256r1 sig appears in current list only.
-    pub const ED448_BIG_SIG: &str = "3A";  // Ed448 signature appears in both lists.
-    pub const ED448_BIG_CRT_SIG: &str = "3B";  // Ed448 signature appears in current list only.
+    pub const ED25519_SIG: &str = "A"; // Ed25519 sig appears same in both lists if any.
+    pub const ED25519_CRT_SIG: &str = "B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_SIG: &str = "C"; // ECDSA secp256k1 sig appears same in both lists if any.
+    pub const ECDSA_256K1_CRT_SIG: &str = "D"; // ECDSA secp256k1 sig appears in current list.
+    pub const ECDSA_256R1_SIG: &str = "E"; // ECDSA secp256r1 sig appears same in both lists if any.
+    pub const ECDSA_256R1_CRT_SIG: &str = "F"; // ECDSA secp256r1 sig appears in current list.
+    pub const ED448_SIG: &str = "0A"; // Ed448 signature appears in both lists.
+    pub const ED448_CRT_SIG: &str = "0B"; // Ed448 signature appears in current list only.
+    pub const ED25519_BIG_SIG: &str = "2A"; // Ed25519 sig appears in both lists.
+    pub const ED25519_BIG_CRT_SIG: &str = "2B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_BIG_SIG: &str = "2C"; // ECDSA secp256k1 sig appears in both lists.
+    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D"; // ECDSA secp256k1 sig appears in current list only.
+    pub const ECDSA_256R1_BIG_SIG: &str = "2E"; // ECDSA secp256r1 sig appears in both lists.
+    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F"; // ECDSA secp256r1 sig appears in current list only.
+    pub const ED448_BIG_SIG: &str = "3A"; // Ed448 signature appears in both lists.
+    pub const ED448_BIG_CRT_SIG: &str = "3B"; // Ed448 signature appears in current list only.
 
     // Create a HashMap from name to value
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -173,7 +175,6 @@ pub mod idx_sig_dex {
     ];
 }
 
-
 #[allow(dead_code)]
 pub mod idx_crt_sig_dex {
     use once_cell::sync::Lazy;
@@ -184,14 +185,14 @@ pub mod idx_crt_sig_dex {
     /// Only provide defined codes.
     /// Undefined are left out so that inclusion(exclusion) via 'in' operator works.
 
-    pub const ED25519_CRT_SIG: &str = "B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_CRT_SIG: &str = "D";  // ECDSA secp256k1 sig appears in current list only.
-    pub const ECDSA_256R1_CRT_SIG: &str = "F";  // ECDSA secp256r1 sig appears in current list.
-    pub const ED448_CRT_SIG: &str = "0B";  // Ed448 signature appears in current list only.
-    pub const ED25519_BIG_CRT_SIG: &str = "2B";  // Ed25519 sig appears in current list only.
-    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D";  // ECDSA secp256k1 sig appears in current list only.
-    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F";  // ECDSA secp256r1 sig appears in current list only.
-    pub const ED448_BIG_CRT_SIG: &str = "3B";  // Ed448 signature appears in current list only.
+    pub const ED25519_CRT_SIG: &str = "B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_CRT_SIG: &str = "D"; // ECDSA secp256k1 sig appears in current list only.
+    pub const ECDSA_256R1_CRT_SIG: &str = "F"; // ECDSA secp256r1 sig appears in current list.
+    pub const ED448_CRT_SIG: &str = "0B"; // Ed448 signature appears in current list only.
+    pub const ED25519_BIG_CRT_SIG: &str = "2B"; // Ed25519 sig appears in current list only.
+    pub const ECDSA_256K1_BIG_CRT_SIG: &str = "2D"; // ECDSA secp256k1 sig appears in current list only.
+    pub const ECDSA_256R1_BIG_CRT_SIG: &str = "2F"; // ECDSA secp256r1 sig appears in current list only.
+    pub const ED448_BIG_CRT_SIG: &str = "3B"; // Ed448 signature appears in current list only.
 
     // Create a HashMap from name to value
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -230,14 +231,14 @@ pub mod idx_bth_sig_dex {
     /// Only provide defined codes.
     /// Undefined are left out so that inclusion(exclusion) via 'in' operator works.
 
-    pub const ED25519_SIG: &str = "A";  // Ed25519 sig appears same in both lists if any.
-    pub const ECDSA_256K1_SIG: &str = "C";  // ECDSA secp256k1 sig appears same in both lists if any.
-    pub const ECDSA_256R1_SIG: &str = "E";  // ECDSA secp256r1 sig appears same in both lists if any.
-    pub const ED448_SIG: &str = "0A";  // Ed448 signature appears in both lists.
-    pub const ED25519_BIG_SIG: &str = "2A";  // Ed25519 sig appears in both listsy.
-    pub const ECDSA_256K1_BIG_SIG: &str = "2C";  // ECDSA secp256k1 sig appears in both lists.
-    pub const ECDSA_256R1_BIG_SIG: &str = "2E";  // ECDSA secp256r1 sig appears in both lists.
-    pub const ED448_BIG_SIG: &str = "3A";  // Ed448 signature appears in both lists.
+    pub const ED25519_SIG: &str = "A"; // Ed25519 sig appears same in both lists if any.
+    pub const ECDSA_256K1_SIG: &str = "C"; // ECDSA secp256k1 sig appears same in both lists if any.
+    pub const ECDSA_256R1_SIG: &str = "E"; // ECDSA secp256r1 sig appears same in both lists if any.
+    pub const ED448_SIG: &str = "0A"; // Ed448 signature appears in both lists.
+    pub const ED25519_BIG_SIG: &str = "2A"; // Ed25519 sig appears in both listsy.
+    pub const ECDSA_256K1_BIG_SIG: &str = "2C"; // ECDSA secp256k1 sig appears in both lists.
+    pub const ECDSA_256R1_BIG_SIG: &str = "2E"; // ECDSA secp256r1 sig appears in both lists.
+    pub const ED448_BIG_SIG: &str = "3A"; // Ed448 signature appears in both lists.
 
     // Create a HashMap from name to value
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -268,34 +269,205 @@ pub mod idx_bth_sig_dex {
 
 #[derive(Clone, Copy, Debug)]
 struct Xizage {
-    hs: u32,  // header size
-    ss: u32,  // section size
-    os: u32,  // extra size
-    fs: Option<u32>,  // field size
-    ls: u32,  // list size
+    hs: u32,         // header size
+    ss: u32,         // section size
+    os: u32,         // extra size
+    fs: Option<u32>, // field size
+    ls: u32,         // list size
 }
 
 fn get_sizes() -> HashMap<&'static str, Xizage> {
     let mut sizes = HashMap::new();
-    sizes.insert("A", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("B", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("C", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("D", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("E", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("F", Xizage { hs: 1, ss: 1, os: 0, fs: Some(88), ls: 0 });
-    sizes.insert("0A", Xizage { hs: 2, ss: 2, os: 1, fs: Some(156), ls: 0 });
-    sizes.insert("0B", Xizage { hs: 2, ss: 2, os: 1, fs: Some(156), ls: 0 });
-    sizes.insert("2A", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("2B", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("2C", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("2D", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("2E", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("2F", Xizage { hs: 2, ss: 4, os: 2, fs: Some(92), ls: 0 });
-    sizes.insert("3A", Xizage { hs: 2, ss: 6, os: 3, fs: Some(160), ls: 0 });
-    sizes.insert("3B", Xizage { hs: 2, ss: 6, os: 3, fs: Some(160), ls: 0 });
-    sizes.insert("0z", Xizage { hs: 2, ss: 2, os: 0, fs: None, ls: 0 });
-    sizes.insert("1z", Xizage { hs: 2, ss: 2, os: 1, fs: Some(76), ls: 1 });
-    sizes.insert("4z", Xizage { hs: 2, ss: 6, os: 3, fs: Some(80), ls: 1 });
+    sizes.insert(
+        "A",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "B",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "C",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "D",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "E",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "F",
+        Xizage {
+            hs: 1,
+            ss: 1,
+            os: 0,
+            fs: Some(88),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "0A",
+        Xizage {
+            hs: 2,
+            ss: 2,
+            os: 1,
+            fs: Some(156),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "0B",
+        Xizage {
+            hs: 2,
+            ss: 2,
+            os: 1,
+            fs: Some(156),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2A",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2B",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2C",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2D",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2E",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "2F",
+        Xizage {
+            hs: 2,
+            ss: 4,
+            os: 2,
+            fs: Some(92),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "3A",
+        Xizage {
+            hs: 2,
+            ss: 6,
+            os: 3,
+            fs: Some(160),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "3B",
+        Xizage {
+            hs: 2,
+            ss: 6,
+            os: 3,
+            fs: Some(160),
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "0z",
+        Xizage {
+            hs: 2,
+            ss: 2,
+            os: 0,
+            fs: None,
+            ls: 0,
+        },
+    );
+    sizes.insert(
+        "1z",
+        Xizage {
+            hs: 2,
+            ss: 2,
+            os: 1,
+            fs: Some(76),
+            ls: 1,
+        },
+    );
+    sizes.insert(
+        "4z",
+        Xizage {
+            hs: 2,
+            ss: 6,
+            os: 3,
+            fs: Some(80),
+            ls: 1,
+        },
+    );
 
     sizes
 }
@@ -326,9 +498,11 @@ pub fn hards() -> HashMap<u8, i32> {
 #[allow(dead_code)]
 pub fn get_bards() -> HashMap<u8, i32> {
     let hards = crate::cesr::hards();
-    hards.iter().map(|(&c, &hs)| (code_b64_to_b2(c), hs)).collect()
+    hards
+        .iter()
+        .map(|(&c, &hs)| (code_b64_to_b2(c), hs))
+        .collect()
 }
-
 
 ///  Indexer is fully qualified cryptographic material primitive base class for
 ///  indexed primitives. In special cases some codes in the Index code table
@@ -351,7 +525,12 @@ pub struct BaseIndexer {
 }
 
 impl BaseIndexer {
-    pub fn new(raw: Option<&[u8]>, code: Option<&str>, index: Option<u32>, ondex: Option<u32>) -> Result<Self, MatterError> {
+    pub fn new(
+        raw: Option<&[u8]>,
+        code: Option<&str>,
+        index: Option<u32>,
+        ondex: Option<u32>,
+    ) -> Result<Self, MatterError> {
         // -----------------------------------------------
         // The Python snippet starts with: if raw is not None:
         // so we mimic that branch.
@@ -377,7 +556,7 @@ impl BaseIndexer {
                 }
             };
 
-            let cs = hs + ss;    // combined code size
+            let cs = hs + ss; // combined code size
             let ms = ss.saturating_sub(os); // (ss - os)
 
             // if not isinstance(index, int) or index < 0 or index > (64**ms - 1):
@@ -408,10 +587,7 @@ impl BaseIndexer {
 
             // if isinstance(ondex, int) and os != 0 => check bounds
             if let Some(on_val) = on {
-                let max_ondex = 64u64
-                    .checked_pow(os)
-                    .unwrap_or(0)
-                    .saturating_sub(1);
+                let max_ondex = 64u64.checked_pow(os).unwrap_or(0).saturating_sub(1);
                 if os != 0 && (on_val as u64) > max_ondex {
                     return Err(MatterError::InvalidVarIndexError(format!(
                         "Invalid ondex={} for code={}",
@@ -528,10 +704,11 @@ impl BaseIndexer {
                     "Unexpected op code start while extracting Indexer.".to_string(),
                 ))
             } else {
-                Err(MatterError::UnexpectedCodeError(
-                    format!("Unsupported code start char={}.", first),
-                ))
-            }
+                Err(MatterError::UnexpectedCodeError(format!(
+                    "Unsupported code start char={}.",
+                    first
+                )))
+            };
         }
 
         // Get hard code size
@@ -539,9 +716,10 @@ impl BaseIndexer {
 
         // Check if we have enough bytes
         if qb64b.len() < hs as usize {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more characters.", hs - qb64b.len() as i32),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more characters.",
+                hs - qb64b.len() as i32
+            )));
         }
 
         // Get hard code
@@ -550,22 +728,24 @@ impl BaseIndexer {
         // Check if hard code is supported
         let sizes = get_sizes();
         if !sizes.contains_key(hard) {
-            return Err(MatterError::UnexpectedCodeError(
-                format!("Unsupported code ={}.", hard),
-            ));
+            return Err(MatterError::UnexpectedCodeError(format!(
+                "Unsupported code ={}.",
+                hard
+            )));
         }
 
         // Get sizes
         let s = *sizes.get(hard).unwrap();
         let (hs, ss, os, mut fs, ls) = (s.hs, s.ss, s.os, s.fs.unwrap_or(0), s.ls);
         let cs = hs + ss; // both hard + soft code size
-        let ms = ss - os;  // main index size
+        let ms = ss - os; // main index size
 
         // Check if we have enough bytes for code
         if qb64b.len() < cs as usize {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more characters.", cs - qb64b.len() as u32),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more characters.",
+                cs - qb64b.len() as u32
+            )));
         }
 
         // Extract index/size chars and convert to integer
@@ -580,13 +760,18 @@ impl BaseIndexer {
         // Handle ondex based on code type
         let ondex = if idx_crt_sig_dex::TUPLE.contains(&hard) {
             // If current sig, ondex from code must be 0
-            let ondex_val = if os > 0 { Some(b64_to_int(ondex_str)) } else { None };
+            let ondex_val = if os > 0 {
+                Some(b64_to_int(ondex_str))
+            } else {
+                None
+            };
 
             if let Some(ondex) = ondex_val {
                 if ondex > 0 {
-                    return Err(MatterError::ValueError(
-                        format!("Invalid ondex={} for code={}.", ondex, hard),
-                    ));
+                    return Err(MatterError::ValueError(format!(
+                        "Invalid ondex={} for code={}.",
+                        ondex, hard
+                    )));
                 }
             }
 
@@ -604,15 +789,17 @@ impl BaseIndexer {
         if fs == 0 {
             // Compute fs from index
             if cs % 4 != 0 {
-                return Err(MatterError::ValidationError(
-                    format!("Whole code size not multiple of 4 for variable length material. cs={}.", cs),
-                ));
+                return Err(MatterError::ValidationError(format!(
+                    "Whole code size not multiple of 4 for variable length material. cs={}.",
+                    cs
+                )));
             }
 
             if os != 0 {
-                return Err(MatterError::ValidationError(
-                    format!("Non-zero other index size for variable length material. os={}.", os),
-                ));
+                return Err(MatterError::ValidationError(format!(
+                    "Non-zero other index size for variable length material. os={}.",
+                    os
+                )));
             }
 
             fs = (index * 4) + cs;
@@ -620,9 +807,10 @@ impl BaseIndexer {
 
         // Check if we have enough bytes for full material
         if qb64b.len() < fs as usize {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more chars.", fs - qb64b.len() as u32),
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more chars.",
+                fs - qb64b.len() as u32
+            )));
         }
 
         // Extract the fully qualified code plus material
@@ -635,18 +823,17 @@ impl BaseIndexer {
         let raw = if ps > 0 {
             // If ps, replace pre-code with prepad chars of zero
             let base = "A".repeat(ps as usize) + &qb64b[cs as usize..]; // prepad ps 'A's to B64 of (lead + raw)
-            // Decode base to leave prepadded raw
+                                                                        // Decode base to leave prepadded raw
             let paw = decode_b64(&base)?;
 
             // Check for non-zeroed pad bits
             let pi = bytes_to_int(&paw[..ps as usize]);
             if pi & ((1 << pbs) - 1) != 0 {
-                return Err(MatterError::ValueError(
-                    format!("Non zeroed prepad bits = {:06b} in {}.",
-                            pi & ((1 << pbs) - 1),
-                            &qb64b[cs as usize..cs as usize + 1]
-                    ),
-                ));
+                return Err(MatterError::ValueError(format!(
+                    "Non zeroed prepad bits = {:06b} in {}.",
+                    pi & ((1 << pbs) - 1),
+                    &qb64b[cs as usize..cs as usize + 1]
+                )));
             }
 
             // Strip off ps prepad bytes
@@ -663,14 +850,16 @@ impl BaseIndexer {
                 let li = bytes_to_int(&paw[..ls as usize]);
                 if li != 0 {
                     return if ls == 1 {
-                        Err(MatterError::ValueError(
-                            format!("Non zeroed lead byte = 0x{:02x}.", li),
-                        ))
+                        Err(MatterError::ValueError(format!(
+                            "Non zeroed lead byte = 0x{:02x}.",
+                            li
+                        )))
                     } else {
-                        Err(MatterError::ValueError(
-                            format!("Non zeroed lead bytes = 0x{:04x}.", li),
-                        ))
-                    }
+                        Err(MatterError::ValueError(format!(
+                            "Non zeroed lead bytes = 0x{:04x}.",
+                            li
+                        )))
+                    };
                 }
             }
 
@@ -681,9 +870,10 @@ impl BaseIndexer {
         // Verify exact lengths
         let expected_raw_len = (qb64b.len() - cs as usize) * 3 / 4;
         if raw.len() != expected_raw_len {
-            return Err(MatterError::ConversionError(
-                format!("Improperly qualified material = {:?}", qb64b),
-            ));
+            return Err(MatterError::ConversionError(format!(
+                "Improperly qualified material = {:?}",
+                qb64b
+            )));
         }
 
         // Construct the BaseIndexer
@@ -698,7 +888,9 @@ impl BaseIndexer {
     pub fn bexfil(qb2: &[u8]) -> Result<Self, MatterError> {
         // Empty need more bytes
         if qb2.is_empty() {
-            return Err(MatterError::ShortageError("Empty material, Need more bytes.".to_string()));
+            return Err(MatterError::ShortageError(
+                "Empty material, Need more bytes.".to_string(),
+            ));
         }
 
         // Extract first sextet as code selector
@@ -706,19 +898,22 @@ impl BaseIndexer {
 
         let bards = get_bards();
         if !bards.contains_key(&first[0]) {
-            return if first[0] == 0xf8 {  // b64ToB2('-')
+            return if first[0] == 0xf8 {
+                // b64ToB2('-')
                 Err(MatterError::UnexpectedCountCodeError(
-                    "Unexpected count code start while extracting Matter.".to_string()
+                    "Unexpected count code start while extracting Matter.".to_string(),
                 ))
-            } else if first[0] == 0xfc {  // b64ToB2('_')
+            } else if first[0] == 0xfc {
+                // b64ToB2('_')
                 Err(MatterError::UnexpectedOpCodeError(
-                    "Unexpected op code start while extracting Matter.".to_string()
+                    "Unexpected op code start while extracting Matter.".to_string(),
                 ))
             } else {
-                Err(MatterError::UnexpectedCodeError(
-                    format!("Unsupported code start sextet={:?}.", first)
-                ))
-            }
+                Err(MatterError::UnexpectedCodeError(format!(
+                    "Unsupported code start sextet={:?}.",
+                    first
+                )))
+            };
         }
 
         // Get code hard size equivalent sextets
@@ -729,9 +924,10 @@ impl BaseIndexer {
 
         // Need more bytes
         if qb2.len() < bhs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more bytes.", bhs - qb2.len())
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more bytes.",
+                bhs - qb2.len()
+            )));
         }
 
         // Extract and convert hard part of code
@@ -739,15 +935,16 @@ impl BaseIndexer {
 
         let sizes = get_sizes();
         if !sizes.contains_key(hard.as_str()) {
-            return Err(MatterError::UnexpectedCodeError(
-                format!("Unsupported code={}.", hard)
-            ));
+            return Err(MatterError::UnexpectedCodeError(format!(
+                "Unsupported code={}.",
+                hard
+            )));
         }
 
         let size = sizes.get(hard.as_str()).unwrap();
         let (hs, ss, os, fs, ls) = (size.hs, size.ss, size.os, size.fs, size.ls);
 
-        let cs = hs + ss;  // Both hs and ss
+        let cs = hs + ss; // Both hs and ss
         let ms = ss - os;
 
         // bcs is min bytes to hold cs sextets
@@ -755,9 +952,10 @@ impl BaseIndexer {
 
         // Need more bytes
         if qb2.len() < bcs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more bytes.", bcs - qb2.len())
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more bytes.",
+                bcs - qb2.len()
+            )));
         }
 
         // Extract and convert both hard and soft part of code
@@ -773,9 +971,10 @@ impl BaseIndexer {
             if idx_crt_sig_dex::TUPLE.contains(&hard.as_str()) {
                 // If current sig then ondex from code must be 0
                 if computed_ondex != 0 {
-                    return Err(MatterError::ValueError(
-                        format!("Invalid ondex={} for code={}.", computed_ondex, hard)
-                    ));
+                    return Err(MatterError::ValueError(format!(
+                        "Invalid ondex={} for code={}.",
+                        computed_ondex, hard
+                    )));
                 }
                 None
             } else {
@@ -793,15 +992,17 @@ impl BaseIndexer {
             None => {
                 // Compute fs from size chars in ss part of code
                 if cs % 4 != 0 {
-                    return Err(MatterError::ValidationError(
-                        format!("Whole code size not multiple of 4 for variable length material. cs={}.", cs)
-                    ));
+                    return Err(MatterError::ValidationError(format!(
+                        "Whole code size not multiple of 4 for variable length material. cs={}.",
+                        cs
+                    )));
                 }
 
                 if os != 0 {
-                    return Err(MatterError::ValidationError(
-                        format!("Non-zero other index size for variable length material. os={}.", os)
-                    ));
+                    return Err(MatterError::ValidationError(format!(
+                        "Non-zero other index size for variable length material. os={}.",
+                        os
+                    )));
                 }
 
                 (index as usize * 4) + cs as usize
@@ -813,26 +1014,30 @@ impl BaseIndexer {
 
         // Need more bytes
         if qb2.len() < bfs {
-            return Err(MatterError::ShortageError(
-                format!("Need {} more bytes.", bfs - qb2.len())
-            ));
+            return Err(MatterError::ShortageError(format!(
+                "Need {} more bytes.",
+                bfs - qb2.len()
+            )));
         }
 
         // Extract qb2 fully qualified primitive code plus material
         let qb2 = &qb2[..bfs];
 
         // Check for non-zeroed prepad bits or lead bytes
-        let ps = cs % 4;  // Code pad size ps = cs mod 4
-        let pbs = 2 * if ps > 0 { ps } else { ls };  // Pad bit size in bits
+        let ps = cs % 4; // Code pad size ps = cs mod 4
+        let pbs = 2 * if ps > 0 { ps } else { ls }; // Pad bit size in bits
 
         if ps > 0 {
             // Convert last byte of code bytes in which are pad bits to int
             let pi = qb2[bcs - 1] as usize;
 
-            if pi & ((1 << pbs) - 1) != 0 {  // Masked pad bits non-zero
-                return Err(MatterError::ValueError(
-                    format!("Non zeroed pad bits = {:08b} in 0x{:02x}.", pi & ((1 << pbs) - 1), pi)
-                ));
+            if pi & ((1 << pbs) - 1) != 0 {
+                // Masked pad bits non-zero
+                return Err(MatterError::ValueError(format!(
+                    "Non zeroed pad bits = {:08b} in 0x{:02x}.",
+                    pi & ((1 << pbs) - 1),
+                    pi
+                )));
             }
         } else {
             // Check lead bytes
@@ -841,26 +1046,31 @@ impl BaseIndexer {
                 li = (li << 8) | (qb2[bcs + i] as usize);
             }
 
-            if li != 0 {  // Pre pad lead bytes must be zero
+            if li != 0 {
+                // Pre pad lead bytes must be zero
                 return if ls == 1 {
-                    Err(MatterError::ValueError(
-                        format!("Non zeroed lead byte = 0x{:02x}.", li)
-                    ))
+                    Err(MatterError::ValueError(format!(
+                        "Non zeroed lead byte = 0x{:02x}.",
+                        li
+                    )))
                 } else {
-                    Err(MatterError::ValueError(
-                        format!("Non zeroed lead bytes = 0x{:02x}.", li)
-                    ))
-                }
+                    Err(MatterError::ValueError(format!(
+                        "Non zeroed lead bytes = 0x{:02x}.",
+                        li
+                    )))
+                };
             }
         }
 
         // Strip code and leader bytes from qb2 to get raw
         let raw = &qb2[(bcs + ls as usize)..];
 
-        if raw.len() != (qb2.len() - bcs - ls as usize) {  // Exact lengths
-            return Err(MatterError::ConversionError(
-                format!("Improperly qualified material = {:?}", qb2)
-            ));
+        if raw.len() != (qb2.len() - bcs - ls as usize) {
+            // Exact lengths
+            return Err(MatterError::ConversionError(format!(
+                "Improperly qualified material = {:?}",
+                qb2
+            )));
         }
         Ok(BaseIndexer {
             code: hard.to_string(),
@@ -869,7 +1079,6 @@ impl BaseIndexer {
             raw: Vec::from(raw),
         })
     }
-
 
     fn infil(&self) -> Result<String, MatterError> {
         let code = self.code();
@@ -891,15 +1100,17 @@ impl BaseIndexer {
         let fs = if fs == 0 {
             // Compute fs from index
             if cs % 4 != 0 {
-                return Err(MatterError::InvalidCodeSize(
-                    format!("Whole code size not multiple of 4 for variable length material. cs={}", cs)
-                ));
+                return Err(MatterError::InvalidCodeSize(format!(
+                    "Whole code size not multiple of 4 for variable length material. cs={}",
+                    cs
+                )));
             }
 
             if os != 0 {
-                return Err(MatterError::InvalidCodeSize(
-                    format!("Non-zero other index size for variable length material. os={}", os)
-                ));
+                return Err(MatterError::InvalidCodeSize(format!(
+                    "Non-zero other index size for variable length material. os={}",
+                    os
+                )));
             }
 
             (index as usize * 4) + cs as usize
@@ -910,39 +1121,45 @@ impl BaseIndexer {
         // Validate index and ondex
         let max_index = 64u64.pow(ms) - 1;
         if index as u64 > max_index {
-            return Err(MatterError::InvalidVarIndex(
-                format!("Invalid index={} for code={}", index, code)
-            ));
+            return Err(MatterError::InvalidVarIndex(format!(
+                "Invalid index={} for code={}",
+                index, code
+            )));
         }
 
         if os > 0 {
             let max_ondex = 64u64.pow(os) - 1;
             if ondex as u64 > max_ondex {
-                return Err(MatterError::InvalidVarIndex(
-                    format!("Invalid ondex={} for os={} and code={}", ondex, os, code)
-                ));
+                return Err(MatterError::InvalidVarIndex(format!(
+                    "Invalid ondex={} for os={} and code={}",
+                    ondex, os, code
+                )));
             }
         }
 
         // Create "both" - hard code + converted index + converted ondex
-        let both = format!("{}{}{}",
-                           code,
-                           int_to_b64(index, ms as usize),
-                           int_to_b64(ondex, os as usize)
+        let both = format!(
+            "{}{}{}",
+            code,
+            int_to_b64(index, ms as usize),
+            int_to_b64(ondex, os as usize)
         );
 
         // Check valid code size
         if both.len() != cs as usize {
-            return Err(MatterError::InvalidCodeSize(
-                format!("Mismatch code size = {} with table = {}", cs, both.len())
-            ));
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Mismatch code size = {} with table = {}",
+                cs,
+                both.len()
+            )));
         }
 
         // Check adjusted pad given lead bytes
         if (cs % 4) != (ps - ls as usize) as u32 {
-            return Err(MatterError::InvalidCodeSize(
-                format!("Invalid code={} for converted raw pad size={}", both, ps)
-            ));
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Invalid code={} for converted raw pad size={}",
+                both, ps
+            )));
         }
 
         // Prepend pad bytes, convert, then replace pad chars with full derivation code including index
@@ -950,13 +1167,19 @@ impl BaseIndexer {
         pad_bytes.extend_from_slice(raw);
 
         let encoded = encode_b64(&pad_bytes);
-        let full = format!("{}{}", both, encoded.chars().skip(ps - ls as usize).collect::<String>());
+        let full = format!(
+            "{}{}",
+            both,
+            encoded.chars().skip(ps - ls as usize).collect::<String>()
+        );
 
         // Check final size
         if full.len() != fs {
-            return Err(MatterError::InvalidCodeSize(
-                format!("Invalid code={} for raw size={}", both, raw.len())
-            ));
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Invalid code={} for raw size={}",
+                both,
+                raw.len()
+            )));
         }
 
         Ok(full)
@@ -981,58 +1204,66 @@ impl BaseIndexer {
         // Validate index and ondex
         let max_index = 64u64.pow(ss) - 1;
         if index as u64 > max_index {
-            return Err(MatterError::InvalidVarIndex(
-                format!("Invalid index={} for code={}", index, code)
-            ));
+            return Err(MatterError::InvalidVarIndex(format!(
+                "Invalid index={} for code={}",
+                index, code
+            )));
         }
 
         if os > 0 {
             let max_ondex = 64u64.pow(os) - 1;
             if ondex as u64 > max_ondex {
-                return Err(MatterError::InvalidVarIndex(
-                    format!("Invalid ondex={} for os={} and code={}", ondex, os, code)
-                ));
+                return Err(MatterError::InvalidVarIndex(format!(
+                    "Invalid ondex={} for os={} and code={}",
+                    ondex, os, code
+                )));
             }
         }
 
         let fs = if fs == 0 {
             // Compute fs from index
             if cs % 4 != 0 {
-                return Err(MatterError::InvalidCodeSize(
-                    format!("Whole code size not multiple of 4 for variable length material. cs={}", cs)
-                ));
+                return Err(MatterError::InvalidCodeSize(format!(
+                    "Whole code size not multiple of 4 for variable length material. cs={}",
+                    cs
+                )));
             }
 
             if os != 0 {
-                return Err(MatterError::InvalidCodeSize(
-                    format!("Non-zero other index size for variable length material. os={}", os)
-                ));
+                return Err(MatterError::InvalidCodeSize(format!(
+                    "Non-zero other index size for variable length material. os={}",
+                    os
+                )));
             }
 
             (index as usize * 4) + cs as usize
         } else {
-            fs  as usize
+            fs as usize
         };
 
         // Create "both" - hard code + converted index + converted ondex
-        let both = format!("{}{}{}",
-                           code,
-                           int_to_b64(index, ms as usize),
-                           int_to_b64(ondex, os as usize)
+        let both = format!(
+            "{}{}{}",
+            code,
+            int_to_b64(index, ms as usize),
+            int_to_b64(ondex, os as usize)
         );
 
         // Check valid code size
-        if both.len() != cs as usize{
-            return Err(MatterError::InvalidCodeSize(
-                format!("Mismatch code size = {} with table = {}", cs, both.len())
-            ));
+        if both.len() != cs as usize {
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Mismatch code size = {} with table = {}",
+                cs,
+                both.len()
+            )));
         }
 
         // Check adjusted pad given lead bytes
         if (cs % 4) != (ps - ls as usize) as u32 {
-            return Err(MatterError::InvalidCodeSize(
-                format!("Invalid code={} for converted raw pad size={}", both, ps)
-            ));
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Invalid code={} for converted raw pad size={}",
+                both, ps
+            )));
         }
 
         // Number of b2 bytes to hold b64 code + index
@@ -1054,9 +1285,11 @@ impl BaseIndexer {
         // Check the binary full size
         let bfs = full.len();
         if bfs % 3 != 0 || (bfs * 4 / 3) != fs {
-            return Err(MatterError::InvalidCodeSize(
-                format!("Invalid code={} for raw size={}", both, raw.len())
-            ));
+            return Err(MatterError::InvalidCodeSize(format!(
+                "Invalid code={} for raw size={}",
+                both,
+                raw.len()
+            )));
         }
 
         Ok(full)
@@ -1086,7 +1319,6 @@ impl Parsable for BaseIndexer {
         Ok(idx)
     }
 }
-
 
 fn sceil(a: usize, b: usize) -> usize {
     (a + b - 1) / b
@@ -1123,7 +1355,6 @@ impl Matter for BaseIndexer {
     fn raw(&self) -> &[u8] {
         &self.raw
     }
-
 
     fn qb64(&self) -> String {
         let result = self.infil();
@@ -1208,7 +1439,6 @@ pub fn raw_size(code: &str) -> Result<usize, MatterError> {
     Ok(((fs_minus_headers * 3) / 4) as usize)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1222,7 +1452,7 @@ mod tests {
             0x72, 0x12, 0x32, 0x2e, 0x6b, 0xb2, 0xc7, 0x1f, 0x70, 0x0e, 0x27, 0x6d, 0x8f, 0x40,
             0xaa, 0xa5, 0x8c, 0xc8, 0x6e, 0x85, 0xc8, 0x21, 0xf6, 0x71, 0x91, 0x70, 0xa9, 0xec,
             0xcf, 0x92, 0xaf, 0x29, 0xde, 0xca, 0xfc, 0x7f, 0x7e, 0xd7, 0x6f, 0x7c, 0x17, 0x82,
-            0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81, 0x26, 0x09
+            0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81, 0x26, 0x09,
         ];
 
         assert_eq!(sig.len(), 64);
@@ -1261,11 +1491,12 @@ mod tests {
             0x72, 0x12, 0x32, 0x2e, 0x6b, 0xb2, 0xc7, 0x1f, 0x70, 0x0e, 0x27, 0x6d, 0x8f, 0x40,
             0xaa, 0xa5, 0x8c, 0xc8, 0x6e, 0x85, 0xc8, 0x21, 0xf6, 0x71, 0x91, 0x70, 0xa9, 0xec,
             0xcf, 0x92, 0xaf, 0x29, 0xde, 0xca, 0xfc, 0x7f, 0x7e, 0xd7, 0x6f, 0x7c, 0x17, 0x82,
-            0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81, 0x26, 0x09
+            0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81, 0x26, 0x09,
         ];
 
         // Test the BaseIndexer::from_qb64 method
-        let indexer = BaseIndexer::from_qb64(qsig64.as_str()).expect("Failed to create BaseIndexer from qb64");
+        let indexer = BaseIndexer::from_qb64(qsig64.as_str())
+            .expect("Failed to create BaseIndexer from qb64");
 
         // Assertions to verify the indexer was created correctly
         assert_eq!(indexer.raw(), &expected_raw);
@@ -1280,7 +1511,8 @@ mod tests {
         let qb2 = indexer.qb2();
         assert_eq!(&qb2, &qsig2b);
 
-        let indexer1 = BaseIndexer::from_qb2(&mut qsig2b, None).expect("Failed to create BaseIndexer from qb2");
+        let indexer1 = BaseIndexer::from_qb2(&mut qsig2b, None)
+            .expect("Failed to create BaseIndexer from qb2");
         assert_eq!(indexer1.raw(), &expected_raw);
         assert_eq!(indexer1.code(), idr_dex::ED25519_SIG);
         assert_eq!(indexer1.index(), 0);
@@ -1296,11 +1528,11 @@ mod tests {
 
         let qsig64 = "AFCZ0jw5JCQwn2v7GKCMQHISMi5rsscfcA4nbY9AqqWMyG6FyCH2cZFwqezPkq8p3sr8f37Xb3wXgh3UPG8igSYJ";
         let qsig2b = [
-            0x00, 0x50, 0x99, 0xd2, 0x3c, 0x39, 0x24, 0x24, 0x30, 0x9f, 0x6b, 0xfb, 0x18, 0xa0, 0x8c, 0x40,
-            0x72, 0x12, 0x32, 0x2e, 0x6b, 0xb2, 0xc7, 0x1f, 0x70, 0x0e, 0x27, 0x6d, 0x8f, 0x40, 0xaa, 0xa5,
-            0x8c, 0xc8, 0x6e, 0x85, 0xc8, 0x21, 0xf6, 0x71, 0x91, 0x70, 0xa9, 0xec, 0xcf, 0x92, 0xaf, 0x29,
-            0xde, 0xca, 0xfc, 0x7f, 0x7e, 0xd7, 0x6f, 0x7c, 0x17, 0x82, 0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81,
-            0x26, 0x09
+            0x00, 0x50, 0x99, 0xd2, 0x3c, 0x39, 0x24, 0x24, 0x30, 0x9f, 0x6b, 0xfb, 0x18, 0xa0,
+            0x8c, 0x40, 0x72, 0x12, 0x32, 0x2e, 0x6b, 0xb2, 0xc7, 0x1f, 0x70, 0x0e, 0x27, 0x6d,
+            0x8f, 0x40, 0xaa, 0xa5, 0x8c, 0xc8, 0x6e, 0x85, 0xc8, 0x21, 0xf6, 0x71, 0x91, 0x70,
+            0xa9, 0xec, 0xcf, 0x92, 0xaf, 0x29, 0xde, 0xca, 0xfc, 0x7f, 0x7e, 0xd7, 0x6f, 0x7c,
+            0x17, 0x82, 0x1d, 0xd4, 0x3c, 0x6f, 0x22, 0x81, 0x26, 0x09,
         ];
         let qsig64b = qsig64.as_bytes();
 
@@ -1321,7 +1553,8 @@ mod tests {
         assert_eq!(qb2, qsig2b);
 
         // Test _exfil method (similar to the Python version)
-        let indexer = BaseIndexer::from_qb64b(&mut qsig64b.to_vec(), None).expect("Failed to create BaseIndexer from qb64b");
+        let indexer = BaseIndexer::from_qb64b(&mut qsig64b.to_vec(), None)
+            .expect("Failed to create BaseIndexer from qb64b");
         assert_eq!(indexer.code, idr_dex::ED25519_SIG);
         assert_eq!(indexer.raw, sig);
         assert_eq!(indexer.qb64b(), qsig64b);
@@ -1350,9 +1583,9 @@ mod tests {
         assert_eq!(qb2, qsig2b);
 
         let qb64 = "AAApXLez5eVIs6YyRXOMDMBy4cTm2GvsilrZlcMmtBbO5twLst_jjFoEyfKTWKntEtv9JPBv1DLkqg-ImDmGPM8E";
-        let indexer = BaseIndexer::from_qb64(qb64).expect("Failed to create BaseIndexer from qb64b");
+        let indexer =
+            BaseIndexer::from_qb64(qb64).expect("Failed to create BaseIndexer from qb64b");
         assert_eq!(indexer.code, idr_dex::ED25519_SIG);
         assert_eq!(indexer.index, 0);
-
     }
 }

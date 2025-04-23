@@ -1,13 +1,13 @@
 mod cesr;
 mod signer;
 
-use std::marker::PhantomData;
-use std::fmt::Debug;
-use std::sync::Arc;
 use crate::errors::MatterError;
-use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::dbing::BytesDatabase;
+use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 // Error type for database operations
 #[derive(Debug, thiserror::Error)]
@@ -64,24 +64,23 @@ impl ValueCodec for Utf8Codec {
     }
 
     fn deserialize<T: TryFrom<Vec<u8>>>(bytes: &[u8]) -> Result<T, SuberError> {
-            // Convert &[u8] to Vec<u8> first, then use try_from
-            match T::try_from(bytes.to_vec()) {
-                Ok(value) => Ok(value),
-                Err(_) => Err(SuberError::DeserializationError(
-                    "Failed to convert bytes to the desired type".to_string(),
-                ))
-            }
+        // Convert &[u8] to Vec<u8> first, then use try_from
+        match T::try_from(bytes.to_vec()) {
+            Ok(value) => Ok(value),
+            Err(_) => Err(SuberError::DeserializationError(
+                "Failed to convert bytes to the desired type".to_string(),
+            )),
         }
-
     }
+}
 
 // The base struct for sub-database functionality
 pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
-    db: Arc<&'db LMDBer>,               // The base LMDB database
-    sdb: BytesDatabase,       // The sub-database
-    sep: u8,                  // Separator for combining keys
-    verify: bool,             // Whether to verify data when deserializing
-    _codec: PhantomData<C>,   // Phantom data to track the codec type
+    db: Arc<&'db LMDBer>,   // The base LMDB database
+    sdb: BytesDatabase,     // The sub-database
+    sep: u8,                // Separator for combining keys
+    verify: bool,           // Whether to verify data when deserializing
+    _codec: PhantomData<C>, // Phantom data to track the codec type
 }
 
 impl<'db, C: ValueCodec> SuberBase<'db, C> {
@@ -284,17 +283,14 @@ impl<'db, C: ValueCodec> Suber<'db, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keri::db::dbing::{LMDBer};
+    use crate::keri::db::dbing::LMDBer;
     use crate::keri::db::subing::{Suber, SuberError};
     use std::sync::Arc;
 
     #[test]
     fn test_suber() -> Result<(), SuberError> {
         // Create a temporary directory for the test
-        let lmdber = LMDBer::builder()
-            .name("test_db")
-            .temp(true)
-            .build()?;
+        let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
 
         // Create "seen." database
         assert_eq!(lmdber.name(), "test_db");
@@ -312,7 +308,7 @@ mod tests {
         assert_eq!(actual, Some(sue.as_bytes().to_vec()));
 
         suber.rem(keys)?;
-        let actual: Option<Vec<u8>>  = suber.get(keys).expect("Should return a string");
+        let actual: Option<Vec<u8>> = suber.get(keys).expect("Should return a string");
         assert_eq!(actual, None);
 
         suber.put(keys, &sue.as_bytes().to_vec())?;
