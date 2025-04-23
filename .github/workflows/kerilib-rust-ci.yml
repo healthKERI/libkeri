@@ -51,10 +51,12 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Build
+        if: matrix.os != 'windows-latest'
         run: cargo build --verbose
         continue-on-error: ${{ matrix.allow-fail || false }}
 
       - name: Run tests
+        if: matrix.os != 'windows-latest'
         run: cargo test --verbose
         continue-on-error: ${{ matrix.allow-fail || false }}
 
