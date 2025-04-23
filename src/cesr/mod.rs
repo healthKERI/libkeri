@@ -2200,13 +2200,7 @@ impl BaseMatter {
             // Variable sized - code[0] should be in SmallVrzDex or LargeVrzDex
             // Determine the size of raw data to use
             rize_val = match rize {
-                Some(r) if r >= 0 => r,
-                Some(_) => {
-                    return Err(MatterError::InvalidVarRawSize(format!(
-                        "Missing var raw size for code={}",
-                        code
-                    )))
-                }
+                Some(r) => r,
                 None => raw.len(),
             };
 

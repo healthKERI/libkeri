@@ -1083,28 +1083,27 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
         gvrsn: &Versionage,
     ) -> Result<T, MatterError> {
         // Try parsing until we either succeed or get a shortage error
-        loop {
-            let result = match cold {
-                "txt" => T::from_qb64b(&mut self.buffer, Some(true)),
-                "bny" => T::from_qb2(&mut self.buffer, Some(true)),
-                _ => Err(MatterError::ColdStartError(format!(
-                    "Invalid stream state cold={:?}.",
-                    cold
-                ))),
-            };
 
-            return match result {
-                Ok(instance) => Ok(instance),
-                Err(MatterError::ShortageError(_)) if !abort => {
-                    // In Python, this would yield control back to caller
-                    // In Rust, we need to signal that more data is needed
-                    Err(MatterError::NeedMoreDataError(
-                        "Needs more data".to_string(),
-                    ))
-                }
-                Err(err) => Err(err),
-            };
-        }
+        let result = match cold {
+            "txt" => T::from_qb64b(&mut self.buffer, Some(true)),
+            "bny" => T::from_qb2(&mut self.buffer, Some(true)),
+            _ => Err(MatterError::ColdStartError(format!(
+                "Invalid stream state cold={:?}.",
+                cold
+            ))),
+        };
+
+        return match result {
+            Ok(instance) => Ok(instance),
+            Err(MatterError::ShortageError(_)) if !abort => {
+                // In Python, this would yield control back to caller
+                // In Rust, we need to signal that more data is needed
+                Err(MatterError::NeedMoreDataError(
+                    "Needs more data".to_string(),
+                ))
+            }
+            Err(err) => Err(err),
+        };
     }
 
     /// Extract sad path signature groups
