@@ -327,271 +327,287 @@ impl Default for Creatory {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::keri::matter::{mtr_dex, NonTransDex};
-//     use crate::Matter;
-//     use std::sync::Arc;
-//
-//     #[test]
-//     fn test_randy_creator() -> Result<(), MatterError> {
-//         // Test RandyCreator basics
-//         let creator = RandyCreator::new();
-//
-//         // Test interface properties
-//         assert_eq!(creator.salt(), "");
-//         assert_eq!(creator.stem(), "");
-//         assert_eq!(creator.tier(), "");
-//
-//         // Test creating a single default signer
-//         let signers = creator.create(None, None, None, None);
-//         assert_eq!(signers.len(), 1);
-//
-//         let signer = &signers[0];
-//         assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//         assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
-//         assert!(!NonTransDex::contains(&signer.verfer().code()));
-//
-//         // Test creating multiple signers that are non-transferable
-//         let signers = creator.create(None, Some(2), None, Some(false));
-//         assert_eq!(signers.len(), 2);
-//
-//         for signer in &signers {
-//             assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//             assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
-//             assert!(NonTransDex::contains(&signer.verfer().code()));
-//         }
-//
-//         // Test creating signers with specific codes
-//         let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
-//         let signers = creator.create(Some(codes), None, None, None);
-//         assert_eq!(signers.len(), 2);
-//
-//         for signer in &signers {
-//             assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//             assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
-//         }
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_salty_creator() -> Result<(), MatterError> {
-//         // Test SaltyCreator with default parameters
-//         let creator = SaltyCreator::new(None, None, None)?;
-//
-//         // Check basic properties
-//         assert!(!creator.salt().is_empty()); // Should have a random salt
-//         assert_eq!(creator.stem(), "");
-//         assert_eq!(creator.tier(), "low"); // Default tier
-//
-//         // Check salter properties
-//         assert_eq!(creator.salter.code(), mtr_dex::SALT_128);
-//
-//         // Test creating a single default signer
-//         let signers = creator.create(None, None, None, None);
-//         assert_eq!(signers.len(), 1);
-//
-//         let signer = &signers[0];
-//         assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//         assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
-//         assert!(!NonTransDex::contains(&signer.verfer().code()));
-//
-//         // Test creating multiple signers that are non-transferable
-//         let signers = creator.create(None, Some(2), None, Some(false));
-//         assert_eq!(signers.len(), 2);
-//
-//         for signer in &signers {
-//             assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//             assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
-//             assert!(NonTransDex::contains(&signer.verfer().code()));
-//         }
-//
-//         // Test with specific salt
-//         let raw = b"0123456789abcdef";
-//         let salt = Salter::new(Some(raw), None, None)?.qb64();
-//         assert_eq!(salt, "0AAwMTIzNDU2Nzg5YWJjZGVm");
-//
-//         let creator = SaltyCreator::new(Some(&salt), None, None)?;
-//         assert_eq!(creator.salt(), salt);
-//         assert_eq!(creator.salter.raw(), raw);
-//
-//         // Test creating a deterministic signer
-//         let signers = creator.create(None, None, None, None);
-//         assert_eq!(signers.len(), 1);
-//
-//         let signer = &signers[0];
-//         assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//         assert_eq!(signer.qb64(), "APMJe0lwOpwnX9PkvX1mh26vlzGYl6RWgWGclc8CAQJ9");
-//         assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
-//         assert!(!NonTransDex::contains(&signer.verfer().code()));
-//         assert_eq!(signer.verfer().qb64(), "DMZy6qbgnKzvCE594tQ4SPs6pIECXTYQBH7BkC4hNY3E");
-//
-//         // Test creating a non-transferable temporary signer
-//         let signers = creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 0, false, true);
-//         assert_eq!(signers.len(), 1);
-//
-//         let signer = &signers[0];
-//         assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
-//         assert_eq!(signer.qb64(), "AMGrAM0noxLpRteO9mxGT-yzYSrKFwJMuNI4KlmSk26e");
-//         assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
-//         assert!(NonTransDex::contains(&signer.verfer().code()));
-//         assert_eq!(signer.verfer().qb64(), "BFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT");
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_creatory_factory() -> Result<(), MatterError> {
-//         // Test Creatory with Randy algorithm
-//         let creatory = Creatory::new(Algos::Randy);
-//         let creator = creatory.make(None, None, None)?;
-//
-//         // Verify it created a RandyCreator
-//         assert!(creator.salt().is_empty());
-//         assert!(creator.stem().is_empty());
-//         assert!(creator.tier().is_empty());
-//
-//         let signers = creator.create(None, None, None, None);
-//         assert_eq!(signers.len(), 1);
-//         assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
-//
-//         // Test Creatory with Salty algorithm and specific salt
-//         let raw = b"0123456789abcdef";
-//         let salt = Salter::new(Some(raw), None, None)?.qb64();
-//
-//         let creatory = Creatory::new(Algos::Salty);
-//         let creator = creatory.make(Some(&salt), None, None)?;
-//
-//         // Verify it created a SaltyCreator with correct salt
-//         assert_eq!(creator.salt(), salt);
-//         assert_eq!(creator.stem(), "");
-//         assert_eq!(creator.tier(), "low");
-//
-//         // Test the CreatoryBuilder pattern
-//         let creator = CreatoryBuilder::new(Algos::Salty)
-//             .with_salt(&salt)
-//             .with_stem("test-stem")
-//             .with_tier(Tiers::High)
-//             .build()?;
-//
-//         assert_eq!(creator.salt(), salt);
-//         assert_eq!(creator.stem(), "test-stem");
-//         assert_eq!(creator.tier(), "high");
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_algos_enum() {
-//         // Test Algos enum conversion
-//         assert_eq!(Algos::Randy.to_string(), "randy");
-//         assert_eq!(Algos::Salty.to_string(), "salty");
-//
-//         assert_eq!(Algos::from_str("randy").unwrap(), Algos::Randy);
-//         assert_eq!(Algos::from_str("RANDY").unwrap(), Algos::Randy);
-//         assert_eq!(Algos::from_str("salty").unwrap(), Algos::Salty);
-//         assert_eq!(Algos::from_str("SALTY").unwrap(), Algos::Salty);
-//
-//         // Test error case
-//         let result = Algos::from_str("invalid");
-//         assert!(result.is_err());
-//     }
-//
-//     #[test]
-//     fn test_error_handling() -> Result<(), MatterError> {
-//         // Test creation with invalid parameters
-//         let result = SaltyCreator::new(Some("invalid_salt"), None, None);
-//         assert!(result.is_err());
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_deterministic_creation() -> Result<(), MatterError> {
-//         // Test that the same inputs produce the same outputs
-//         let raw = b"0123456789abcdef";
-//         let salt = Salter::new(Some(raw), None, None)?.qb64();
-//
-//         let creator1 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
-//         let creator2 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
-//
-//         let signers1 = creator1.create(None, None, None, None);
-//         let signers2 = creator2.create(None, None, None, None);
-//
-//         assert_eq!(signers1[0].qb64(), signers2[0].qb64());
-//         assert_eq!(signers1[0].verfer().qb64(), signers2[0].verfer().qb64());
-//
-//         // Different paths should produce different keys
-//         let creator3 = SaltyCreator::new(Some(&salt), Some("different"), None)?;
-//         let signers3 = creator3.create(None, None, None, None);
-//
-//         assert_ne!(signers1[0].qb64(), signers3[0].qb64());
-//         assert_ne!(signers1[0].verfer().qb64(), signers3[0].verfer().qb64());
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_create_with_codes() -> Result<(), MatterError> {
-//         // Test creating signers with specific codes
-//         let creator = RandyCreator::new();
-//
-//         let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
-//         let signers = creator.create(Some(codes), None, None, None);
-//
-//         assert_eq!(signers.len(), 2);
-//         assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
-//         assert_eq!(signers[1].code(), mtr_dex::ED25519_SEED);
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_salty_creator_path_generation() -> Result<(), MatterError> {
-//         // Test that different paths generate different keys
-//         let raw = b"0123456789abcdef";
-//         let salt = Salter::new(Some(raw), None, None)?.qb64();
-//
-//         let creator = SaltyCreator::new(Some(&salt), None, None)?;
-//
-//         // Different paths through pidx, ridx, kidx
-//         let signers1 = creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 0, true, false);
-//         let signers2 = creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 1, 0, 0, true, false);
-//         let signers3 = creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 1, 0, true, false);
-//         let signers4 = creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 1, true, false);
-//
-//         // All should be different
-//         let key1 = signers1[0].qb64();
-//         let key2 = signers2[0].qb64();
-//         let key3 = signers3[0].qb64();
-//         let key4 = signers4[0].qb64();
-//
-//         assert_ne!(key1, key2);
-//         assert_ne!(key1, key3);
-//         assert_ne!(key1, key4);
-//         assert_ne!(key2, key3);
-//         assert_ne!(key2, key4);
-//         assert_ne!(key3, key4);
-//
-//         Ok(())
-//     }
-//
-//     #[test]
-//     fn test_creator_defaults() -> Result<(), MatterError> {
-//         // Test default values
-//         let randy = RandyCreator::default();
-//         assert_eq!(randy.salt(), "");
-//
-//         let creatory = Creatory::default();
-//         let creator = creatory.make(None, None, None)?;
-//
-//         // Default should be SaltyCreator
-//         assert!(!creator.salt().is_empty());
-//         assert_eq!(creator.stem(), "");
-//         assert_eq!(creator.tier(), "low");
-//
-//         Ok(())
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cesr::non_trans_dex;
+    use crate::Matter;
+
+    #[test]
+    fn test_randy_creator() -> Result<(), MatterError> {
+        // Test RandyCreator basics
+        let creator = RandyCreator::new();
+
+        // Test interface properties
+        assert_eq!(creator.salt(), "");
+        assert_eq!(creator.stem(), "");
+        assert_eq!(creator.tier(), None);
+
+        // Test creating a single default signer
+        let signers = creator.create(None, None, None, None);
+        assert_eq!(signers.len(), 1);
+
+        let signer = &signers[0];
+        assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
+        assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+
+        // Test creating multiple signers that are non-transferable
+        let signers = creator.create(None, Some(2), None, Some(false));
+        assert_eq!(signers.len(), 2);
+
+        for signer in &signers {
+            assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+            assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
+            assert!(non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+        }
+
+        // Test creating signers with specific codes
+        let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
+        let signers = creator.create(Some(codes), None, None, None);
+        assert_eq!(signers.len(), 2);
+
+        for signer in &signers {
+            assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+            assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_salty_creator() -> Result<(), MatterError> {
+        // Test SaltyCreator with default parameters
+        let creator = SaltyCreator::new(None, None, None)?;
+
+        // Check basic properties
+        assert!(!creator.salt().is_empty()); // Should have a random salt
+        assert_eq!(creator.stem(), "");
+        assert_eq!(creator.tier(), Some(&Tiers::LOW)); // Default tier
+
+        // Check salter properties
+        assert_eq!(creator.salter.code(), mtr_dex::SALT_128);
+
+        // Test creating a single default signer
+        let signers = creator.create(None, None, None, None);
+        assert_eq!(signers.len(), 1);
+
+        let signer = &signers[0];
+        assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
+        assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+
+        // Test creating multiple signers that are non-transferable
+        let signers = creator.create(None, Some(2), None, Some(false));
+        assert_eq!(signers.len(), 2);
+
+        for signer in &signers {
+            assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+            assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
+            assert!(non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+        }
+
+        // Test with specific salt
+        let raw = b"0123456789abcdef";
+        let salt = Salter::new(Some(raw), None, None)?.qb64();
+        assert_eq!(salt, "0AAwMTIzNDU2Nzg5YWJjZGVm");
+
+        let creator = SaltyCreator::new(Some(&salt), None, None)?;
+        assert_eq!(creator.salt(), salt);
+        assert_eq!(creator.salter.raw(), raw);
+
+        // Test creating a deterministic signer
+        let signers = creator.create(None, None, None, None);
+        assert_eq!(signers.len(), 1);
+
+        let signer = &signers[0];
+        assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(
+            signer.qb64(),
+            "APMJe0lwOpwnX9PkvX1mh26vlzGYl6RWgWGclc8CAQJ9"
+        );
+        assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
+        assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+        assert_eq!(
+            signer.verfer().qb64(),
+            "DMZy6qbgnKzvCE594tQ4SPs6pIECXTYQBH7BkC4hNY3E"
+        );
+
+        // Test creating a non-transferable temporary signer
+        let signers =
+            creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 0, false, true);
+        assert_eq!(signers.len(), 1);
+
+        let signer = &signers[0];
+        assert_eq!(signer.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(
+            signer.qb64(),
+            "AMGrAM0noxLpRteO9mxGT-yzYSrKFwJMuNI4KlmSk26e"
+        );
+        assert_eq!(signer.verfer().code(), mtr_dex::ED25519N);
+        assert!(non_trans_dex::TUPLE.contains(&signer.verfer().code()));
+        assert_eq!(
+            signer.verfer().qb64(),
+            "BFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_creatory_factory() -> Result<(), MatterError> {
+        // Test Creatory with Randy algorithm
+        let creatory = Creatory::new(Algos::Randy);
+        let creator = creatory.make(None, None, None)?;
+
+        // Verify it created a RandyCreator
+        assert!(creator.salt().is_empty());
+        assert!(creator.stem().is_empty());
+        assert!(creator.tier().is_none());
+
+        let signers = creator.create(None, None, None, None);
+        assert_eq!(signers.len(), 1);
+        assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
+
+        // Test Creatory with Salty algorithm and specific salt
+        let raw = b"0123456789abcdef";
+        let salt = Salter::new(Some(raw), None, None)?.qb64();
+
+        let creatory = Creatory::new(Algos::Salty);
+        let creator = creatory.make(Some(&salt), None, None)?;
+
+        // Verify it created a SaltyCreator with correct salt
+        assert_eq!(creator.salt(), salt);
+        assert_eq!(creator.stem(), "");
+        assert_eq!(creator.tier(), Some(&Tiers::LOW));
+
+        // Test the CreatoryBuilder pattern
+        let creator = CreatoryBuilder::new(Algos::Salty)
+            .with_salt(&salt)
+            .with_stem("test-stem")
+            .with_tier(Tiers::HIGH)
+            .build()?;
+
+        assert_eq!(creator.salt(), salt);
+        assert_eq!(creator.stem(), "test-stem");
+        assert_eq!(creator.tier(), Some(&Tiers::HIGH));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_algos_enum() {
+        // Test Algos enum conversion
+        assert_eq!(Algos::Randy.to_string(), "randy");
+        assert_eq!(Algos::Salty.to_string(), "salty");
+
+        assert_eq!(Algos::from_str("randy").unwrap(), Algos::Randy);
+        assert_eq!(Algos::from_str("RANDY").unwrap(), Algos::Randy);
+        assert_eq!(Algos::from_str("salty").unwrap(), Algos::Salty);
+        assert_eq!(Algos::from_str("SALTY").unwrap(), Algos::Salty);
+
+        // Test error case
+        let result = Algos::from_str("invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_handling() -> Result<(), MatterError> {
+        // Test creation with invalid parameters
+        let result = SaltyCreator::new(Some("invalid_salt"), None, None);
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_deterministic_creation() -> Result<(), MatterError> {
+        // Test that the same inputs produce the same outputs
+        let raw = b"0123456789abcdef";
+        let salt = Salter::new(Some(raw), None, None)?.qb64();
+
+        let creator1 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
+        let creator2 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
+
+        let signers1 = creator1.create(None, None, None, None);
+        let signers2 = creator2.create(None, None, None, None);
+
+        assert_eq!(signers1[0].qb64(), signers2[0].qb64());
+        assert_eq!(signers1[0].verfer().qb64(), signers2[0].verfer().qb64());
+
+        // Different paths should produce different keys
+        let creator3 = SaltyCreator::new(Some(&salt), Some("different"), None)?;
+        let signers3 = creator3.create(None, None, None, None);
+
+        assert_ne!(signers1[0].qb64(), signers3[0].qb64());
+        assert_ne!(signers1[0].verfer().qb64(), signers3[0].verfer().qb64());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_with_codes() -> Result<(), MatterError> {
+        // Test creating signers with specific codes
+        let creator = RandyCreator::new();
+
+        let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
+        let signers = creator.create(Some(codes), None, None, None);
+
+        assert_eq!(signers.len(), 2);
+        assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signers[1].code(), mtr_dex::ED25519_SEED);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_salty_creator_path_generation() -> Result<(), MatterError> {
+        // Test that different paths generate different keys
+        let raw = b"0123456789abcdef";
+        let salt = Salter::new(Some(raw), None, None)?.qb64();
+
+        let creator = SaltyCreator::new(Some(&salt), None, None)?;
+
+        // Different paths through pidx, ridx, kidx
+        let signers1 =
+            creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 0, true, false);
+        let signers2 =
+            creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 1, 0, 0, true, false);
+        let signers3 =
+            creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 1, 0, true, false);
+        let signers4 =
+            creator.create_with_options(None, 1, mtr_dex::ED25519_SEED, 0, 0, 1, true, false);
+
+        // All should be different
+        let key1 = signers1[0].qb64();
+        let key2 = signers2[0].qb64();
+        let key3 = signers3[0].qb64();
+        let key4 = signers4[0].qb64();
+
+        assert_ne!(key1, key2);
+        assert_ne!(key1, key3);
+        assert_ne!(key1, key4);
+        assert_ne!(key2, key3);
+        assert_ne!(key2, key4);
+        assert_ne!(key3, key4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_creator_defaults() -> Result<(), MatterError> {
+        // Test default values
+        let randy = RandyCreator::default();
+        assert_eq!(randy.salt(), "");
+
+        let creatory = Creatory::default();
+        let creator = creatory.make(None, None, None)?;
+
+        // Default should be SaltyCreator
+        assert!(!creator.salt().is_empty());
+        assert_eq!(creator.stem(), "");
+        assert_eq!(creator.tier(), Some(&Tiers::LOW));
+
+        Ok(())
+    }
+}
