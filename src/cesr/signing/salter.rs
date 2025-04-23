@@ -163,6 +163,24 @@ impl Salter {
 
         Ok(signers)
     }
+
+    pub fn tier(&self) -> &Tiers {
+        &self.tier
+    }
+
+    pub fn from_qb64_and_tier(data: &str, tier: Option<Tiers>) -> Result<Self, MatterError> {
+        let tier = tier.unwrap_or(Tiers::LOW);
+        let base = BaseMatter::from_qb64(data)?;
+
+        if base.code() != mtr_dex::SALT_128 {
+            return Err(MatterError::ValidationError(format!(
+                "Unsupported salter code = {}",
+                base.code()
+            )));
+        }
+
+        Ok(Self { base, tier })
+    }
 }
 
 impl Parsable for Salter {

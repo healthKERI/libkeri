@@ -1,5 +1,6 @@
-mod cesr;
-mod signer;
+pub mod cesr;
+pub mod serder;
+pub mod signer;
 
 use crate::errors::MatterError;
 use crate::keri::db::dbing::BytesDatabase;
@@ -33,7 +34,7 @@ pub enum SuberError {
     #[error("Verfer error: {0}")]
     VerferError(String),
 
-    #[error("Mattere error: {0}")]
+    #[error("Matter error: {0}")]
     MatterError(#[from] MatterError),
 
     #[error("Empty Keys")]

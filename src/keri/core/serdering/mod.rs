@@ -4,6 +4,7 @@ use crate::cesr::number::Number;
 use crate::cesr::tholder::Tholder;
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{dig_dex, get_sizes, mtr_dex, BaseMatter, Versionage, VRSN_1_0};
+use crate::errors::MatterError;
 use crate::keri::{deversify, smell, versify, Ilk, KERIError, Kinds, Protocolage, Said, Smellage};
 use crate::{keri, Matter};
 use base64::prelude::BASE64_STANDARD;
@@ -960,84 +961,6 @@ impl BaseSerder {
         }
     }
 
-    /// Returns an error if verification fails or if required fields are missing
-    pub fn from_raw(raw: &[u8], smellage: Option<Smellage>) -> Result<Self, KERIError> {
-        // Create a new BaseSerder instance
-        // Inhale the raw data (equivalent to _inhale in Python)
-        // Parse smellage or smell the raw data
-        let genus = gen_dex::KERI.to_string();
-        let (proto, vrsn, kind, size, gvrsn) = match smellage {
-            Some(smell) => {
-                // Use provided smellage
-                (smell.proto, smell.vrsn, smell.kind, smell.size, smell.gvrsn)
-            }
-            None => {
-                // Smell the raw data
-                let smell = smell(raw)?;
-                (smell.proto, smell.vrsn, smell.kind, smell.size, smell.gvrsn)
-            }
-        };
-
-        // Deserialize data based on kind
-        let sad = BaseSerder::loads(raw, Some(size), Kinds::from(&kind)?)?;
-        let said_label = sad.get_primary_said_label();
-
-        // Verify version field exists
-        let mut serder = BaseSerder {
-            raw: raw[..size].to_vec(),
-            sad,
-            proto,
-            vrsn,
-            kind: Kinds::from(&kind)?,
-            size,
-            said: None,
-            genus,
-            gvrsn: gvrsn.unwrap(),
-        };
-
-        // Get the primary said field label
-
-        let label = match said_label {
-            Some(label) => label,
-            None => {
-                // Set said to None (null in Python)
-                serder.said = None;
-                return Ok(serder);
-            }
-        };
-
-        // Check if the primary said field exists in the sad
-        let sad = &serder.sad;
-        match label {
-            Said::D => {
-                serder.said = Some(sad.d.to_string());
-            }
-            _ => {
-                return Err(KERIError::FieldError(format!(
-                    "Missing primary said field in {:?}.",
-                    sad
-                )));
-            }
-        }
-
-        // Note: In Rust, we don't modify the passed-in raw buffer directly
-        // The strip functionality would be implemented elsewhere if needed
-
-        // Verify fields including the saids provided in raw
-        match serder.verify() {
-            Ok(_) => Ok(serder),
-            Err(err) => {
-                // Log the error
-                error!("Invalid raw for Serder {}\n{}", serder.pretty(None), err);
-
-                Err(KERIError::ValidationError(format!(
-                    "Invalid raw for Serder = {:?}. {}",
-                    serder.sad, err
-                )))
-            }
-        }
-    }
-
     pub fn from_sad(sad: &Sadder) -> Result<Self, KERIError> {
         let genus = String::from(gen_dex::KERI);
         let ver = sad.v.clone();
@@ -1540,6 +1463,11 @@ pub trait Serder: Any + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
+/// Trait that must be implemented by types that can be parsed
+pub trait Rawifiable: Sized {
+    fn from_raw(raw: &[u8], smell: Option<Smellage>) -> Result<Self, KERIError>;
+}
+
 impl Serder for BaseSerder {
     fn pretty(&self, size: Option<usize>) -> String {
         let json_str = serde_json::to_string_pretty(&self.sad)
@@ -1596,6 +1524,86 @@ impl Serder for BaseSerder {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl Rawifiable for BaseSerder {
+    /// Returns an error if verification fails or if required fields are missing
+    fn from_raw(raw: &[u8], smellage: Option<Smellage>) -> Result<Self, KERIError> {
+        // Create a new BaseSerder instance
+        // Inhale the raw data (equivalent to _inhale in Python)
+        // Parse smellage or smell the raw data
+        let genus = gen_dex::KERI.to_string();
+        let (proto, vrsn, kind, size, gvrsn) = match smellage {
+            Some(smell) => {
+                // Use provided smellage
+                (smell.proto, smell.vrsn, smell.kind, smell.size, smell.gvrsn)
+            }
+            None => {
+                // Smell the raw data
+                let smell = smell(raw)?;
+                (smell.proto, smell.vrsn, smell.kind, smell.size, smell.gvrsn)
+            }
+        };
+
+        // Deserialize data based on kind
+        let sad = BaseSerder::loads(raw, Some(size), Kinds::from(&kind)?)?;
+        let said_label = sad.get_primary_said_label();
+
+        // Verify version field exists
+        let mut serder = BaseSerder {
+            raw: raw[..size].to_vec(),
+            sad,
+            proto,
+            vrsn,
+            kind: Kinds::from(&kind)?,
+            size,
+            said: None,
+            genus,
+            gvrsn: gvrsn.unwrap(),
+        };
+
+        // Get the primary said field label
+
+        let label = match said_label {
+            Some(label) => label,
+            None => {
+                // Set said to None (null in Python)
+                serder.said = None;
+                return Ok(serder);
+            }
+        };
+
+        // Check if the primary said field exists in the sad
+        let sad = &serder.sad;
+        match label {
+            Said::D => {
+                serder.said = Some(sad.d.to_string());
+            }
+            _ => {
+                return Err(KERIError::FieldError(format!(
+                    "Missing primary said field in {:?}.",
+                    sad
+                )));
+            }
+        }
+
+        // Note: In Rust, we don't modify the passed-in raw buffer directly
+        // The strip functionality would be implemented elsewhere if needed
+
+        // Verify fields including the saids provided in raw
+        match serder.verify() {
+            Ok(_) => Ok(serder),
+            Err(err) => {
+                // Log the error
+                error!("Invalid raw for Serder {}\n{}", serder.pretty(None), err);
+
+                Err(KERIError::ValidationError(format!(
+                    "Invalid raw for Serder = {:?}. {}",
+                    serder.sad, err
+                )))
+            }
+        }
     }
 }
 
@@ -1687,13 +1695,15 @@ impl Serder for SerderKERI {
     }
 }
 
-impl SerderKERI {
+impl Rawifiable for SerderKERI {
     /// Creates a new `SerderKERI` by constructing its `BaseSerder` from raw bytes.
-    pub fn from_raw(raw: &[u8], smell: Option<Smellage>) -> Result<Self, KERIError> {
+    fn from_raw(raw: &[u8], smell: Option<Smellage>) -> Result<Self, KERIError> {
         let base = BaseSerder::from_raw(raw, smell)?;
         Ok(Self { base })
     }
+}
 
+impl SerderKERI {
     /// Creates a new `SerderKERI` by constructing its `BaseSerder` from a sad.
     pub fn from_sad(sad: &Sadder) -> Result<Self, KERIError> {
         let base = BaseSerder::from_sad(sad)?;
@@ -2006,12 +2016,6 @@ impl Serder for SerderACDC {
 }
 
 impl SerderACDC {
-    /// Creates a new `SerderACDC` by constructing its `BaseSerder` from raw bytes.
-    pub fn from_raw(raw: &[u8], smell: Option<Smellage>) -> Result<Self, KERIError> {
-        let base = BaseSerder::from_raw(raw, smell)?;
-        Ok(Self { base })
-    }
-
     /// Creates a new `SerderACDC` by constructing its `BaseSerder` from a sad.
     pub fn from_sad(sad: &Sadder) -> Result<Self, KERIError> {
         let base = BaseSerder::from_sad(sad)?;
@@ -2155,6 +2159,14 @@ impl SerderACDC {
     }
 }
 
+impl Rawifiable for SerderACDC {
+    /// Creates a new `SerderACDC` by constructing its `BaseSerder` from raw bytes.
+    fn from_raw(raw: &[u8], smell: Option<Smellage>) -> Result<Self, KERIError> {
+        let base = BaseSerder::from_raw(raw, smell)?;
+        Ok(Self { base })
+    }
+}
+
 // Implement the Serder trait for SerderACDC (assuming we have a trait as discussed)
 impl Verifiable for SerderACDC {
     fn _verify(&self) -> Result<(), KERIError> {
@@ -2239,7 +2251,9 @@ impl Serdery {
 #[cfg(test)]
 mod tests {
     use crate::cesr::VRSN_1_0;
-    use crate::keri::core::serdering::{AttribField, BaseSerder, Sadder, Serder, SerderKERI};
+    use crate::keri::core::serdering::{
+        AttribField, BaseSerder, Rawifiable, Sadder, Serder, SerderKERI,
+    };
     use crate::keri::{Ilk, Kinds};
 
     #[test]

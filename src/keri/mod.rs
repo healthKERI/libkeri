@@ -6,6 +6,7 @@ use regex::Regex;
 use std::fmt;
 use thiserror::Error;
 
+mod app;
 mod core;
 mod db;
 
