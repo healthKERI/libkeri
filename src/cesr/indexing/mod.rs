@@ -20,7 +20,7 @@ pub mod idr_dex {
     ///
     /// Codes indicate which list of keys, current and/or prior next, index is for:
     ///
-    ///     _Sig:           Indices in code may appear in both current signing and
+    ///   _Sig:           Indices in code may appear in both current signing and
     ///                     prior next key lists when event has both current and prior
     ///                     next key lists. Two character code table has only one index
     ///                     so must be the same for both lists. Other index if for
@@ -28,9 +28,9 @@ pub mod idr_dex {
     ///                     The indices may be different in those code tables which
     ///                     have two sets of indices.
     ///
-    ///     _Crt_Sig:       Index in code for current signing key list only.
+    ///   _Crt_Sig:       Index in code for current signing key list only.
     ///
-    ///     _Big_:          Big index values
+    ///   _Big_:          Big index values
     ///
     ///
     /// Only provide defined codes.
