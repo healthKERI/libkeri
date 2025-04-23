@@ -1271,7 +1271,7 @@ impl BaseCounter {
         }
 
         // Validate count range
-        if count_value < 0 || count_value > (64u64.pow(ss_value) - 1) {
+        if count_value > (64u64.pow(ss_value) - 1) {
             return Err(MatterError::InvalidVarIndex(format!(
                 "Invalid count={} for code={} with ss={}",
                 count_value, code_str, ss_value

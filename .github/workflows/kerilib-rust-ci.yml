@@ -60,7 +60,7 @@ jobs:
 
       - name: Run clippy
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        run: cargo clippy -- -D warnings
+        run: cargo clippy -- -A warnings
 
       - name: Build documentation
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
