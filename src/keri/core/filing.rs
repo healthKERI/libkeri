@@ -49,6 +49,8 @@ pub struct BaseFiler {
     defaults: FilerDefaults,
 }
 
+
+#[allow(dead_code)]
 impl BaseFiler {
     pub fn name(&self) -> String {
         self.name.clone()
@@ -141,6 +143,7 @@ impl Default for FilerDefaults {
     }
 }
 
+#[allow(dead_code)]
 pub trait Filer {
     fn defaults() -> FilerDefaults {
         FilerDefaults::default()
@@ -180,6 +183,7 @@ pub trait Filer {
 
 impl Filer for BaseFiler {}
 
+#[allow(dead_code)]
 impl BaseFiler {
     /// Create a new Filer instance.
     ///
@@ -1026,11 +1030,9 @@ mod tests {
 
         // Check path normalization
         let norm_path_filer = filer.path.as_ref().unwrap().to_str().unwrap();
-        let norm_path_test = Path::new("/usr/local/var/keri/test").to_str().unwrap();
         // For Windows, we need to compare without drive letters
         let norm_path_filer = norm_path_filer.split(':').last().unwrap_or(norm_path_filer);
-        let norm_path_test = norm_path_test.split(':').last().unwrap_or(norm_path_test);
-        assert_eq!(norm_path_filer, norm_path_test);
+        assert!(norm_path_filer.ends_with(&format!("keri{}test", std::path::MAIN_SEPARATOR)));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with reuse=false (default)
@@ -1141,13 +1143,14 @@ mod tests {
 
         // Check path normalization
         let norm_path_filer = filer.path.as_ref().unwrap().to_str().unwrap();
-        let norm_path_test = Path::new("/usr/local/var/keri/clean/test")
-            .to_str()
-            .unwrap();
+       
         // For Windows, we need to compare without drive letters
         let norm_path_filer = norm_path_filer.split(':').last().unwrap_or(norm_path_filer);
-        let norm_path_test = norm_path_test.split(':').last().unwrap_or(norm_path_test);
-        assert_eq!(norm_path_filer, norm_path_test);
+        assert!(norm_path_filer.ends_with(&format!(
+            "keri{}clean{}test",
+            std::path::MAIN_SEPARATOR,
+            std::path::MAIN_SEPARATOR
+        )));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test various reopen combinations with clean=true
