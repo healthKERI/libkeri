@@ -49,7 +49,6 @@ pub struct BaseFiler {
     defaults: FilerDefaults,
 }
 
-
 #[allow(dead_code)]
 impl BaseFiler {
     pub fn name(&self) -> String {
@@ -1143,7 +1142,7 @@ mod tests {
 
         // Check path normalization
         let norm_path_filer = filer.path.as_ref().unwrap().to_str().unwrap();
-       
+
         // For Windows, we need to compare without drive letters
         let norm_path_filer = norm_path_filer.split(':').last().unwrap_or(norm_path_filer);
         assert!(norm_path_filer.ends_with(&format!(
