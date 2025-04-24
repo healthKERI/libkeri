@@ -4,6 +4,7 @@ mod encrypter;
 mod salter;
 pub mod signer;
 
+pub use cipher::Cipher;
 pub use decrypter::Decrypter;
 pub use encrypter::Encrypter;
 pub use salter::Salter;

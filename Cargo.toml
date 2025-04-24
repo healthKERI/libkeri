@@ -43,3 +43,9 @@ path = "src/lib.rs"
 [[bin]]
 name = "keri"
 path = "src/main.rs"
+
+[profile.dev]
+incremental = true
+
+[profile.test]
+incremental = true

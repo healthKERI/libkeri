@@ -4,7 +4,6 @@ use crate::cesr::number::Number;
 use crate::cesr::tholder::Tholder;
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{dig_dex, get_sizes, mtr_dex, BaseMatter, Versionage, VRSN_1_0};
-use crate::errors::MatterError;
 use crate::keri::{deversify, smell, versify, Ilk, KERIError, Kinds, Protocolage, Said, Smellage};
 use crate::{keri, Matter};
 use base64::prelude::BASE64_STANDARD;
