@@ -437,11 +437,11 @@ mod tests {
         let key = "prms.00000000000000000000000000000000";
         let result = keeper.prms.put(&[key], &prms).expect("Failed to put prms");
         assert!(result);
-        
+
         let result = keeper.prms.get(&[key]).expect("Failed to get prms");
         assert!(result.is_some());
         assert_eq!(result.unwrap().pidx, 0);
-        
+
         assert!(
             keeper
                 .prms
