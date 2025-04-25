@@ -26,13 +26,13 @@ pub enum DBError {
 
     #[error("Environment error: {0}")]
     EnvError(#[from] heed::Error),
-    
+
     #[error("Path error: {0}")]
     PathError(String),
-    
+
     #[error("Operation on closed database")]
     DbClosed,
-    
+
     #[error("Mapping Error")]
     MapDBError,
 }

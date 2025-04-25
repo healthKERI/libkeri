@@ -1,4 +1,4 @@
-use crate::keri::db::dbing::{LMDBer};
+use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::subing::{SuberBase, SuberError, Utf8Codec, ValueCodec};
 use std::sync::Arc;
@@ -132,10 +132,7 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
             .collect::<Result<Vec<Vec<u8>>, _>>()?;
 
         // 2. Create Vec<&[u8]> by borrowing from the serialized_vals
-        let val_slices: Vec<&[u8]> = serialized_vals
-            .iter()
-            .map(|v| v.as_slice())
-            .collect();
+        let val_slices: Vec<&[u8]> = serialized_vals.iter().map(|v| v.as_slice()).collect();
 
         // 3. Use the Vec<&[u8]> with the underlying database operation
         self.base
@@ -143,8 +140,6 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
             .set_io_set_vals(&self.base.sdb, &key, &val_slices, Some([self.base.sep]))
             .map_err(SuberError::DBError)
     }
-
-
 
     /// Gets all values in the set associated with the given keys, in insertion order.
     ///
@@ -156,12 +151,9 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
     ///
     /// `Ok(Vec<R>)` containing the deserialized values. Returns an empty Vec if the key doesn't exist.
     /// `Err(SuberError)` on key processing or database/deserialization errors.
-    pub fn get<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(
-        &self,
-        keys: &[K],
-    ) -> Result<Vec<R>, SuberError>
+    pub fn get<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(&self, keys: &[K]) -> Result<Vec<R>, SuberError>
     where
-    // Add bound to handle potential errors from TryFrom
+        // Add bound to handle potential errors from TryFrom
         <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
     {
         let key = self.base.to_key(keys, false);
@@ -200,15 +192,18 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
         SuberError: From<<R as TryFrom<Vec<u8>>>::Error>,
     {
         let key = self.base.to_key(keys, false);
-        let mut results: Vec<Result<R, SuberError>> = Vec::new(); 
+        let mut results: Vec<Result<R, SuberError>> = Vec::new();
         let sep = Some([self.base.sep]);
-        
-        self.base.db.get_io_set_vals_iter(&self.base.sdb, &key, None, sep, |val| {
-            let result = self.base.des(val); 
-            results.push(result);
-            Ok(true)
-        }).map_err(SuberError::DBError)?;
-        
+
+        self.base
+            .db
+            .get_io_set_vals_iter(&self.base.sdb, &key, None, sep, |val| {
+                let result = self.base.des(val);
+                results.push(result);
+                Ok(true)
+            })
+            .map_err(SuberError::DBError)?;
+
         Ok(results.into_iter())
     }
 
@@ -320,7 +315,7 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
     ) -> Result<Vec<(Vec<Vec<u8>>, R)>, SuberError>
     where
         <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
-    // Ensure DBError can be converted into SuberError
+        // Ensure DBError can be converted into SuberError
         SuberError: From<DBError>,
     {
         let key_prefix = self.base.to_key(keys, topive);
@@ -350,11 +345,11 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
 }
 
 mod tests {
-    use std::sync::Arc;
-    use tempfile::tempdir;
     use crate::keri::db::dbing::{LMDBer, LMDBerBuilder};
     use crate::keri::db::subing::ioset::IoSetSuber;
     use crate::keri::db::subing::{SuberError, Utf8Codec};
+    use std::sync::Arc;
+    use tempfile::tempdir;
 
     #[test]
     fn test_ioset_suber() -> Result<(), SuberError> {
@@ -376,7 +371,6 @@ mod tests {
         let db_ref = Arc::new(&db);
         let iosuber = IoSetSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
 
-
         let sue = "Hello sailer!";
         let sal = "Not my type.";
         let sam = "A real charmer!";
@@ -391,33 +385,29 @@ mod tests {
 
         // Test put and get
         assert!(iosuber.put(keys0, &[&sal, &sue])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys0)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys0)?;
         assert_eq!(bytes.len(), 2);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), sal);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sue);
         assert_eq!(iosuber.cnt(keys0)?, 2);
-
 
         // Test getLast - manual conversion
         let last_bytes = iosuber.get_last(keys0)?;
         assert!(last_bytes.is_some());
         assert_eq!(String::from_utf8(last_bytes.unwrap()).unwrap(), sue);
 
-
         // Test rem
         assert!(iosuber.rem(keys0, None::<&String>)?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys0)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys0)?;
         assert!(bytes.is_empty());
         assert_eq!(iosuber.cnt(keys0)?, 0);
 
-
         // Test put again with different order
         assert!(iosuber.put(keys0, &[&sue, &sal])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys0)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys0)?;
         assert_eq!(bytes.len(), 2);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), sue);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sal);
-
 
         // Test getLast again
         let last_bytes = iosuber.get_last(keys0)?;
@@ -426,23 +416,22 @@ mod tests {
 
         // Test add
         assert!(iosuber.add(keys0, &sam)?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys0)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys0)?;
         assert_eq!(bytes.len(), 3);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), sue);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sal);
         assert_eq!(String::from_utf8(bytes[2].clone()).unwrap(), sam);
 
-
         // Test pin
         assert!(iosuber.pin(keys0, &[&zoe, &zia])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys0)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys0)?;
         assert_eq!(bytes.len(), 2);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), zoe);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), zia);
 
         // Test put on a different key
         assert!(iosuber.put(keys1, &[&sal, &sue, &sam])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys1)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys1)?;
         assert_eq!(bytes.len(), 3);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), sal);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sue);
@@ -461,14 +450,13 @@ mod tests {
         // Test getItemIter (for all items)
         let items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = iosuber.get_item_iter(&[] as &[&str], false)?;
         assert_eq!(items.len(), 5);
-        
+
         // Test values exist in expected orders
         let mut found_zoe = false;
         let mut found_zia = false;
         let mut found_sal_at_keys1 = false;
         let mut found_sue_at_keys1 = false;
         let mut found_sam_at_keys1 = false;
-
 
         for (keys, val) in &items {
             let key1 = String::from_utf8(keys[0].clone()).unwrap();
@@ -601,8 +589,8 @@ mod tests {
         // Test remove with a specific val
         assert!(iosuber.rem(keys1, Some(&sue))?);
 
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys1)?;
-        assert_eq!(bytes.len(), 2);  // sue was removed
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys1)?;
+        assert_eq!(bytes.len(), 2); // sue was removed
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), sal);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sam);
 
@@ -615,31 +603,31 @@ mod tests {
 
         // Verify remaining entries
         let items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = iosuber.get_item_iter(&[] as &[&str], true)?;
-        assert_eq!(items.len(), 4);  // keys0 (2) + keys1 (2)
+        assert_eq!(items.len(), 4); // keys0 (2) + keys1 (2)
 
         // Test with keys as string not tuple
         assert!(iosuber.put(keys2, &[&bob])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys2)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys2)?;
         assert_eq!(bytes.len(), 1);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), bob);
         assert_eq!(iosuber.cnt(keys2)?, 1);
 
         assert!(iosuber.rem(keys2, None::<&String>)?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys2)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys2)?;
         assert!(bytes.is_empty());
         assert_eq!(iosuber.cnt(keys2)?, 0);
 
         assert!(iosuber.put(keys2, &[&bob])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys2)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys2)?;
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), bob);
 
         assert!(iosuber.pin(keys2, &[&bil])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys2)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys2)?;
         assert_eq!(bytes.len(), 1);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), bil);
 
         assert!(iosuber.add(keys2, &bob)?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys2)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys2)?;
         assert_eq!(bytes.len(), 2);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), bil);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), bob);
@@ -647,7 +635,7 @@ mod tests {
         // Test trim and append
         assert!(iosuber.base.trim(&[] as &[&str], false)?);
         assert!(iosuber.put(keys1, &[&bob, &bil])?);
-        let bytes:Vec<Vec<u8>> = iosuber.get(keys1)?;
+        let bytes: Vec<Vec<u8>> = iosuber.get(keys1)?;
         assert_eq!(bytes.len(), 2);
         assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), bob);
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), bil);
@@ -658,4 +646,3 @@ mod tests {
         Ok(())
     }
 }
-

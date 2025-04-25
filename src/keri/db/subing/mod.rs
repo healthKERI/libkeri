@@ -1,7 +1,7 @@
 pub mod cesr;
+pub mod ioset;
 pub mod serder;
 pub mod signer;
-pub mod ioset;
 
 use crate::errors::MatterError;
 use crate::keri::db::dbing::BytesDatabase;
