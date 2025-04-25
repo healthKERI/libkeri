@@ -540,12 +540,6 @@ impl<'db> Manager<'db> {
             ic
         } else {
             // Create a vector of the same code with length icount
-            if icount <= 0 {
-                return Err(KERIError::ValueError(format!(
-                    "Invalid icount={}, must be > 0",
-                    icount
-                )));
-            }
             (0..icount).map(|_| icode).collect()
         };
 
