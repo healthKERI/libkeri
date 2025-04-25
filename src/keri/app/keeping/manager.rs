@@ -1,16 +1,16 @@
-use std::str::from_utf8;
+use crate::cesr::diger::Diger;
+use crate::cesr::prefixer::Prefixer;
 use crate::cesr::signing::{Decrypter, Encrypter, Salter, Sigmat};
+use crate::cesr::verfer::Verfer;
 use crate::cesr::{mtr_dex, Parsable, Tiers};
 use crate::keri::app::keeping::creators::{Algos, Creatory};
+use crate::keri::app::keeping::keeper::{PrePrm, PreSit, PubLot, PubSet};
 use crate::keri::app::keeping::Keeper;
 use crate::keri::KERIError;
 use crate::Matter;
-use crate::cesr::diger::Diger;
-use crate::cesr::verfer::Verfer;
-use crate::keri::app::keeping::keeper::{PrePrm, PreSit, PubLot, PubSet};
 use chrono::Utc;
 use sodiumoxide::crypto::sign::SecretKey;
-use crate::cesr::prefixer::Prefixer;
+use std::str::from_utf8;
 
 /// Manager struct for key pair creation, storage, retrieval, and message signing
 ///
@@ -57,7 +57,7 @@ impl<'db> Manager<'db> {
         pidx: Option<usize>,
         algo: Option<Algos>,
         salt: Option<Vec<u8>>,
-        tier: Option<Tiers>
+        tier: Option<Tiers>,
     ) -> Result<Self, KERIError> {
         let mut manager = Manager {
             ks,
@@ -91,11 +91,11 @@ impl<'db> Manager<'db> {
         pidx: Option<usize>,
         algo: Option<Algos>,
         salt: Option<Vec<u8>>,
-        tier: Option<Tiers>
+        tier: Option<Tiers>,
     ) -> Result<(), KERIError> {
         if !self.ks.opened() {
             return Err(KERIError::ManagerError(
-                "Attempt to setup Manager closed keystore database .ks.".to_string()
+                "Attempt to setup Manager closed keystore database .ks.".to_string(),
             ));
         }
 
@@ -107,10 +107,13 @@ impl<'db> Manager<'db> {
             Some(mut s) => {
                 // Validate salt
                 if Salter::from_qb64b(&mut s, None)?.qb64b() != s {
-                    return Err(KERIError::ManagerError(format!("Invalid qb64 for salt={:?}", s)));
+                    return Err(KERIError::ManagerError(format!(
+                        "Invalid qb64 for salt={:?}",
+                        s
+                    )));
                 }
                 s
-            },
+            }
             None => Salter::new(None, None, None)?.qb64b(),
         };
 
@@ -139,7 +142,9 @@ impl<'db> Manager<'db> {
         } else {
             self.encrypter = Some(Encrypter::new(None, None, Some(&mut self.aeid()))?);
 
-            if self._seed.is_empty() || !self.encrypter.as_ref().unwrap().verify_seed(&self._seed)? {
+            if self._seed.is_empty()
+                || !self.encrypter.as_ref().unwrap().verify_seed(&self._seed)?
+            {
                 return Err(KERIError::AuthError(format!(
                     "Last seed missing or provided last seed not associated with last aeid={:?}.",
                     self.aeid()
@@ -169,9 +174,15 @@ impl<'db> Manager<'db> {
 
         // Check that the last current seed matches the last current aeid
         if !current_aeid.is_empty() {
-            if self._seed.is_empty() || !self.encrypter.as_ref()
-                .ok_or_else(|| KERIError::AuthError("Current encrypter is missing".to_string()))?
-                .verify_seed(&self._seed)? {
+            if self._seed.is_empty()
+                || !self
+                    .encrypter
+                    .as_ref()
+                    .ok_or_else(|| {
+                        KERIError::AuthError("Current encrypter is missing".to_string())
+                    })?
+                    .verify_seed(&self._seed)?
+            {
                 return Err(KERIError::AuthError(format!(
                     "Last seed missing or provided last seed not associated with last aeid={:?}.",
                     current_aeid
@@ -212,13 +223,24 @@ impl<'db> Manager<'db> {
         if let Some(decrypter) = &self.decrypter {
             // Re-encrypt root salt secrets by prefix parameters in prms
             let empty: [&[u8]; 0] = [];
-            for (keys, mut data) in self.ks.prms.get_item_iter(&empty)
-                .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))? {
+            for (keys, mut data) in self
+                .ks
+                .prms
+                .get_item_iter(&empty)
+                .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))?
+            {
                 if !data.salt.is_empty() {
                     // Decrypt the salt with current decrypter
-                    let salter_any = decrypter.decrypt(None, Some(&data.salt), None, Some(false), Some(false))?;
-                    let salter = salter_any.downcast_ref::<Salter>()
-                        .ok_or_else(|| KERIError::ValueError("Failed to downcast to Salter".to_string()))?;
+                    let salter_any = decrypter.decrypt(
+                        None,
+                        Some(&data.salt),
+                        None,
+                        Some(false),
+                        Some(false),
+                    )?;
+                    let salter = salter_any.downcast_ref::<Salter>().ok_or_else(|| {
+                        KERIError::ValueError("Failed to downcast to Salter".to_string())
+                    })?;
 
                     // Re-encrypt with the new encrypter or store as is
                     if let Some(encrypter) = &self.encrypter {
@@ -229,24 +251,35 @@ impl<'db> Manager<'db> {
                     }
 
                     // Update the database
-                    self.ks.prms.pin(&keys, &data)
-                        .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))?;
+                    self.ks.prms.pin(&keys, &data).map_err(|e| {
+                        KERIError::ManagerError(format!("Failed to update aeid: {}", e))
+                    })?;
                 }
             }
 
             // Re-encrypt private signing key seeds
             // For each signer in the pris database
             let empty: [&[u8]; 0] = [];
-            for (keys, signer) in self.ks.pris.get_item_iter(&empty, false, Some(decrypter.clone()))
-                .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))? {
+            for (keys, signer) in self
+                .ks
+                .pris
+                .get_item_iter(&empty, false, Some(decrypter.clone()))
+                .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))?
+            {
                 // Pin the signer with the new encrypter
-                self.ks.pris.pin(&keys, &signer, self.encrypter.clone())
-                    .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))?;
+                self.ks
+                    .pris
+                    .pin(&keys, &signer, self.encrypter.clone())
+                    .map_err(|e| {
+                        KERIError::ManagerError(format!("Failed to update aeid: {}", e))
+                    })?;
             }
         }
 
         // Update aeid in database
-        self.ks.gbls.pin(&["aeid"], &aeid)
+        self.ks
+            .gbls
+            .pin(&["aeid"], &aeid)
             .map_err(|e| KERIError::ManagerError(format!("Failed to update aeid: {}", e)))?;
 
         // Update seed in memory
@@ -282,7 +315,7 @@ impl<'db> Manager<'db> {
             Ok(Some(bytes)) => {
                 let s = String::from_utf8(bytes).unwrap_or_default();
                 s.parse::<usize>().ok()
-            },
+            }
             _ => None,
         }
     }
@@ -295,7 +328,9 @@ impl<'db> Manager<'db> {
     /// # Returns
     /// * `Result<(), DBError>` - Success or error
     pub fn set_pidx(&self, value: usize) -> Result<(), KERIError> {
-        self.ks.gbls.pin(&["pidx"], &value.to_string().as_bytes())
+        self.ks
+            .gbls
+            .pin(&["pidx"], &value.to_string().as_bytes())
             .map_err(|e| KERIError::ManagerError(format!("Failed to set pidx: {}", e)))?;
         Ok(())
     }
@@ -319,7 +354,9 @@ impl<'db> Manager<'db> {
     /// # Returns
     /// * `Result<(), DBError>` - Success or error
     pub fn set_algo(&self, value: Algos) -> Result<(), KERIError> {
-        self.ks.gbls.pin(&["algo"], &value.to_string().as_bytes())
+        self.ks
+            .gbls
+            .pin(&["algo"], &value.to_string().as_bytes())
             .map_err(|e| KERIError::ManagerError(format!("Failed to set algo: {}", e)))?;
         Ok(())
     }
@@ -330,16 +367,18 @@ impl<'db> Manager<'db> {
     /// * Option<String> - The salt value if it exists
     pub fn salt(&self) -> Option<Vec<u8>> {
         match self.ks.gbls.get(&["salt"]) {
-            Ok(Some(bytes)) => {
-                match self.decrypter {
-                    Some(_) => {
-                        let st = String::from_utf8(bytes);
-                        let salter = self.decrypter.clone()?.decrypt(None, Some(st.unwrap().as_str()), None, None, None).unwrap();
-                        let salter = salter.downcast_ref::<Salter>().unwrap();
-                        Some(salter.qb64b())
-                    }
-                    None => {Some(bytes)}
-                } 
+            Ok(Some(bytes)) => match self.decrypter {
+                Some(_) => {
+                    let st = String::from_utf8(bytes);
+                    let salter = self
+                        .decrypter
+                        .clone()?
+                        .decrypt(None, Some(st.unwrap().as_str()), None, None, None)
+                        .unwrap();
+                    let salter = salter.downcast_ref::<Salter>().unwrap();
+                    Some(salter.qb64b())
+                }
+                None => Some(bytes),
             },
             _ => None,
         }
@@ -355,15 +394,19 @@ impl<'db> Manager<'db> {
     pub fn set_salt(&self, value: Vec<u8>) -> Result<(), KERIError> {
         if let Some(encrypter) = &self.encrypter {
             // Re-encrypt salt with new encrypter
-            let encrypted_salt = encrypter.encrypt(Some(&value), None, Some(mtr_dex::X25519_CIPHER_SALT))?;
-            self.ks.gbls.pin(&["salt"], &encrypted_salt.qb64b())
+            let encrypted_salt =
+                encrypter.encrypt(Some(&value), None, Some(mtr_dex::X25519_CIPHER_SALT))?;
+            self.ks
+                .gbls
+                .pin(&["salt"], &encrypted_salt.qb64b())
                 .map_err(|e| KERIError::ManagerError(format!("Failed to set salt: {}", e)))?;
         } else {
-            self.ks.gbls.pin(&["salt"], &value)
+            self.ks
+                .gbls
+                .pin(&["salt"], &value)
                 .map_err(|e| KERIError::ManagerError(format!("Failed to set salt: {}", e)))?;
         }
 
-        
         Ok(())
     }
 
@@ -373,8 +416,10 @@ impl<'db> Manager<'db> {
     /// * Option<String> - The tier value if it exists
     pub fn tier(&self) -> Option<Tiers> {
         match self.ks.gbls.get(&["tier"]) {
-            Ok(Some(bytes)) => Some(Tiers::from(String::from_utf8(bytes).unwrap_or_default().as_str())),
-            _ => None
+            Ok(Some(bytes)) => Some(Tiers::from(
+                String::from_utf8(bytes).unwrap_or_default().as_str(),
+            )),
+            _ => None,
         }
     }
 
@@ -386,7 +431,9 @@ impl<'db> Manager<'db> {
     /// # Returns
     /// * `Result<(), DBError>` - Success or error
     pub fn set_tier(&self, value: Tiers) -> Result<(), KERIError> {
-        self.ks.gbls.put(&["tier"], &value.to_string().as_bytes())
+        self.ks
+            .gbls
+            .put(&["tier"], &value.to_string().as_bytes())
             .map_err(|e| KERIError::ManagerError(format!("Failed to set tier: {}", e)))?;
         Ok(())
     }
@@ -451,16 +498,18 @@ impl<'db> Manager<'db> {
         // Get root defaults to initialize key sequence
         let algo = if rooted && algo.is_none() {
             // Use root algo from db as default
-            Algos::from_str(&self.algo().ok_or_else(||
-                KERIError::ValueError("Root algorithm not found in database".to_string()))?)?
+            Algos::from_str(&self.algo().ok_or_else(|| {
+                KERIError::ValueError("Root algorithm not found in database".to_string())
+            })?)?
         } else {
             algo.unwrap_or(Algos::Salty)
         };
 
         let salt = if rooted && salt.is_none() {
             // Use root salt from db instead of random salt
-            self.salt().ok_or_else(||
-                KERIError::ValueError("Root salt not found in database".to_string()))?
+            self.salt().ok_or_else(|| {
+                KERIError::ValueError("Root salt not found in database".to_string())
+            })?
         } else {
             salt.unwrap_or_else(|| Vec::new())
         };
@@ -473,13 +522,18 @@ impl<'db> Manager<'db> {
         };
 
         // Get next pidx
-        let pidx = self.pidx().ok_or_else(||
-            KERIError::ValueError("Prefix index not found in database".to_string()))?;
+        let pidx = self.pidx().ok_or_else(|| {
+            KERIError::ValueError("Prefix index not found in database".to_string())
+        })?;
         let ridx = 0; // rotation index
         let kidx = 0; // key pair index
 
         // Create the key creator
-        let creator = Creatory::new(algo).make(Some(String::from_utf8(salt).unwrap().as_str()), stem.clone(), tier.clone())?;
+        let creator = Creatory::new(algo).make(
+            Some(String::from_utf8(salt).unwrap().as_str()),
+            stem.clone(),
+            tier.clone(),
+        )?;
 
         // Create initial signers
         let icodes = if let Some(ic) = icodes {
@@ -487,7 +541,10 @@ impl<'db> Manager<'db> {
         } else {
             // Create a vector of the same code with length icount
             if icount <= 0 {
-                return Err(KERIError::ValueError(format!("Invalid icount={}, must be > 0", icount)));
+                return Err(KERIError::ValueError(format!(
+                    "Invalid icount={}, must be > 0",
+                    icount
+                )));
             }
             (0..icount).map(|_| icode).collect()
         };
@@ -495,11 +552,13 @@ impl<'db> Manager<'db> {
         let icode_count = icodes.len();
         let isigners = creator.create(
             Some(icodes),
-            None, None,
+            None,
+            None,
             Some(pidx),
             Some(ridx),
             Some(kidx),
-            Some(transferable), Some(temp)
+            Some(transferable),
+            Some(temp),
         );
 
         let verfers: Vec<Verfer> = isigners.iter().map(|s| s.verfer.clone()).collect();
@@ -515,7 +574,7 @@ impl<'db> Manager<'db> {
         let nsigners = creator.create(
             Some(ncodes),
             Some(0), // count set to 0 to ensure does not create signers if ncodes is empty
-            None, 
+            None,
             Some(pidx),
             Some(ridx + 1),
             Some(kidx + icode_count),
@@ -533,8 +592,8 @@ impl<'db> Manager<'db> {
             .collect::<Result<Vec<Diger>, KERIError>>()?;
 
         let tier_str = match creator.tier() {
-            None => {""}
-            Some(tier) => {&tier.to_string()}
+            None => "",
+            Some(tier) => &tier.to_string(),
         };
         // Create prefix parameters
         let mut pp = PrePrm {
@@ -548,7 +607,11 @@ impl<'db> Manager<'db> {
         if !creator.salt().is_empty() {
             if let Some(encrypter) = &self.encrypter {
                 // Encrypt the salt
-                let cipher = encrypter.encrypt(Some(&creator.salt().as_bytes().to_vec()), None, Some(mtr_dex::X25519_CIPHER_SALT))?;
+                let cipher = encrypter.encrypt(
+                    Some(&creator.salt().as_bytes().to_vec()),
+                    None,
+                    Some(mtr_dex::X25519_CIPHER_SALT),
+                )?;
                 pp.salt = cipher.qb64();
             } else {
                 // Store salt unencrypted
@@ -591,7 +654,9 @@ impl<'db> Manager<'db> {
 
         // Store the prefix
         let prefixer = Prefixer::from_qb64b(&mut pre.clone(), None)?;
-        self.ks.pres.put(&[&pre], &prefixer)
+        self.ks
+            .pres
+            .put(&[&pre], &prefixer)
             .map_err(|e| KERIError::ManagerError(format!("Failed to update pres: {}", e)))?;
 
         // Store the parameters
@@ -615,25 +680,43 @@ impl<'db> Manager<'db> {
 
         // Store initial signers (private keys) keyed by public keys
         for signer in isigners {
-            self.ks.pris.put(&[&signer.verfer.qb64b()], &signer, self.encrypter.clone())
+            self.ks
+                .pris
+                .put(&[&signer.verfer.qb64b()], &signer, self.encrypter.clone())
                 .map_err(|e| KERIError::ManagerError(format!("Failed to put pris: {}", e)))?;
         }
 
         // Store public keys for initial rotation
-        self.ks.pubs.put(&[&Keeper::ri_key(String::from_utf8(pre.clone()).unwrap().as_str(), ridx as u64)], &PubSet {
-            pubs: ps.new.pubs,
-        }).map_err(|e| KERIError::ManagerError(format!("Failed to update pubs: {}", e)))?;
+        self.ks
+            .pubs
+            .put(
+                &[&Keeper::ri_key(
+                    String::from_utf8(pre.clone()).unwrap().as_str(),
+                    ridx as u64,
+                )],
+                &PubSet { pubs: ps.new.pubs },
+            )
+            .map_err(|e| KERIError::ManagerError(format!("Failed to update pubs: {}", e)))?;
 
         // Store next signers
         for signer in nsigners {
-            self.ks.pris.put(&[&signer.verfer.qb64b()], &signer, self.encrypter.clone())
+            self.ks
+                .pris
+                .put(&[&signer.verfer.qb64b()], &signer, self.encrypter.clone())
                 .map_err(|e| KERIError::ManagerError(format!("Failed to put pris: {}", e)))?;
         }
 
         // Store public keys for next rotation
-        self.ks.pubs.put(&[&Keeper::ri_key(String::from_utf8(pre).unwrap().as_str(), (ridx + 1) as u64)], &PubSet {
-            pubs: ps.nxt.pubs,
-        }).map_err(|e| KERIError::ManagerError(format!("Failed to put pubs: {}", e)))?;
+        self.ks
+            .pubs
+            .put(
+                &[&Keeper::ri_key(
+                    String::from_utf8(pre).unwrap().as_str(),
+                    (ridx + 1) as u64,
+                )],
+                &PubSet { pubs: ps.nxt.pubs },
+            )
+            .map_err(|e| KERIError::ManagerError(format!("Failed to put pubs: {}", e)))?;
 
         Ok((verfers, digers))
     }
@@ -809,7 +892,7 @@ impl<'db> Manager<'db> {
         dcode: Option<&str>,
         transferable: Option<bool>,
         temp: Option<bool>,
-        erase: Option<bool>
+        erase: Option<bool>,
     ) -> Result<(Vec<Verfer>, Vec<Diger>), KERIError> {
         // Set default values
         let ncount = ncount.unwrap_or(1);
@@ -822,19 +905,23 @@ impl<'db> Manager<'db> {
         // Get prefix parameters from database
         let pp = match self.ks.prms.get(&[pre])? {
             Some(pp) => pp,
-            None => return Err(KERIError::ValueError(format!(
-                "Attempt to rotate nonexistent pre={}.",
-                String::from_utf8_lossy(pre)
-            ))),
+            None => {
+                return Err(KERIError::ValueError(format!(
+                    "Attempt to rotate nonexistent pre={}.",
+                    String::from_utf8_lossy(pre)
+                )))
+            }
         };
 
         // Get prefix situation from database
         let mut ps = match self.ks.sits.get(&[pre])? {
             Some(ps) => ps,
-            None => return Err(KERIError::ValueError(format!(
-                "Attempt to rotate nonexistent pre={}.",
-                String::from_utf8_lossy(pre)
-            ))),
+            None => {
+                return Err(KERIError::ValueError(format!(
+                    "Attempt to rotate nonexistent pre={}.",
+                    String::from_utf8_lossy(pre)
+                )))
+            }
         };
 
         // Check if the prefix is transferable (has next public keys)
@@ -860,16 +947,23 @@ impl<'db> Manager<'db> {
             // Check for encryption/decryption authorization
             if self.encrypter.is_some() && self.decrypter.is_none() {
                 return Err(KERIError::AuthError(
-                    "Unauthorized decryption attempt. Aeid but no decrypter.".to_string()
+                    "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
                 ));
             }
 
             // Get the signer from the database
-            let signer = match self.ks.pris.get(&[pub_key.as_bytes()], self.decrypter.clone())? {
+            let signer = match self
+                .ks
+                .pris
+                .get(&[pub_key.as_bytes()], self.decrypter.clone())?
+            {
                 Some(signer) => signer,
-                None => return Err(KERIError::ValueError(format!(
-                    "Missing prikey in db for pubkey={}", pub_key
-                ))),
+                None => {
+                    return Err(KERIError::ValueError(format!(
+                        "Missing prikey in db for pubkey={}",
+                        pub_key
+                    )))
+                }
             };
 
             verfers.push(signer.verfer);
@@ -881,16 +975,22 @@ impl<'db> Manager<'db> {
                 // We need to decrypt the salt
                 if self.decrypter.is_none() {
                     return Err(KERIError::AuthError(
-                        "Unauthorized decryption. Aeid but no decrypter.".to_string()
+                        "Unauthorized decryption. Aeid but no decrypter.".to_string(),
                     ));
                 }
 
                 // Decrypt the salt
-                let salter_any = self.decrypter.as_ref().unwrap()
-                    .decrypt(None, Some(&pp.salt), None, None, None)?;
+                let salter_any = self.decrypter.as_ref().unwrap().decrypt(
+                    None,
+                    Some(&pp.salt),
+                    None,
+                    None,
+                    None,
+                )?;
 
-                let salter = salter_any.downcast_ref::<Salter>()
-                    .ok_or_else(|| KERIError::ValueError("Failed to downcast to Salter".to_string()))?;
+                let salter = salter_any.downcast_ref::<Salter>().ok_or_else(|| {
+                    KERIError::ValueError("Failed to downcast to Salter".to_string())
+                })?;
 
                 salter.qb64()
             } else {
@@ -904,8 +1004,11 @@ impl<'db> Manager<'db> {
         };
 
         // Create key creator
-        let creator = Creatory::new(Algos::from_str(&pp.algo)?)
-            .make(Some(&salt), Some(&pp.stem), Some(Tiers::from(pp.tier.as_str())))?;
+        let creator = Creatory::new(Algos::from_str(&pp.algo)?).make(
+            Some(&salt),
+            Some(&pp.stem),
+            Some(Tiers::from(pp.tier.as_str())),
+        )?;
 
         // Process ncodes
         let ncodes_to_use = if let Some(codes) = ncodes {
@@ -934,7 +1037,8 @@ impl<'db> Manager<'db> {
         );
 
         // Create digesters for next keys
-        let digers = signers.iter()
+        let digers = signers
+            .iter()
             .map(|signer| -> Result<Diger, KERIError> {
                 Diger::from_ser(&mut signer.verfer.qb64b(), None)
                     .map_err(|e| KERIError::MatterError(e.to_string()))
@@ -960,18 +1064,16 @@ impl<'db> Manager<'db> {
 
         // Store the new signers' private keys
         for signer in &signers {
-            self.ks.pris.put(
-                &[&signer.verfer.qb64b()],
-                signer,
-                self.encrypter.clone()
-            )?;
+            self.ks
+                .pris
+                .put(&[&signer.verfer.qb64b()], signer, self.encrypter.clone())?;
         }
 
         // Store public keys for lookup by rotation index
         let pre_str = String::from_utf8_lossy(pre).to_string();
         self.ks.pubs.put(
             &[&Keeper::ri_key(&pre_str, ps.nxt.ridx as u64)],
-            &PubSet { pubs: ps.nxt.pubs }
+            &PubSet { pubs: ps.nxt.pubs },
         )?;
 
         // Erase old private keys if requested
@@ -1035,7 +1137,9 @@ impl<'db> Manager<'db> {
         // Handle case when both pubs and verfers are None
         if pubs.is_none() && verfers.is_none() {
             if pre.is_none() {
-                return Err(KERIError::ValueError("pubs or verfers or pre required".to_string()));
+                return Err(KERIError::ValueError(
+                    "pubs or verfers or pre required".to_string(),
+                ));
             }
 
             // Logic for generating signers from pre and path would go here
@@ -1050,15 +1154,21 @@ impl<'db> Manager<'db> {
                 // Check if we need decryption but don't have a decrypter
                 if self.encrypter.is_some() && self.decrypter.is_none() {
                     return Err(KERIError::AuthError(
-                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string()
+                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
                     ));
                 }
 
                 // Get the signer from private keys database
-                let signer = self.ks.pris.get(&[pub_key.as_bytes()], self.decrypter.clone())?
-                    .ok_or_else(|| KERIError::ValueError(format!(
-                        "Missing prikey in db for pubkey={}", pub_key
-                    )))?;
+                let signer = self
+                    .ks
+                    .pris
+                    .get(&[pub_key.as_bytes()], self.decrypter.clone())?
+                    .ok_or_else(|| {
+                        KERIError::ValueError(format!(
+                            "Missing prikey in db for pubkey={}",
+                            pub_key
+                        ))
+                    })?;
 
                 signers.push(signer);
             }
@@ -1069,15 +1179,21 @@ impl<'db> Manager<'db> {
                 // Check if we need decryption but don't have a decrypter
                 if self.encrypter.is_some() && self.decrypter.is_none() {
                     return Err(KERIError::AuthError(
-                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string()
+                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
                     ));
                 }
 
                 // Get the signer from private keys database
-                let signer = self.ks.pris.get(&[verfer.qb64b().as_slice()], self.decrypter.clone())?
-                    .ok_or_else(|| KERIError::ValueError(format!(
-                        "Missing prikey in db for pubkey={}", verfer.qb64()
-                    )))?;
+                let signer = self
+                    .ks
+                    .pris
+                    .get(&[verfer.qb64b().as_slice()], self.decrypter.clone())?
+                    .ok_or_else(|| {
+                        KERIError::ValueError(format!(
+                            "Missing prikey in db for pubkey={}",
+                            verfer.qb64()
+                        ))
+                    })?;
 
                 signers.push(signer);
             }
@@ -1088,7 +1204,8 @@ impl<'db> Manager<'db> {
             if idx.len() != signers.len() {
                 return Err(KERIError::ValueError(format!(
                     "Mismatch indices length={} and resultant signers length={}",
-                    idx.len(), signers.len()
+                    idx.len(),
+                    signers.len()
                 )));
             }
         }
@@ -1098,7 +1215,8 @@ impl<'db> Manager<'db> {
             if odx.len() != signers.len() {
                 return Err(KERIError::ValueError(format!(
                     "Mismatch ondices length={} and resultant signers length={}",
-                    odx.len(), signers.len()
+                    odx.len(),
+                    signers.len()
                 )));
             }
         }
@@ -1130,10 +1248,10 @@ impl<'db> Manager<'db> {
                 let siger = signers[j].sign(
                     ser,
                     Some(i),
-                    Some(o.is_none()),  // only = true if o is None
+                    Some(o.is_none()), // only = true if o is None
                     o,
                 )?;
-                
+
                 sigers.push(siger);
             }
 
@@ -1178,15 +1296,21 @@ impl<'db> Manager<'db> {
                 // Check if we need decryption but don't have a decrypter
                 if self.encrypter.is_some() && self.decrypter.is_none() {
                     return Err(KERIError::DecryptError(
-                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string()
+                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
                     ));
                 }
 
                 // Get the signer from private keys database
-                let signer = self.ks.pris.get(&[pub_key.as_bytes()], self.decrypter.clone())?
-                    .ok_or_else(|| KERIError::ValueError(format!(
-                        "Missing prikey in db for pubkey={}", pub_key
-                    )))?;
+                let signer = self
+                    .ks
+                    .pris
+                    .get(&[pub_key.as_bytes()], self.decrypter.clone())?
+                    .ok_or_else(|| {
+                        KERIError::ValueError(format!(
+                            "Missing prikey in db for pubkey={}",
+                            pub_key
+                        ))
+                    })?;
 
                 signers.push(signer);
             }
@@ -1197,20 +1321,28 @@ impl<'db> Manager<'db> {
                 // Check if we need decryption but don't have a decrypter
                 if self.encrypter.is_some() && self.decrypter.is_none() {
                     return Err(KERIError::DecryptError(
-                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string()
+                        "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
                     ));
                 }
 
                 // Get the signer from private keys database
-                let signer = self.ks.pris.get(&[verfer.qb64b().as_slice()], self.decrypter.clone())?
-                    .ok_or_else(|| KERIError::ValueError(format!(
-                        "Missing prikey in db for pubkey={}", verfer.qb64()
-                    )))?;
+                let signer = self
+                    .ks
+                    .pris
+                    .get(&[verfer.qb64b().as_slice()], self.decrypter.clone())?
+                    .ok_or_else(|| {
+                        KERIError::ValueError(format!(
+                            "Missing prikey in db for pubkey={}",
+                            verfer.qb64()
+                        ))
+                    })?;
 
                 signers.push(signer);
             }
         } else {
-            return Err(KERIError::ValueError("Either pubs or verfers must be provided".to_string()));
+            return Err(KERIError::ValueError(
+                "Either pubs or verfers must be provided".to_string(),
+            ));
         }
 
         // Convert the input to bytes
@@ -1225,7 +1357,10 @@ impl<'db> Manager<'db> {
             sigkey.extend_from_slice(signer.verfer().raw());
 
             // Convert the signing key to a private encryption key (using sodium)
-            let prikey = sodiumoxide::crypto::sign::ed25519::to_curve25519_sk(&SecretKey::from_slice(&sigkey).unwrap()).unwrap();
+            let prikey = sodiumoxide::crypto::sign::ed25519::to_curve25519_sk(
+                &SecretKey::from_slice(&sigkey).unwrap(),
+            )
+            .unwrap();
 
             // Derive the public key from the private key
             let pubkey = prikey.public_key();
@@ -1247,18 +1382,17 @@ impl<'db> Manager<'db> {
 
         Ok(plain)
     }
-    
+
     // TODO: Implement ingest and reply from KERIpy implementations.
-    
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keri::db::dbing::LMDBer;
-    use std::sync::Arc;
     use crate::cesr::indexing::Indexer;
     use crate::cesr::signing::{Cipher, Signer};
+    use crate::keri::db::dbing::LMDBer;
+    use std::sync::Arc;
 
     #[test]
     fn test_manager_creation() -> Result<(), KERIError> {
@@ -1302,16 +1436,19 @@ mod tests {
         // Test invalid salt error
         let result = Manager::new(
             keeper,
-            None, None, None, None, Some(b"0AzwMTIzNDU2Nzg5YWJjZGVm".to_vec()), None);
+            None,
+            None,
+            None,
+            None,
+            Some(b"0AzwMTIzNDU2Nzg5YWJjZGVm".to_vec()),
+            None,
+        );
         assert!(result.is_err());
         assert!(matches!(result, Err(KERIError::MatterError(_))));
 
         // Create valid manager with salt
         let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
-        let mut manager = Manager::new(
-            keeper,
-            None, None, None, None, Some(salt.clone()), None
-        )?;
+        let mut manager = Manager::new(keeper, None, None, None, None, Some(salt.clone()), None)?;
 
         assert!(manager.ks.opened());
         assert_eq!(manager.pidx(), Some(0));
@@ -1324,8 +1461,20 @@ mod tests {
 
         // Test salty algorithm incept
         let (verfers, digers) = manager.incept(
-            None, None, None, None, None, None, None, None,
-            Some(salt.clone()), None, None, None, None, Some(true)
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            None,
+            None,
+            None,
+            None,
+            Some(true),
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1345,11 +1494,17 @@ mod tests {
         let ps = manager.ks.sits.get(&[&spre])?.unwrap();
         assert!(ps.old.is_none());
         assert_eq!(ps.new.pubs.len(), 1);
-        assert_eq!(ps.new.pubs, vec!["DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"]);
+        assert_eq!(
+            ps.new.pubs,
+            vec!["DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"]
+        );
         assert_eq!(ps.new.ridx, 0);
         assert_eq!(ps.new.kidx, 0);
         assert_eq!(ps.nxt.pubs.len(), 1);
-        assert_eq!(ps.nxt.pubs, vec!["DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"]);
+        assert_eq!(
+            ps.nxt.pubs,
+            vec!["DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"]
+        );
         assert_eq!(ps.nxt.ridx, 1);
         assert_eq!(ps.nxt.kidx, 1);
 
@@ -1357,10 +1512,24 @@ mod tests {
         assert_eq!(keys, ps.new.pubs);
 
         // Test .pubs db
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.new.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.new.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.nxt.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.nxt.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         let digs: Vec<String> = digers.iter().map(|d| d.qb64()).collect();
@@ -1372,32 +1541,74 @@ mod tests {
         manager.move_prefix(&oldspre, &spre)?;
 
         // Test .pubs db after move
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.new.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.new.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.nxt.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.nxt.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test signing with pubs
-        let psigers = manager.sign(&ser, Some(ps.new.pubs.clone()), None, None, None, None, None, None)?;
+        let psigers = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )?;
         for siger in &psigers {
             match siger {
-                Sigmat::Indexed(_) => {},
+                Sigmat::Indexed(_) => {}
                 _ => panic!("Expected indexed signature"),
             }
         }
 
         // Test signing with verfers
-        let vsigers = manager.sign(&ser, None, Some(verfers.clone()), None, None, None, None, None)?;
+        let vsigers = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )?;
 
-        let psigs: Vec<String> = psigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
-        let vsigs: Vec<String> = vsigers.iter().map(|s|{
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = psigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
+        let vsigs: Vec<String> = vsigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
 
         assert_eq!(psigs, vsigs);
         assert_eq!(psigs, vec!["AAAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH"]);
@@ -1406,35 +1617,72 @@ mod tests {
         let indices = Some(vec![3]);
 
         // Test with pubs list
-        let psigers = manager.sign(&ser, Some(ps.new.pubs.clone()), None, None, indices.clone(), None, None, None)?;
+        let psigers = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            None,
+            indices.clone(),
+            None,
+            None,
+            None,
+        )?;
 
         match &psigers[0] {
             Sigmat::Indexed(s) => assert_eq!(s.index(), 3),
             _ => panic!("Expected indexed signature"),
         }
 
-        let psigs: Vec<String> = psigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = psigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
         assert_eq!(psigs, vec!["ADAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH"]);
 
         // Test with verfers list
-        let vsigers = manager.sign(&ser, None, Some(verfers.clone()), None, indices, None, None, None)?;
+        let vsigers = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            None,
+            indices,
+            None,
+            None,
+            None,
+        )?;
 
         match &vsigers[0] {
             Sigmat::Indexed(s) => assert_eq!(s.index(), 3),
             _ => panic!("Expected indexed signature"),
         }
 
-        let vsigs: Vec<String> = vsigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let vsigs: Vec<String> = vsigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
         assert_eq!(vsigs, psigs);
 
         // Test non-indexed signatures (cigars)
-        let pcigars = manager.sign(&ser, Some(ps.new.pubs.clone()), None, Some(false), None, None, None, None)?;
+        let pcigars = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            Some(false),
+            None,
+            None,
+            None,
+            None,
+        )?;
         for cigar in &pcigars {
             match cigar {
                 Sigmat::NonIndexed(_) => (),
@@ -1442,16 +1690,35 @@ mod tests {
             }
         }
 
-        let vcigars = manager.sign(&ser, None, Some(verfers.clone()), Some(false), None, None, None, None)?;
+        let vcigars = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            Some(false),
+            None,
+            None,
+            None,
+            None,
+        )?;
 
-        let psigs: Vec<String> = pcigars.iter().map(|s| {
-            let Sigmat::NonIndexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
-        let vsigs: Vec<String> = vcigars.iter().map(|s| {
-            let Sigmat::NonIndexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = pcigars
+            .iter()
+            .map(|s| {
+                let Sigmat::NonIndexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
+        let vsigs: Vec<String> = vcigars
+            .iter()
+            .map(|s| {
+                let Sigmat::NonIndexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
 
         assert_eq!(psigs, vsigs);
         assert_eq!(psigs, vec!["0BAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH"]);
@@ -1460,7 +1727,13 @@ mod tests {
         let oldpubs: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1474,13 +1747,22 @@ mod tests {
         assert_eq!(pp.tier, Tiers::LOW.to_string());
 
         let ps = manager.ks.sits.get(&[&spre])?.unwrap();
-        assert_eq!(ps.old.clone().unwrap().pubs, vec!["DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"]);
+        assert_eq!(
+            ps.old.clone().unwrap().pubs,
+            vec!["DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"]
+        );
         assert_eq!(ps.new.pubs.len(), 1);
-        assert_eq!(ps.new.pubs, vec!["DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"]);
+        assert_eq!(
+            ps.new.pubs,
+            vec!["DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"]
+        );
         assert_eq!(ps.new.ridx, 1);
         assert_eq!(ps.new.kidx, 1);
         assert_eq!(ps.nxt.pubs.len(), 1);
-        assert_eq!(ps.nxt.pubs, vec!["DAoQ1WxT29XtCFtOpJZyuO2q38BD8KTefktf7X0WN4YW"]);
+        assert_eq!(
+            ps.nxt.pubs,
+            vec!["DAoQ1WxT29XtCFtOpJZyuO2q38BD8KTefktf7X0WN4YW"]
+        );
         assert_eq!(ps.nxt.ridx, 2);
         assert_eq!(ps.nxt.kidx, 2);
 
@@ -1498,7 +1780,13 @@ mod tests {
 
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         let pp = manager.ks.prms.get(&[&spre])?.unwrap();
@@ -1513,16 +1801,36 @@ mod tests {
         }
 
         // Test .pubs db
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.new.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.new.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let pl = manager.ks.pubs.get(&[Keeper::ri_key(String::from_utf8(spre.clone()).unwrap().as_str(), ps.nxt.ridx as u64)])?.unwrap();
+        let pl = manager
+            .ks
+            .pubs
+            .get(&[Keeper::ri_key(
+                String::from_utf8(spre.clone()).unwrap().as_str(),
+                ps.nxt.ridx as u64,
+            )])?
+            .unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test salty algorithm rotate to null (non-transferable)
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, Some(0), None, None, None, None, None
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         let pp = manager.ks.prms.get(&[&spre])?.unwrap();
@@ -1535,7 +1843,13 @@ mod tests {
         // Test attempt to rotate after null (should fail)
         let result = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
 
         assert!(result.is_err());
@@ -1549,8 +1863,20 @@ mod tests {
 
         // Test randy algorithm incept
         let (verfers, digers) = manager.incept(
-            None, None, None, None, None, None, None,
-            Some(Algos::Randy), None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(Algos::Randy),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1593,7 +1919,13 @@ mod tests {
 
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(rpre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         let pp = manager.ks.prms.get(&[&rpre])?.unwrap();
@@ -1604,8 +1936,20 @@ mod tests {
 
         // Test randy algorithm incept with null next keys
         let (verfers, digers) = manager.incept(
-            None, None, None, None, Some(0), None, None,
-            Some(Algos::Randy), None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            Some(Algos::Randy),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert_eq!(manager.pidx(), Some(3));
@@ -1621,15 +1965,33 @@ mod tests {
         // Test attempt to rotate after null (should fail)
         let result = manager.rotate(
             &String::from_utf8(rpre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
 
         assert!(result.is_err());
 
         // Test salty algorithm incept with stem
         let (verfers, digers) = manager.incept(
-            None, None, None, None, None, None, None, None,
-            Some(salt.clone()), Some(stem), None, None, None, Some(true)
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            Some(stem),
+            None,
+            None,
+            None,
+            Some(true),
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1649,11 +2011,17 @@ mod tests {
         let ps = manager.ks.sits.get(&[&spre])?.unwrap();
         assert!(ps.old.is_none());
         assert_eq!(ps.new.pubs.len(), 1);
-        assert_eq!(ps.new.pubs, vec!["DOtu4gX3oc4feusD8wWIykLhjkpiJHXEe29eJ2b_1CyM"]);
+        assert_eq!(
+            ps.new.pubs,
+            vec!["DOtu4gX3oc4feusD8wWIykLhjkpiJHXEe29eJ2b_1CyM"]
+        );
         assert_eq!(ps.new.ridx, 0);
         assert_eq!(ps.new.kidx, 0);
         assert_eq!(ps.nxt.pubs.len(), 1);
-        assert_eq!(ps.nxt.pubs, vec!["DBzZ6vejSNAZpXv1SDRnIF_P1UqcW5d2pu2U-v-uhXvE"]);
+        assert_eq!(
+            ps.nxt.pubs,
+            vec!["DBzZ6vejSNAZpXv1SDRnIF_P1UqcW5d2pu2U-v-uhXvE"]
+        );
         assert_eq!(ps.nxt.ridx, 1);
         assert_eq!(ps.nxt.kidx, 1);
 
@@ -1665,8 +2033,20 @@ mod tests {
 
         // Test attempt to reincept same first pub (should fail)
         let result = manager.incept(
-            None, None, None, None, None, None, None, None,
-            Some(salt.clone()), Some(stem), None, None, None, Some(true)
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            Some(stem),
+            None,
+            None,
+            None,
+            Some(true),
         );
 
         assert!(result.is_err());
@@ -1685,8 +2065,20 @@ mod tests {
 
         // Test attempt to reincept same first pub after move pre (should fail)
         let result = manager.incept(
-            None, None, None, None, None, None, None, None,
-            Some(salt.clone()), Some(stem), None, None, None, Some(true)
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            Some(stem),
+            None,
+            None,
+            None,
+            Some(true),
         );
 
         assert!(result.is_err());
@@ -1700,8 +2092,20 @@ mod tests {
 
         // Test creating nontransferable keys for witnesses
         let (verfers, digers) = manager.incept(
-            None, None, None, None, Some(0), None, None, None,
-            Some(salt.clone()), Some("wit0"), None, None, Some(false), Some(true)
+            None,
+            None,
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            Some("wit0"),
+            None,
+            None,
+            Some(false),
+            Some(true),
         )?;
 
         let wit0pre = verfers[0].qb64();
@@ -1710,8 +2114,20 @@ mod tests {
         assert!(digers.is_empty());
 
         let (verfers, digers) = manager.incept(
-            None, None, None, None, Some(0), None, None, None,
-            Some(salt.clone()), Some("wit1"), None, None, Some(false), Some(true)
+            None,
+            None,
+            None,
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            Some(salt.clone()),
+            Some("wit1"),
+            None,
+            None,
+            Some(false),
+            Some(true),
         )?;
 
         let wit1pre = verfers[0].qb64();
@@ -1734,11 +2150,13 @@ mod tests {
         let stem = "blue";
 
         // First crypto seed
-        let cryptseed0 = b"h,#|\x8ap\"\x12\xc43t2\xa6\xe1\x18\x19\xf0f2,y\xc4\xc21@\xf5@\x15.\xa2\x1a\xcf".to_vec();
+        let cryptseed0 =
+            b"h,#|\x8ap\"\x12\xc43t2\xa6\xe1\x18\x19\xf0f2,y\xc4\xc21@\xf5@\x15.\xa2\x1a\xcf"
+                .to_vec();
         let cryptsigner0 = Signer::new(
             Some(&cryptseed0),
             Some("A"), // ED25519_Seed code
-            Some(false)
+            Some(false),
         )?;
 
         let seed0 = cryptsigner0.qb64();
@@ -1754,7 +2172,7 @@ mod tests {
         let cryptsigner1 = Signer::new(
             Some(&cryptseed1),
             Some("A"), // ED25519_Seed code
-            Some(false)
+            Some(false),
         )?;
 
         let seed1 = cryptsigner1.qb64();
@@ -1784,7 +2202,7 @@ mod tests {
             None,
             None,
             Some(salt.as_bytes().to_vec()),
-            None
+            None,
         )?;
 
         assert!(manager.ks.opened());
@@ -1792,11 +2210,20 @@ mod tests {
 
         // Validate inits data
         assert_eq!(manager.salt(), Some(b"0AAwMTIzNDU2Nzg5YWJjZGVm".to_vec()));
-        assert_eq!(manager.aeid(), b"BCa7mK96FwxkU0TdF54Yqg3qBDXUWpOhQ_Mtr7E77yZB".to_vec());
+        assert_eq!(
+            manager.aeid(),
+            b"BCa7mK96FwxkU0TdF54Yqg3qBDXUWpOhQ_Mtr7E77yZB".to_vec()
+        );
 
         // Validate encryption decryption inited correctly
-        assert_eq!(manager.encrypter.as_ref().unwrap().qb64(), encrypter0.qb64());
-        assert_eq!(manager.decrypter.as_ref().unwrap().qb64(), decrypter0.qb64());
+        assert_eq!(
+            manager.encrypter.as_ref().unwrap().qb64(),
+            encrypter0.qb64()
+        );
+        assert_eq!(
+            manager.decrypter.as_ref().unwrap().qb64(),
+            decrypter0.qb64()
+        );
         assert_eq!(manager.seed(), &seed0.as_bytes().to_vec());
         assert_eq!(manager.aeid(), aeid0.as_bytes().to_vec());
 
@@ -1817,8 +2244,20 @@ mod tests {
 
         // Test salty algorithm incept
         let (verfers, digers) = manager.incept(
-            None, None, None, None, None, None, None, None,
-            Some(salt.as_bytes().to_vec()), None, None, None, None, Some(true)
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(salt.as_bytes().to_vec()),
+            None,
+            None,
+            None,
+            None,
+            Some(true),
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1826,7 +2265,10 @@ mod tests {
         assert_eq!(manager.pidx().unwrap(), 1);
 
         let spre = verfers[0].qb64b();
-        assert_eq!(String::from_utf8(spre.clone()).unwrap(), "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT");
+        assert_eq!(
+            String::from_utf8(spre.clone()).unwrap(),
+            "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"
+        );
 
         // Verify prefix parameters
         let pp = manager.ks.prms.get(&[&spre])?.unwrap();
@@ -1834,7 +2276,13 @@ mod tests {
         assert_eq!(pp.algo, Algos::Salty.to_string());
 
         // Decrypt and check the salt in parameters
-        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(None, Some(pp.salt.as_str()), None, None, None)?;
+        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
+            None,
+            Some(pp.salt.as_str()),
+            None,
+            None,
+            None,
+        )?;
         // assert_eq!(decrypted_salt, salt.as_bytes());
 
         assert_eq!(pp.stem, "");
@@ -1844,11 +2292,17 @@ mod tests {
         let ps = manager.ks.sits.get(&[&spre])?.unwrap();
         assert!(ps.old.is_none());
         assert_eq!(ps.new.pubs.len(), 1);
-        assert_eq!(ps.new.pubs[0], "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT");
+        assert_eq!(
+            ps.new.pubs[0],
+            "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"
+        );
         assert_eq!(ps.new.ridx, 0);
         assert_eq!(ps.new.kidx, 0);
         assert_eq!(ps.nxt.pubs.len(), 1);
-        assert_eq!(ps.nxt.pubs[0], "DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX");
+        assert_eq!(
+            ps.nxt.pubs[0],
+            "DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"
+        );
         assert_eq!(ps.nxt.ridx, 1);
         assert_eq!(ps.nxt.kidx, 1);
 
@@ -1857,11 +2311,17 @@ mod tests {
         assert_eq!(keys, ps.new.pubs);
 
         // Test pubs database
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.new.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.new.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.nxt.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.nxt.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
@@ -1875,31 +2335,65 @@ mod tests {
         manager.move_prefix(&oldspre, &spre)?;
 
         // Test pubs database after move
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.new.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.new.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.nxt.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.nxt.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test signing with pubs list
-        let psigers = manager.sign(&ser, Some(ps.new.pubs.clone()), None, None, None, None, None, None)?;
+        let psigers = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )?;
         for siger in &psigers {
             assert!(matches!(siger, Sigmat::Indexed(_)));
         }
 
         // Test signing with verfers list
-        let vsigers = manager.sign(&ser, None, Some(verfers.clone()), None, None, None, None, None)?;
+        let vsigers = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )?;
 
-        let psigs: Vec<String> = psigers.iter().map(|s|{
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
-        let vsigs: Vec<String> = vsigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = psigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
+        let vsigs: Vec<String> = vsigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
 
         assert_eq!(psigs, vsigs);
         assert_eq!(psigs[0], "AAAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH");
@@ -1908,7 +2402,16 @@ mod tests {
         let indices = Some(vec![3]);
 
         // Test with pubs list and indices
-        let psigers = manager.sign(&ser, Some(ps.new.pubs.clone()), None, None, indices.clone(), None, None, None)?;
+        let psigers = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            None,
+            indices.clone(),
+            None,
+            None,
+            None,
+        )?;
 
         if let Sigmat::Indexed(siger) = &psigers[0] {
             assert_eq!(siger.index(), 3);
@@ -1916,14 +2419,28 @@ mod tests {
             panic!("Expected indexed signature");
         }
 
-        let psigs: Vec<String> = psigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = psigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
         assert_eq!(psigs[0], "ADAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH");
 
         // Test with verfers list and indices
-        let vsigers = manager.sign(&ser, None, Some(verfers.clone()), None, indices, None, None, None)?;
+        let vsigers = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            None,
+            indices,
+            None,
+            None,
+            None,
+        )?;
 
         if let Sigmat::Indexed(siger) = &vsigers[0] {
             assert_eq!(siger.index(), 3);
@@ -1931,28 +2448,61 @@ mod tests {
             panic!("Expected indexed signature");
         }
 
-        let vsigs: Vec<String> = vsigers.iter().map(|s| {
-            let Sigmat::Indexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let vsigs: Vec<String> = vsigers
+            .iter()
+            .map(|s| {
+                let Sigmat::Indexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
         assert_eq!(vsigs, psigs);
 
         // Test non-indexed signatures (cigars)
-        let pcigars = manager.sign(&ser, Some(ps.new.pubs.clone()), None, Some(false), None, None, None, None)?;
+        let pcigars = manager.sign(
+            &ser,
+            Some(ps.new.pubs.clone()),
+            None,
+            Some(false),
+            None,
+            None,
+            None,
+            None,
+        )?;
         for cigar in &pcigars {
             assert!(matches!(cigar, Sigmat::NonIndexed(_)));
         }
 
-        let vcigars = manager.sign(&ser, None, Some(verfers.clone()), Some(false), None, None, None, None)?;
+        let vcigars = manager.sign(
+            &ser,
+            None,
+            Some(verfers.clone()),
+            Some(false),
+            None,
+            None,
+            None,
+            None,
+        )?;
 
-        let psigs: Vec<String> = pcigars.iter().map(|s| {
-            let Sigmat::NonIndexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
-        let vsigs: Vec<String> = vcigars.iter().map(|s| {
-            let Sigmat::NonIndexed(sig) = s else { panic!("Not indexed")};
-            sig.qb64()
-        }).collect();
+        let psigs: Vec<String> = pcigars
+            .iter()
+            .map(|s| {
+                let Sigmat::NonIndexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
+        let vsigs: Vec<String> = vcigars
+            .iter()
+            .map(|s| {
+                let Sigmat::NonIndexed(sig) = s else {
+                    panic!("Not indexed")
+                };
+                sig.qb64()
+            })
+            .collect();
 
         assert_eq!(psigs, vsigs);
         assert_eq!(psigs[0], "0BAa70b4QnTOtGOsMqcezMtVzCFuRJHGeIMkWYHZ5ZxGIXM0XDVAzkYdCeadfPfzlKC6dkfiwuJ0IzLOElaanUgH");
@@ -1961,7 +2511,13 @@ mod tests {
         let oldpubs: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert_eq!(verfers.len(), 1);
@@ -1973,7 +2529,13 @@ mod tests {
         assert_eq!(pp.algo, Algos::Salty.to_string());
 
         // Decrypt and verify salt
-        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(None, Some(pp.salt.as_str()), None, None, None)?;
+        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
+            None,
+            Some(pp.salt.as_str()),
+            None,
+            None,
+            None,
+        )?;
         // assert_eq!(decrypted_salt, salt.as_bytes());
 
         assert_eq!(pp.stem, "");
@@ -1981,13 +2543,22 @@ mod tests {
 
         // Verify situation after rotation
         let ps = manager.ks.sits.get(&[&spre])?.unwrap();
-        assert_eq!(ps.old.as_ref().unwrap().pubs[0], "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT");
+        assert_eq!(
+            ps.old.as_ref().unwrap().pubs[0],
+            "DFRtyHAjSuJaRX6TDPva35GN11VHAruaOXMc79ZYDKsT"
+        );
         assert_eq!(ps.new.pubs.len(), 1);
-        assert_eq!(ps.new.pubs[0], "DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX");
+        assert_eq!(
+            ps.new.pubs[0],
+            "DHByVjuBrM1D9K71TuE5dq1HVDNS5-aLD-wcIlHiVoXX"
+        );
         assert_eq!(ps.new.ridx, 1);
         assert_eq!(ps.new.kidx, 1);
         assert_eq!(ps.nxt.pubs.len(), 1);
-        assert_eq!(ps.nxt.pubs[0], "DAoQ1WxT29XtCFtOpJZyuO2q38BD8KTefktf7X0WN4YW");
+        assert_eq!(
+            ps.nxt.pubs[0],
+            "DAoQ1WxT29XtCFtOpJZyuO2q38BD8KTefktf7X0WN4YW"
+        );
         assert_eq!(ps.nxt.ridx, 2);
         assert_eq!(ps.nxt.kidx, 2);
 
@@ -2004,8 +2575,14 @@ mod tests {
 
         // Update aeid and seed
         manager.update_aeid(aeid1.as_bytes().to_vec(), seed1.as_bytes().to_vec())?;
-        assert_eq!(manager.encrypter.as_ref().unwrap().qb64(), encrypter1.qb64());
-        assert_eq!(manager.decrypter.as_ref().unwrap().qb64(), decrypter1.qb64());
+        assert_eq!(
+            manager.encrypter.as_ref().unwrap().qb64(),
+            encrypter1.qb64()
+        );
+        assert_eq!(
+            manager.decrypter.as_ref().unwrap().qb64(),
+            decrypter1.qb64()
+        );
         assert_eq!(manager.seed(), &seed1.as_bytes().to_vec());
         assert_eq!(manager.aeid(), aeid1.as_bytes().to_vec());
 
@@ -2029,7 +2606,13 @@ mod tests {
 
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         // Verify parameters
@@ -2046,18 +2629,30 @@ mod tests {
         }
 
         // Test pubs database
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.new.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.new.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.new.pubs);
 
-        let ri_key = Keeper::ri_key(&String::from_utf8(spre.clone()).unwrap(), ps.nxt.ridx as u64);
+        let ri_key = Keeper::ri_key(
+            &String::from_utf8(spre.clone()).unwrap(),
+            ps.nxt.ridx as u64,
+        );
         let pl = manager.ks.pubs.get(&[&ri_key])?.unwrap();
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test rotation to null (ncount=0)
         let (verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
-            None, Some(0), None, None, None, None, None
+            None,
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         // Verify parameters after null rotation
@@ -2072,7 +2667,13 @@ mod tests {
         // Try to rotate after null - should fail
         let result = manager.rotate(
             &String::from_utf8(spre).unwrap().as_bytes(),
-            None, None, None, None, None, None, None
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         );
 
         assert!(result.is_err());
@@ -2085,6 +2686,4 @@ mod tests {
 
         Ok(())
     }
-
-
 }

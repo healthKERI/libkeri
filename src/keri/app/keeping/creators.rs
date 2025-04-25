@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(creator.tier(), None);
 
         // Test creating a single default signer
-        let signers = creator.create(None, None, None, None, None, None, None, None,);
+        let signers = creator.create(None, None, None, None, None, None, None, None);
         assert_eq!(signers.len(), 1);
 
         let signer = &signers[0];
@@ -365,7 +365,16 @@ mod tests {
         assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
 
         // Test creating multiple signers that are non-transferable
-        let signers = creator.create(None, Some(2), None, None, None, None, Some(false), Some(false));
+        let signers = creator.create(
+            None,
+            Some(2),
+            None,
+            None,
+            None,
+            None,
+            Some(false),
+            Some(false),
+        );
         assert_eq!(signers.len(), 2);
 
         for signer in &signers {
@@ -410,7 +419,16 @@ mod tests {
         assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
 
         // Test creating multiple signers that are non-transferable
-        let signers = creator.create(None, Some(2), None, None, None, None, Some(false), Some(false));
+        let signers = creator.create(
+            None,
+            Some(2),
+            None,
+            None,
+            None,
+            None,
+            Some(false),
+            Some(false),
+        );
         assert_eq!(signers.len(), 2);
         assert_eq!(signers.len(), 2);
 
@@ -430,7 +448,7 @@ mod tests {
         assert_eq!(creator.salter.raw(), raw);
 
         // Test creating a deterministic signer
-        let signers = creator.create(None, None, None, None, None, None, None, None, );
+        let signers = creator.create(None, None, None, None, None, None, None, None);
         assert_eq!(signers.len(), 1);
 
         let signer = &signers[0];
@@ -542,8 +560,8 @@ mod tests {
         let creator1 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
         let creator2 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
 
-        let signers1 = creator1.create(None, None, None, None, None, None, None, None, );
-        let signers2 = creator2.create(None, None, None, None, None, None, None, None, );
+        let signers1 = creator1.create(None, None, None, None, None, None, None, None);
+        let signers2 = creator2.create(None, None, None, None, None, None, None, None);
 
         assert_eq!(signers1[0].qb64(), signers2[0].qb64());
         assert_eq!(signers1[0].verfer().qb64(), signers2[0].verfer().qb64());

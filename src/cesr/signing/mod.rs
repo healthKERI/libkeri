@@ -21,7 +21,6 @@ pub enum Sigmat {
     NonIndexed(Cigar),
 }
 
-
 /// Module for X25519 cipher codes for variable-sized sniffable stream plaintext
 #[allow(dead_code)]
 pub mod cix_var_strm_dex {
@@ -412,11 +411,11 @@ pub mod cix_dex {
     ];
 }
 
+use crate::cesr::cigar::Cigar;
+use crate::cesr::indexing::siger::Siger;
 use crate::errors::MatterError;
 use sodiumoxide::crypto::box_::curve25519xsalsa20poly1305 as crypto_box;
 use sodiumoxide::crypto::sign::ed25519;
-use crate::cesr::cigar::Cigar;
-use crate::cesr::indexing::siger::Siger;
 
 /// Convert an Ed25519 public key to an X25519 public key
 pub fn ed25519_pk_to_x25519_pk(

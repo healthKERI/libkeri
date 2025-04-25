@@ -1,12 +1,12 @@
 use crate::cesr::b64_to_int;
 use crate::cesr::{int_to_b64, Versionage};
 use crate::errors::MatterError;
+use crate::keri::db::koming::KomerError;
+use crate::keri::db::subing::SuberError;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt;
 use thiserror::Error;
-use crate::keri::db::koming::KomerError;
-use crate::keri::db::subing::SuberError;
 
 mod app;
 mod core;
@@ -147,7 +147,6 @@ pub enum KERIError {
 
     #[error("Database komer error: {0}")]
     KomerError(#[from] KomerError),
-
 }
 
 impl From<MatterError> for KERIError {
