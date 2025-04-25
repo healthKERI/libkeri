@@ -77,7 +77,7 @@ impl IntoIterator for PubLot {
 pub struct PreSit {
     /// Previous public key lot
     #[serde(default)]
-    pub old: PubLot,
+    pub old: Option<PubLot>,
 
     /// Newly current public key lot
     #[serde(default)]
@@ -91,7 +91,7 @@ pub struct PreSit {
 impl Default for PreSit {
     fn default() -> Self {
         Self {
-            old: PubLot::default(),
+            old: Some(PubLot::default()),
             new: PubLot::default(),
             nxt: PubLot::default(),
         }

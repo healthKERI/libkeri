@@ -12,6 +12,7 @@ use sha3::{Digest, Sha3_256};
 use sodiumoxide::crypto::sign::ed25519;
 use sodiumoxide::randombytes;
 use std::any::Any;
+use crate::cesr::signing::Sigmat;
 
 /// Signer is a Matter subclass with method to create signature of serialization
 /// using:
@@ -155,7 +156,7 @@ impl Signer {
         index: Option<u32>,
         only: Option<bool>,
         ondex: Option<u32>,
-    ) -> Result<Box<dyn Matter>, MatterError> {
+    ) -> Result<Sigmat, MatterError> {
         let only = only.unwrap_or(false);
 
         match self.base.code() {
@@ -176,7 +177,7 @@ impl Signer {
         index: Option<u32>,
         only: bool,
         ondex: Option<u32>,
-    ) -> Result<Box<dyn Matter>, MatterError> {
+    ) -> Result<Sigmat, MatterError> {
         sodiumoxide::init()
             .map_err(|_| MatterError::CryptoError("Sodium initialization failed".into()))?;
 
@@ -198,7 +199,7 @@ impl Signer {
                     None,
                     Some(self.verfer.clone()),
                 )?;
-                Ok(Box::new(cigar))
+                Ok(Sigmat::NonIndexed(cigar))
             }
             Some(idx) => {
                 // Indexed signature (Siger)
@@ -228,7 +229,7 @@ impl Signer {
                     Some(self.verfer.clone()),
                 )?;
 
-                Ok(Box::new(siger))
+                Ok(Sigmat::Indexed(siger))
             }
         }
     }
@@ -240,7 +241,7 @@ impl Signer {
         index: Option<u32>,
         only: bool,
         ondex: Option<u32>,
-    ) -> Result<Box<dyn Matter>, MatterError> {
+    ) -> Result<Sigmat, MatterError> {
         let signing_key = SigningKey::from_slice(self.base.raw())
             .map_err(|_| MatterError::CryptoError("Invalid P256 seed".into()))?;
 
@@ -273,7 +274,7 @@ impl Signer {
                     None,
                     Some(self.verfer.clone()),
                 )?;
-                Ok(Box::new(cigar))
+                Ok(Sigmat::NonIndexed(cigar))
             }
             Some(idx) => {
                 // Indexed signature (Siger)
@@ -302,7 +303,7 @@ impl Signer {
                     Some(self.verfer.clone()),
                 )?;
 
-                Ok(Box::new(siger))
+                Ok(Sigmat::Indexed(siger))
             }
         }
     }
@@ -314,7 +315,7 @@ impl Signer {
         index: Option<u32>,
         only: bool,
         ondex: Option<u32>,
-    ) -> Result<Box<dyn Matter>, MatterError> {
+    ) -> Result<Sigmat, MatterError> {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(self.base.raw())
             .map_err(|_| MatterError::CryptoError("Invalid Secp256k1 seed".into()))?;
@@ -344,7 +345,7 @@ impl Signer {
                     None,
                     Some(self.verfer.clone()),
                 )?;
-                Ok(Box::new(cigar))
+                Ok(Sigmat::NonIndexed(cigar))
             }
             Some(idx) => {
                 // Indexed signature (Siger)
@@ -373,7 +374,7 @@ impl Signer {
                     Some(self.verfer.clone()),
                 )?;
 
-                Ok(Box::new(siger))
+                Ok(Sigmat::Indexed(siger))
             }
         }
     }
@@ -547,19 +548,19 @@ mod tests {
         let ser = b"test data";
 
         // Sign without index (Cigar)
-        let signature = signer.sign(ser, None, None, None).unwrap();
+        let Sigmat::NonIndexed(signature) = signer.sign(ser, None, None, None).unwrap() else {panic!("Invalid type")};
         assert_eq!(signature.code(), mtr_dex::ED25519_SIG);
 
         // Sign with index (Siger)
-        let signature = signer.sign(ser, Some(0), None, None).unwrap();
+        let Sigmat::Indexed(signature) = signer.sign(ser, Some(0), None, None).unwrap() else {panic!("Invalid type")};
         assert_eq!(signature.code(), idr_dex::ED25519_SIG);
 
         // Sign with large index
-        let signature = signer.sign(ser, Some(100), None, None).unwrap();
+        let Sigmat::Indexed(signature) = signer.sign(ser, Some(100), None, None).unwrap() else {panic!("Invalid type")};
         assert_eq!(signature.code(), idr_dex::ED25519_BIG_SIG);
 
         // Sign with only=true
-        let signature = signer.sign(ser, Some(0), Some(true), None).unwrap();
+        let Sigmat::Indexed(signature) = signer.sign(ser, Some(0), Some(true), None).unwrap() else {panic!("Invalid type")};
         assert_eq!(signature.code(), idr_dex::ED25519_CRT_SIG);
     }
 
@@ -575,8 +576,7 @@ mod tests {
         // Create something to sign and verify
         let ser = b"abcdefghijklmnopqrstuvwxyz0123456789";
 
-        let cigar = signer.sign(ser, None, None, None)?;
-        let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
+        let Sigmat::NonIndexed(cigar) = signer.sign(ser, None, None, None)? else {panic!("Invalid type")};
         assert_eq!(cigar.code(), mtr_dex::ED25519_SIG);
         assert_eq!(cigar.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
         let result = signer.verfer().verify(cigar.raw(), ser)?;
@@ -584,7 +584,7 @@ mod tests {
 
         // Test with index
         let index = 0;
-        let siger = signer.sign(ser, Some(index), None, None)?;
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), None, None)? else {panic!("Invalid type")};
         let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
         assert_eq!(siger.code(), idr_dex::ED25519_SIG);
         assert_eq!(siger.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
@@ -615,16 +615,14 @@ mod tests {
             mtr_raw_size(mtr_dex::ED25519N)?
         );
 
-        let cigar = signer.sign(ser, None, None, None)?;
-        let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
+        let Sigmat::NonIndexed(cigar) = signer.sign(ser, None, None, None)? else {panic!("Invalid type")};
         assert_eq!(cigar.code(), mtr_dex::ED25519_SIG);
         assert_eq!(cigar.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
         let result = signer.verfer().verify(cigar.raw(), ser)?;
         assert!(result);
 
         // Test with index for non-transferable
-        let siger = signer.sign(ser, Some(0), None, None)?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(0), None, None)? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_SIG);
         assert_eq!(siger.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
         assert_eq!(siger.index(), index);
@@ -647,8 +645,7 @@ mod tests {
         assert_eq!(signer.verfer().code(), mtr_dex::ED25519);
         assert_eq!(signer.verfer().raw().len(), mtr_raw_size(mtr_dex::ED25519)?);
 
-        let cigar = signer.sign(ser, None, None, None)?;
-        let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
+        let Sigmat::NonIndexed(cigar) = signer.sign(ser, None, None, None)? else {panic!("Invalid type")};
         assert_eq!(cigar.code(), mtr_dex::ED25519_SIG);
         assert_eq!(cigar.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
         let result = signer.verfer().verify(cigar.raw(), ser)?;
@@ -656,8 +653,7 @@ mod tests {
 
         // Test with different index
         let index = 1;
-        let siger = signer.sign(ser, Some(index), None, None)?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), None, None)? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_SIG);
         assert_eq!(siger.raw().len(), mtr_raw_size(mtr_dex::ED25519_SIG)?);
         assert_eq!(siger.index(), index);
@@ -671,8 +667,7 @@ mod tests {
         // Test with different index and ondex - should use Big format
         let index = 1;
         let ondex = 3;
-        let siger = signer.sign(ser, Some(index), None, Some(ondex))?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), None, Some(ondex))? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_BIG_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_BIG_SIG)?);
         assert_eq!(siger.index(), index);
@@ -682,8 +677,7 @@ mod tests {
 
         // Test Big index (same index, ondex)
         let index = 67;
-        let siger = signer.sign(ser, Some(index), None, None)?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), None, None)? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_BIG_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_BIG_SIG)?);
         assert_eq!(siger.index(), index);
@@ -693,8 +687,7 @@ mod tests {
 
         // Test Big index with different ondex
         let ondex = 67;
-        let siger = signer.sign(ser, Some(index), None, Some(ondex))?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), None, Some(ondex))? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_BIG_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_BIG_SIG)?);
         assert_eq!(siger.index(), index);
@@ -704,8 +697,7 @@ mod tests {
 
         // Test current only
         let index = 4;
-        let siger = signer.sign(ser, Some(index), Some(true), None)?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), Some(true), None)? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_CRT_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_CRT_SIG)?);
         assert_eq!(siger.index(), index);
@@ -714,8 +706,7 @@ mod tests {
         assert!(result);
 
         // Test current only ignores ondex
-        let siger = signer.sign(ser, Some(index), Some(true), Some(index + 2))?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), Some(true), Some(index + 2))? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_CRT_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_CRT_SIG)?);
         assert_eq!(siger.index(), index);
@@ -725,8 +716,7 @@ mod tests {
 
         // Test big current only
         let index = 65;
-        let siger = signer.sign(ser, Some(index), Some(true), None)?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), Some(true), None)? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_BIG_CRT_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_BIG_CRT_SIG)?);
         assert_eq!(siger.index(), index);
@@ -735,8 +725,7 @@ mod tests {
         assert!(result);
 
         // Test big current only ignores ondex
-        let siger = signer.sign(ser, Some(index), Some(true), Some(index + 2))?;
-        let siger = siger.as_any().downcast_ref::<Siger>().unwrap();
+        let Sigmat::Indexed(siger) = signer.sign(ser, Some(index), Some(true), Some(index + 2))? else {panic!("Invalid type")};
         assert_eq!(siger.code(), idr_dex::ED25519_BIG_CRT_SIG);
         assert_eq!(siger.raw().len(), raw_size(idr_dex::ED25519_BIG_CRT_SIG)?);
         assert_eq!(siger.index(), index);
@@ -769,8 +758,7 @@ mod tests {
         // Create something to sign and verify
         let ser = b"abcdefghijklmnopqrstuvwxyz0123456789";
 
-        let cigar = signer.sign(ser, None, None, None).unwrap();
-        let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
+        let Sigmat::NonIndexed(cigar) = signer.sign(ser, None, None, None).unwrap() else {panic!("Invalid type")};
         assert_eq!(cigar.code(), mtr_dex::ECDSA_256R1_SIG);
         assert_eq!(
             cigar.raw().len(),
@@ -829,8 +817,7 @@ mod tests {
         let cigarqb64 = "0ICM-rRAAdKrSrzFlouiZXbNUZ07QMM1IXOaG-gv4TAo4QeQCKZC1z82jJYy_wFkAxgIhbikl3a-nOTXxecF2lEj";
 
         let signer = Signer::new(Some(seed), Some(mtr_dex::ECDSA_256R1_SEED), None).unwrap();
-        let cigar = signer.sign(ser, None, None, None).unwrap();
-        let cigar = cigar.as_any().downcast_ref::<Cigar>().unwrap();
+        let Sigmat::NonIndexed(cigar) = signer.sign(ser, None, None, None).unwrap() else {panic!("Invalid type")};
 
         assert_eq!(signer.code(), mtr_dex::ECDSA_256R1_SEED);
         assert_eq!(

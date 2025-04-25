@@ -43,7 +43,11 @@ pub trait Creator: Debug {
         codes: Option<Vec<&str>>,
         count: Option<usize>,
         code: Option<&str>,
+        pidx: Option<usize>,
+        ridx: Option<usize>,
+        kidx: Option<usize>,
         transferable: Option<bool>,
+        temp: Option<bool>,
     ) -> Vec<Signer>;
 
     /// Get the salt value
@@ -75,7 +79,11 @@ impl Creator for RandyCreator {
         codes: Option<Vec<&str>>,
         count: Option<usize>,
         code: Option<&str>,
+        _pidx: Option<usize>,
+        _ridx: Option<usize>,
+        _kidx: Option<usize>,
         transferable: Option<bool>,
+        _temp: Option<bool>,
     ) -> Vec<Signer> {
         let count = count.unwrap_or(1);
         let code = code.unwrap_or(mtr_dex::ED25519_SEED);
@@ -148,17 +156,21 @@ impl Creator for SaltyCreator {
         codes: Option<Vec<&str>>,
         count: Option<usize>,
         code: Option<&str>,
+        pidx: Option<usize>,
+        ridx: Option<usize>,
+        kidx: Option<usize>,
         transferable: Option<bool>,
+        temp: Option<bool>,
     ) -> Vec<Signer> {
         let count = count.unwrap_or(1);
         let code = code.unwrap_or(mtr_dex::ED25519_SEED);
         let transferable = transferable.unwrap_or(true);
 
         // Additional parameters with defaults
-        let pidx = 0;
-        let ridx = 0;
-        let kidx = 0;
-        let temp = false;
+        let pidx = pidx.unwrap_or(0);
+        let ridx = ridx.unwrap_or(0);
+        let kidx = kidx.unwrap_or(0);
+        let temp = temp.unwrap_or(false);
 
         self.create_with_options(codes, count, code, pidx, ridx, kidx, transferable, temp)
     }
@@ -344,7 +356,7 @@ mod tests {
         assert_eq!(creator.tier(), None);
 
         // Test creating a single default signer
-        let signers = creator.create(None, None, None, None);
+        let signers = creator.create(None, None, None, None, None, None, None, None,);
         assert_eq!(signers.len(), 1);
 
         let signer = &signers[0];
@@ -353,7 +365,7 @@ mod tests {
         assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
 
         // Test creating multiple signers that are non-transferable
-        let signers = creator.create(None, Some(2), None, Some(false));
+        let signers = creator.create(None, Some(2), None, None, None, None, Some(false), Some(false));
         assert_eq!(signers.len(), 2);
 
         for signer in &signers {
@@ -364,7 +376,7 @@ mod tests {
 
         // Test creating signers with specific codes
         let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
-        let signers = creator.create(Some(codes), None, None, None);
+        let signers = creator.create(Some(codes), None, None, None, None, None, None, None);
         assert_eq!(signers.len(), 2);
 
         for signer in &signers {
@@ -389,7 +401,7 @@ mod tests {
         assert_eq!(creator.salter.code(), mtr_dex::SALT_128);
 
         // Test creating a single default signer
-        let signers = creator.create(None, None, None, None);
+        let signers = creator.create(None, None, None, None, None, None, None, None);
         assert_eq!(signers.len(), 1);
 
         let signer = &signers[0];
@@ -398,7 +410,8 @@ mod tests {
         assert!(!non_trans_dex::TUPLE.contains(&signer.verfer().code()));
 
         // Test creating multiple signers that are non-transferable
-        let signers = creator.create(None, Some(2), None, Some(false));
+        let signers = creator.create(None, Some(2), None, None, None, None, Some(false), Some(false));
+        assert_eq!(signers.len(), 2);
         assert_eq!(signers.len(), 2);
 
         for signer in &signers {
@@ -417,7 +430,7 @@ mod tests {
         assert_eq!(creator.salter.raw(), raw);
 
         // Test creating a deterministic signer
-        let signers = creator.create(None, None, None, None);
+        let signers = creator.create(None, None, None, None, None, None, None, None, );
         assert_eq!(signers.len(), 1);
 
         let signer = &signers[0];
@@ -465,7 +478,7 @@ mod tests {
         assert!(creator.stem().is_empty());
         assert!(creator.tier().is_none());
 
-        let signers = creator.create(None, None, None, None);
+        let signers = creator.create(None, None, None, None, None, None, None, None);
         assert_eq!(signers.len(), 1);
         assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
 
@@ -529,15 +542,15 @@ mod tests {
         let creator1 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
         let creator2 = SaltyCreator::new(Some(&salt), Some("test"), None)?;
 
-        let signers1 = creator1.create(None, None, None, None);
-        let signers2 = creator2.create(None, None, None, None);
+        let signers1 = creator1.create(None, None, None, None, None, None, None, None, );
+        let signers2 = creator2.create(None, None, None, None, None, None, None, None, );
 
         assert_eq!(signers1[0].qb64(), signers2[0].qb64());
         assert_eq!(signers1[0].verfer().qb64(), signers2[0].verfer().qb64());
 
         // Different paths should produce different keys
         let creator3 = SaltyCreator::new(Some(&salt), Some("different"), None)?;
-        let signers3 = creator3.create(None, None, None, None);
+        let signers3 = creator3.create(None, None, None, None, None, None, None, None);
 
         assert_ne!(signers1[0].qb64(), signers3[0].qb64());
         assert_ne!(signers1[0].verfer().qb64(), signers3[0].verfer().qb64());
@@ -551,7 +564,7 @@ mod tests {
         let creator = RandyCreator::new();
 
         let codes = vec![mtr_dex::ED25519_SEED, mtr_dex::ED25519_SEED];
-        let signers = creator.create(Some(codes), None, None, None);
+        let signers = creator.create(Some(codes), None, None, None, None, None, None, None);
 
         assert_eq!(signers.len(), 2);
         assert_eq!(signers[0].code(), mtr_dex::ED25519_SEED);
