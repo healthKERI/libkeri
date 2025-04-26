@@ -433,13 +433,13 @@ mod tests {
         // Test with multiple values per key using on_key
         let vals1 = ["hi", "me", "my"];
         for (i, val) in vals1.iter().enumerate() {
-            let key = on_key("bob", i as u64, Some([b'.']));
+            let key = on_key("bob", i as u64, None);
             assert!(dupber.put(&[&key], &[val])?);
         }
 
         let vals2 = ["bye", "guy", "gal"];
         for (i, val) in vals2.iter().enumerate() {
-            let key = on_key("bob", i as u64, Some([b'.']));
+            let key = on_key("bob", i as u64, None);
             assert!(dupber.put(&[&key], &[val])?);
         }
 
@@ -504,15 +504,22 @@ mod tests {
         )));
 
         // Test count of values for a specific key
-        let key1 = on_key("bob", 1, Some([b'.']));
+        let key1 = on_key("bob", 1, None);
         assert_eq!(dupber.cnt(&[&key1])?, 2);
 
         // Test get iterator for specific key
-        let key2 = on_key("bob", 2, Some([b'.']));
-        let bytes: Vec<Vec<u8>> = dupber.get(&[&key2])?;
-        assert_eq!(bytes.len(), 2);
-        assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), "gal");
-        assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), "my");
+        let key2 = on_key("bob", 2, None);
+        let iter = dupber.get_iter::<_, Vec<u8>>(&[&key2])?;
+        let vals: Vec<Vec<u8>> = iter.collect::<Result<Vec<_>, _>>()?;
+        // Then convert to strings if needed
+        let vals_as_strings: Vec<String> = vals
+            .into_iter()
+            .map(|bytes| String::from_utf8(bytes).unwrap())
+            .collect();
+
+        assert_eq!(vals_as_strings.len(), 2);
+        assert_eq!(vals_as_strings[0], "gal");
+        assert_eq!(vals_as_strings[1], "my");
 
         // The database should be removed when db goes out of scope
         Ok(())
