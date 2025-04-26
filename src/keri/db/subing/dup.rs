@@ -133,7 +133,16 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
             .collect() // Collects into Result<Vec<R>, SuberError>
     }
 
-    /// Gets last dup val at key made from keys.
+    /// Gets the last duplicate value at key made from keys
+    ///
+    /// # Arguments
+    ///
+    /// * `keys`: An array slice of key parts to be combined to form key
+    ///
+    /// # Returns
+    ///
+    /// `Result<Option<R>, SuberError>` - Deserialized value if found, None if no value at key,
+    /// or an error if deserialization fails
     pub fn get_last<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(
         &self,
         keys: &[K],
@@ -142,19 +151,14 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
         <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
     {
         let key = self.base.to_key(keys, false);
-        let mut last_val: Option<Vec<u8>> = None;
-
-        // Iterate through all values and keep the last one
-        self.base
+        let raw_val_opt = self
+            .base
             .db
-            .get_vals_iter(&self.base.sdb, &key, |val| {
-                last_val = Some(val.to_vec());
-                Ok(true)
-            })
+            .get_val_last(&self.base.sdb, &key)
             .map_err(SuberError::DBError)?;
 
-        match last_val {
-            Some(raw_val) => self.base.des(&raw_val).map(Some),
+        match raw_val_opt {
+            Some(val) => self.base.des(&val).map(Some),
             None => Ok(None),
         }
     }

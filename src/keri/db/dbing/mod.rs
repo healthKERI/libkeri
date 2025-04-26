@@ -416,6 +416,41 @@ impl LMDBer {
         Ok(result)
     }
 
+    /// Returns the last of the duplicated values associated with a key for databases with dupsort=true,
+    ///
+    /// # Parameters
+    /// - `db`: The database to search
+    /// - `key`: The key to look up
+    ///
+    /// # Returns
+    /// - `Ok(Some(Vec<u8>))`: The last value if found
+    /// - `Ok(None)`: If no value exists at the key
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_val_last(&self, db: &BytesDatabase, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
+        if key.is_empty() {
+            return Err(DBError::KeyError(
+                "Key is empty, too big, or wrong DUPFIXED size".to_string(),
+            ));
+        }
+
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+        let rtxn = env.read_txn()?;
+
+        // For dupsort databases, we need to collect all values and return the last one
+        let mut last_val: Option<Vec<u8>> = None;
+
+        // Collect all duplicate values for this key
+        if let Some(mut iter) = db.get_duplicates(&rtxn, &key)? {
+            // Now we have the actual iterator, so we can use next()
+            while let Some(val_result) = iter.next() {
+                // Handle the Result from next()
+                let (_key, val) = val_result?;
+                last_val = Some(val.to_vec());
+            }
+        }
+        Ok(last_val)
+    }
+
     // Delete a value
     pub fn del_val(&self, db: &BytesDatabase, key: &[u8]) -> Result<bool, DBError> {
         let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
