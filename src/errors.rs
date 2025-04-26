@@ -183,6 +183,11 @@ pub enum MatterError {
     #[error("CryptoError: {0}")]
     CryptoError(String),
 
-    #[error("CryptoError: {0}")]
+    #[error("Invalid key: {0}")]
     InvalidKey(String),
+    
+    #[error("Decoding error: {0}")]
+    DecodingError(String),
+    
+    
 }

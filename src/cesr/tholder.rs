@@ -15,8 +15,11 @@ pub enum WeightSpec {
     /// Simple fractional weight
     Simple(Rational32),
 
-    /// Complex weight with a fractional weight applied to a set of weights
-    Complex(Rational32, Vec<Rational32>),
+    /// Weighted threshold with key weight and list of witness weights
+    WeightedVec(Vec<WeightSpec>),
+
+    /// Weighted threshold with key weight and list of witness weights
+    WeightedMap(Rational32, Vec<Rational32>),
 }
 
 /// Tholder is KERI Signing Threshold Satisfaction struct
@@ -53,22 +56,25 @@ pub enum TholderSith {
     /// Hex string representation of integer threshold
     HexString(String),
 
-    /// Single clause of fractional weights
-    SimpleWeights(Vec<WeightSithElement>),
+    /// Json representation of threshold
+    Json(String),
 
-    /// Multiple clauses of fractional weights (AND conditions)
-    ComplexWeights(Vec<Vec<WeightSithElement>>),
+    /// Single clause of fractional weights
+    Weights(Vec<WeightedSithElement>),
 }
 
 /// Represents the different elements that can appear in a weight clause
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum WeightSithElement {
+pub enum WeightedSithElement {
     /// Simple fraction string like "1/2"
     Simple(String),
-
-    /// Complex weight with key as fraction and value as list of fractions
-    Complex(String, HashMap<String, Vec<String>>),
+    
+    /// Array of nested weights like ["1/2", "1/3", ["1/3", "1/3", "1/3"]]
+    Array(Vec<WeightedSithElement>),
+    
+    /// Complex weight with key as fraction and value as list of fractions like {"1/2": ["1/2", "1/3"]}
+    Complex(HashMap<String, Vec<WeightedSithElement>>),
 }
 
 /// Represents the parsed threshold for calculating satisfaction
@@ -158,7 +164,7 @@ impl Tholder {
         } else if bex_dex::MAP.contains_key(matter.code()) {
             // Convert to fractional thold expression
             let bexter = Bexter::new(Some(matter.raw()), Some(matter.code()), None, None)?;
-            let t = bexter.bext().replace('s', "/");
+            let t = bexter.bext()?.replace('s', "/");
 
             // Get clauses
             let clauses: Vec<&str> = t.split('a').collect();
@@ -179,16 +185,16 @@ impl Tholder {
                             .map(|w| Self::weight(w))
                             .collect::<Result<Vec<Rational32>, _>>()?;
 
-                        clause.push(ClauseItem::Weighted(Self::weight(k)?, weights));
+                        clause.push(WeightSpec::WeightedMap(Self::weight(k)?, weights));
                     } else {
-                        clause.push(ClauseItem::Simple(Self::weight(e)?));
+                        clause.push(WeightSpec::Simple(Self::weight(e)?));
                     }
                 }
 
                 thold.push(clause);
             }
 
-            // self.process_weighted(thold)?;
+            self.process_weighted(thold)?;
         } else {
             return Err(MatterError::InvalidCode(format!(
                 "Invalid code for limen = {}",
@@ -222,19 +228,9 @@ impl Tholder {
                     ))),
                 }
             }
-
-            TholderSith::SimpleWeights(weights) => {
-                if weights.is_empty() {
-                    return Err(MatterError::ValueError("Empty weight list".to_string()));
-                }
-
-                // Convert a single clause of weights
-                let processed_clause = self.process_weight_clause(&weights)?;
-                Err(MatterError::ValueError("NOT IMPLEMENTED".to_string()))
-                // self.process_weighted(vec![processed_clause])
-            }
-
-            TholderSith::ComplexWeights(clauses) => {
+            
+            TholderSith::Json(json_val) => {
+                let clauses: Vec<WeightedSithElement> = serde_json::from_str(json_val.as_str()).unwrap();
                 if clauses.is_empty() {
                     return Err(MatterError::ValueError("Empty weight list".to_string()));
                 }
@@ -242,17 +238,24 @@ impl Tholder {
                 // Convert all clauses
                 let mut thold = Vec::new();
                 for clause in clauses {
-                    if clause.is_empty() {
-                        return Err(MatterError::ValueError(
-                            "Empty clause in weight list".to_string(),
-                        ));
-                    }
-
                     let processed_clause = self.process_weight_clause(&clause)?;
                     thold.push(processed_clause);
                 }
-                Err(MatterError::ValueError("NOT IMPLEMENTED".to_string()))
-                // self.process_weighted(thold)
+                self.process_weighted(thold)
+            }
+
+            TholderSith::Weights(clauses) => {
+                if clauses.is_empty() {
+                    return Err(MatterError::ValueError("Empty weight list".to_string()));
+                }
+
+                // Convert all clauses
+                let mut thold = Vec::new();
+                for clause in clauses {
+                    let processed_clause = self.process_weight_clause(&clause)?;
+                    thold.push(processed_clause);
+                }
+                self.process_weighted(thold)
             }
         }
     }
@@ -260,25 +263,34 @@ impl Tholder {
     /// Helper function to process a clause of weight elements
     fn process_weight_clause(
         &self,
-        clause: &[WeightSithElement],
-    ) -> Result<Vec<ClauseItem>, MatterError> {
+        clause: &WeightedSithElement,
+    ) -> Result<Vec<WeightSpec>, MatterError> {
         let mut processed_clause = Vec::new();
 
-        for element in clause {
-            match element {
-                WeightSithElement::Simple(weight_str) => {
-                    let weight = Self::weight(weight_str)?;
-                    processed_clause.push(ClauseItem::Simple(weight));
+        match clause {
+            WeightedSithElement::Simple(weight_str) => {
+                let weight = Self::weight(weight_str)?;
+                processed_clause.push(WeightSpec::Simple(weight));
+            }
+            
+            WeightedSithElement::Array(sub_clauses) => {
+                let mut processed_sub_clauses = Vec::new();
+                for clause in sub_clauses {
+                    let mut processed_clause = self.process_weight_clause(&clause)?;
+                    processed_clause.append(&mut processed_sub_clauses);
                 }
+                
+                processed_clause.push(WeightSpec::WeightedVec(processed_sub_clauses))
 
-                WeightSithElement::Complex(key, weights) => {
-                    let key_weight = Self::weight(key)?;
+            }
 
-                    let nested_weights: Result<Vec<Rational32>, _> =
-                        weights.iter().map(|w| Self::weight("")).collect();
+            WeightedSithElement::Complex(weights) => {
+                let key_weight = Self::weight("")?;
 
-                    processed_clause.push(ClauseItem::Weighted(key_weight, nested_weights?));
-                }
+                let nested_weights: Result<Vec<Rational32>, _> =
+                    weights.iter().map(|_w| Self::weight("")).collect();
+
+                processed_clause.push(WeightSpec::WeightedMap(key_weight, nested_weights?));
             }
         }
 
@@ -312,7 +324,7 @@ impl Tholder {
     }
 
     /// Evaluates if indices satisfy a weighted threshold
-    fn satisfy_weighted(&self, indices: &[usize]) -> bool {
+    fn satisfy_weighted(&self, _indices: &[usize]) -> bool {
         // Placeholder implementation
         false
     }
@@ -346,10 +358,10 @@ impl Tholder {
     /// Returns the JSON serializable threshold
     pub fn sith(&self) -> TholderSith {
         match &self._thold {
-            TholderThold::Weighted(clauses) => {
+            TholderThold::Weighted(_clauses) => {
                 // Convert weighted threshold back to sith format
                 // This is a simplified placeholder
-                TholderSith::ComplexWeights(vec![]) // Would need actual implementation
+                TholderSith::Weights(vec![]) // Would need actual implementation
             }
             TholderThold::Integer(n) => {
                 // Convert int to hex string
@@ -371,148 +383,6 @@ impl Tholder {
             }
         }
         None
-    }
-
-    // Helper method to process JSON value into weighted threshold
-    fn process_sith_from_json(json_val: serde_json::Value) -> Result<Self, MatterError> {
-        match json_val {
-            serde_json::Value::Array(arr) => {
-                if arr.is_empty() {
-                    return Err(MatterError::ValueError("Empty weight list".to_string()));
-                }
-
-                // Check if first element is an array (sequence of sequences)
-                let is_nested = arr.iter().all(|v| v.is_array());
-
-                if is_nested {
-                    // Convert JSON array of arrays to TholderSith::ComplexWeights
-                    let clauses = arr
-                        .into_iter()
-                        .map(|clause_val| {
-                            match clause_val {
-                                serde_json::Value::Array(clause_arr) => {
-                                    // Convert each element in clause to WeightSithElement
-                                    clause_arr
-                                        .into_iter()
-                                        .map(|elem| Self::json_value_to_weight_element(elem))
-                                        .collect::<Result<Vec<_>, _>>()
-                                }
-                                _ => Err(MatterError::ValueError(format!(
-                                    "Expected array of weights, got: {:?}",
-                                    clause_val
-                                ))),
-                            }
-                        })
-                        .collect::<Result<Vec<Vec<WeightSithElement>>, _>>()?;
-
-                    Self::process_weighted_clauses(clauses)
-                } else {
-                    // Convert JSON array to TholderSith::SimpleWeights
-                    let weights = arr
-                        .into_iter()
-                        .map(|elem| Self::json_value_to_weight_element(elem))
-                        .collect::<Result<Vec<_>, _>>()?;
-
-                    // Wrap simple weights in a vector to make it a sequence of sequences
-                    Self::process_weighted_clauses(vec![weights])
-                }
-            }
-            _ => Err(MatterError::ValueError(format!(
-                "Expected array of weights, got: {:?}",
-                json_val
-            ))),
-        }
-    }
-
-    // Convert JSON value to WeightSithElement
-    fn json_value_to_weight_element(
-        value: serde_json::Value,
-    ) -> Result<WeightSithElement, MatterError> {
-        match value {
-            serde_json::Value::String(s) => Ok(WeightSithElement::Simple(s)),
-            serde_json::Value::Object(map) => {
-                if map.len() != 1 {
-                    return Err(MatterError::ValueError(format!(
-                        "Nested weight map must have exactly one key-value pair, got: {:?}",
-                        map
-                    )));
-                }
-
-                let (key, val) = map.into_iter().next().unwrap();
-
-                match val {
-                    serde_json::Value::Array(arr) => {
-                        let weights = arr
-                            .into_iter()
-                            .map(|v| match v {
-                                serde_json::Value::String(s) => Ok(s),
-                                _ => Err(MatterError::ValueError(format!(
-                                    "Weight value must be a string, got: {:?}",
-                                    v
-                                ))),
-                            })
-                            .collect::<Result<Vec<String>, _>>()?;
-
-                        let mut weight_map = HashMap::new();
-                        weight_map.insert(key, weights);
-
-                        Ok(WeightSithElement::Complex(String::from(""), weight_map))
-                    }
-                    _ => Err(MatterError::ValueError(format!(
-                        "Weight value must be an array, got: {:?}",
-                        val
-                    ))),
-                }
-            }
-            _ => Err(MatterError::ValueError(format!(
-                "Weight element must be a string or object, got: {:?}",
-                value
-            ))),
-        }
-    }
-
-    // Process weighted clauses
-    fn process_weighted_clauses(clauses: Vec<Vec<WeightSithElement>>) -> Result<Self, MatterError> {
-        // Convert string weights to actual Rational values
-        let mut thold = Vec::new();
-
-        for clause in clauses {
-            let mut processed_clause = Vec::new();
-
-            for element in clause {
-                match element {
-                    WeightSithElement::Simple(weight_str) => {
-                        let weight = Self::weight(&weight_str)?;
-                        processed_clause.push(WeightSpec::Simple(weight));
-                    }
-                    WeightSithElement::Complex(key, weight_map) => {
-                        if weight_map.len() != 1 {
-                            return Err(MatterError::ValueError(format!(
-                                "Invalid nested weight map: {:?} - must have exactly one key",
-                                weight_map
-                            )));
-                        }
-
-                        let (key, values) = weight_map.into_iter().next().unwrap();
-                        let key_weight = Self::weight(&key)?;
-
-                        let value_weights = values
-                            .into_iter()
-                            .map(|v| Self::weight(&v))
-                            .collect::<Result<Vec<_>, _>>()?;
-
-                        processed_clause.push(WeightSpec::Complex(key_weight, value_weights));
-                    }
-                }
-            }
-
-            thold.push(processed_clause);
-        }
-
-        let mut tholder = Tholder::default();
-        tholder.process_weighted(thold)?;
-
-        Ok(tholder)
     }
 
     // Process unweighted (numeric) threshold
@@ -539,18 +409,150 @@ impl Tholder {
         }
     }
 
-    // Process weighted threshold
+    /// Process weighted threshold
     fn process_weighted(&mut self, thold: Vec<Vec<WeightSpec>>) -> Result<(), MatterError> {
+        // Validate threshold clauses
+        for clause in &thold {
+            // Validate that sum of top-level weights in clause must be >= 1
+            let mut top_weights = Vec::new();
+
+            for e in clause {
+                match e {
+                    WeightSpec::Simple(weight) => {
+                        top_weights.push(*weight);
+                    },
+                    WeightSpec::WeightedMap(key_weight, nested_weights) => {
+                        top_weights.push(*key_weight);
+
+                        // Validate that sum of nested weights must be >= 1
+                        let sum_nested: Rational32 = nested_weights.iter().sum();
+                        if sum_nested < Rational32::new(1, 1) {
+                            return Err(MatterError::ValueError(format!(
+                                "Invalid sith clause, nested clause weight sum must be >= 1. Got: {:?}",
+                                sum_nested
+                            )));
+                        }
+                    },
+                    WeightSpec::WeightedVec(nested_specs) => {
+                        // Handle nested vector case similar to Complex case
+                        let mut nested_sum = Rational32::new(0, 1);
+
+                        for nested_spec in nested_specs {
+                            if let WeightSpec::Simple(weight) = nested_spec {
+                                nested_sum = nested_sum + *weight;
+                            }
+                            // Could handle deeper nesting here if needed
+                        }
+
+                        if nested_sum < Rational32::new(1, 1) {
+                            return Err(MatterError::ValueError(format!(
+                                "Invalid sith clause, nested vec weight sum must be >= 1. Got: {:?}",
+                                nested_sum
+                            )));
+                        }
+
+                        // Add a weight for this nested vector (could be a parameter)
+                        top_weights.push(Rational32::new(1, 1));
+                    }
+                }
+            }
+
+            // Validate top level sum
+            let sum_top: Rational32 = top_weights.iter().sum();
+            if !(sum_top < Rational32::new(1, 1)) {
+                return Err(MatterError::ValueError(format!(
+                    "Invalid sith clause, top level weight sum must be >= 1. Got: {:?}",
+                    sum_top
+                )));
+            }
+        }
+
         // Calculate size based on weighted threshold
-        let size = 0;
+        let mut size = 0;
+        for clause in &thold {
+            for e in clause {
+                match e {
+                    WeightSpec::Simple(_) => {
+                        size += 1;
+                    },
+                    WeightSpec::WeightedMap(_, nested_weights) => {
+                        size += nested_weights.len();
+                    },
+                    WeightSpec::WeightedVec(nested_specs) => {
+                        size += nested_specs.len();
+                    }
+                }
+            }
+        }
 
-        // TODO: Implement proper Bexter serialization of weighted threshold
-        // This is a placeholder implementation
-        let bexter = Bexter::from_qb64("B")?;
+        // Create bexter string from thold
+        let mut ta = Vec::new(); // List of clauses
 
+        for clause in &thold {
+            let mut bc = Vec::new(); // List of elements in current clause
+
+            for e in clause {
+                match e {
+                    WeightSpec::Simple(weight) => {
+                        // Format simple weight
+                        let w_str = if *weight > Rational32::new(0, 1) && *weight < Rational32::new(1, 1) {
+                            format!("{}s{}", weight.numer(), weight.denom())
+                        } else {
+                            format!("{}", weight.numer() / weight.denom())
+                        };
+
+                        bc.push(w_str);
+                    },
+                    WeightSpec::WeightedMap(key_weight, nested_weights) => {
+                        // Format key weight
+                        let k = if *key_weight > Rational32::new(0, 1) && *key_weight < Rational32::new(1, 1) {
+                            format!("{}s{}", key_weight.numer(), key_weight.denom())
+                        } else {
+                            format!("{}", key_weight.numer() / key_weight.denom())
+                        };
+
+                        // Format nested weights joined by 'v'
+                        let v = nested_weights.iter()
+                            .map(|f| {
+                                if *f > Rational32::new(0, 1) && *f < Rational32::new(1, 1) {
+                                    format!("{}s{}", f.numer(), f.denom())
+                                } else {
+                                    format!("{}", f.numer() / f.denom())
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join("v");
+
+                        // Join key and values with 'k'
+                        let kv = format!("{}k{}", k, v);
+                        bc.push(kv);
+                    },
+                    WeightSpec::WeightedVec(_nested_specs) => {
+                        // Handle nested vectors similar to WeightedMap
+                        // This would be more complex and depends on how you want to represent
+                        // nested vectors in the bexter format
+                        // For simplicity, just adding a placeholder
+                        bc.push("1".to_string()); // Placeholder
+                    }
+                }
+            }
+
+            ta.push(bc);
+        }
+
+        // Join clauses with 'a' and elements with 'c'
+        let bext = ta.iter()
+            .map(|bc| bc.join("c"))
+            .collect::<Vec<String>>()
+            .join("a");
+
+        // Create Bexter from bext
+        let bexter = Bexter::from_bext(bext.as_bytes())?;
+
+        // Update Tholder attributes
         self._weighted = true;
-        self._size = size; // This should be calculated based on the threshold
-        self._sith = TholderSith::ComplexWeights(vec![]); // This should be derived from thold
+        self._size = size;
+        self._sith = TholderSith::Weights(Vec::new()); // Should be derived from thold
         self._thold = TholderThold::Weighted(thold);
         self._bexter = Some(bexter);
         self._number = None;
@@ -634,15 +636,6 @@ impl fmt::Display for Tholder {
     }
 }
 
-/// Represents an item in a threshold clause
-#[derive(Debug, Clone)]
-enum ClauseItem {
-    /// Simple weight
-    Simple(Rational32),
-    /// Weighted threshold with key weight and list of witness weights
-    Weighted(Rational32, Vec<Rational32>),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,10 +653,14 @@ mod tests {
 
         // Check all properties and behaviors
         assert!(!tholder.weighted());
-        // assert_eq!(tholder.size(), tholder.thold().);
-        // assert_eq!(tholder.thold(), 11);
+        
+        let TholderThold::Integer(thold) = tholder.thold() else { panic!("Invalid threshold") };
+        assert_eq!(tholder.size(), *thold);
+        assert_eq!(*thold, 11);
         assert_eq!(tholder.limen(), expected_limen);
-        // assert_eq!(tholder.sith(), "b");
+        
+        let TholderSith::HexString(sith) = tholder.sith() else { panic!("Invalid sith") };
+        assert_eq!(sith, "b");
         assert_eq!(tholder.json(), "\"b\"");
         assert_eq!(tholder.num().unwrap(), 11);
 
@@ -672,7 +669,310 @@ mod tests {
         assert!(!tholder.satisfy(&insufficient_indices));
 
         // Test satisfaction with sufficient indices
-        // let sufficient_indices: Vec<usize> = (0..tholder.thold()).collect();
-        // assert!(tholder.satisfy(&sufficient_indices));
+        let sufficient_indices: Vec<usize> = (0..*thold).collect();
+        assert!(tholder.satisfy(&sufficient_indices));
     }
+
+    #[test]
+    fn test_deserialize_weighted_sith_elements() -> Result<(), Box<dyn std::error::Error>> {
+        // Test case 1: Simple array of fraction strings
+        let json_str1 = r#"["1/2", "1/2", "1/4", "1/4", "1/4"]"#;
+        let elements1: Vec<WeightedSithElement> = serde_json::from_str(json_str1)?;
+
+        assert_eq!(elements1.len(), 5);
+        if let WeightedSithElement::Simple(val) = &elements1[0] {
+            assert_eq!(val, "1/2");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Test case 2: Nested arrays of weights
+        let json_str2 = r#"[["1/2", "1/2", "1/4", "1/4", "1/4"], ["1", "1"]]"#;
+        let elements2: Vec<Vec<WeightedSithElement>> = serde_json::from_str(json_str2)?;
+
+        assert_eq!(elements2.len(), 2);
+        assert_eq!(elements2[0].len(), 5);
+        assert_eq!(elements2[1].len(), 2);
+
+        if let WeightedSithElement::Simple(val) = &elements2[0][0] {
+            assert_eq!(val, "1/2");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        if let WeightedSithElement::Simple(val) = &elements2[1][0] {
+            assert_eq!(val, "1");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Test case 3: Mixed simple and complex elements
+        let json_str3 = r#"[{"1/3":["1/2", "1/2", "1/2"]}, "1/3", "1/2", {"1/2": ["1", "1"]}]"#;
+        let elements3: Vec<WeightedSithElement> = serde_json::from_str(json_str3)?;
+
+        assert_eq!(elements3.len(), 4);
+
+        // First element should be a Complex with "1/3" key
+        match &elements3[0] {
+            WeightedSithElement::Complex(map) => {
+                assert_eq!(map.len(), 1);
+                let values = map.get("1/3").expect("Key 1/3 should exist");
+                assert_eq!(values.len(), 3);
+
+                if let WeightedSithElement::Simple(val) = &values[0] {
+                    assert_eq!(val, "1/2");
+                } else {
+                    panic!("Expected Simple element in complex map");
+                }
+            },
+            _ => panic!("Expected Complex element"),
+        }
+
+        // Second element should be a Simple "1/3"
+        if let WeightedSithElement::Simple(val) = &elements3[1] {
+            assert_eq!(val, "1/3");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Third element should be a Simple "1/2"
+        if let WeightedSithElement::Simple(val) = &elements3[2] {
+            assert_eq!(val, "1/2");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Fourth element should be a Complex with "1/2" key
+        match &elements3[3] {
+            WeightedSithElement::Complex(map) => {
+                assert_eq!(map.len(), 1);
+                let values = map.get("1/2").expect("Key 1/2 should exist");
+                assert_eq!(values.len(), 2);
+
+                if let WeightedSithElement::Simple(val) = &values[0] {
+                    assert_eq!(val, "1");
+                } else {
+                    panic!("Expected Simple element in complex map");
+                }
+            },
+            _ => panic!("Expected Complex element"),
+        }
+
+        // Test case 4: Deeply nested structure with mixed types
+        let json_str4 = r#"[[{"1/3":["1/2", "1/2", "1/2"]}, "1/2", {"1/2": ["1", "1"]}], ["1/2", {"1/2": ["1", "1"]}]]"#;
+        let elements4: Vec<Vec<WeightedSithElement>> = serde_json::from_str(json_str4)?;
+
+        assert_eq!(elements4.len(), 2);
+        assert_eq!(elements4[0].len(), 3);
+        assert_eq!(elements4[1].len(), 2);
+
+        // First element of first array should be a Complex with "1/3" key
+        match &elements4[0][0] {
+            WeightedSithElement::Complex(map) => {
+                assert_eq!(map.len(), 1);
+                let values = map.get("1/3").expect("Key 1/3 should exist");
+                assert_eq!(values.len(), 3);
+
+                if let WeightedSithElement::Simple(val) = &values[0] {
+                    assert_eq!(val, "1/2");
+                } else {
+                    panic!("Expected Simple element in complex map");
+                }
+            },
+            _ => panic!("Expected Complex element"),
+        }
+
+        // Second element of first array should be a Simple "1/2"
+        if let WeightedSithElement::Simple(val) = &elements4[0][1] {
+            assert_eq!(val, "1/2");
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Last element of second array should be a Complex with "1/2" key
+        match &elements4[1][1] {
+            WeightedSithElement::Complex(map) => {
+                assert_eq!(map.len(), 1);
+                let values = map.get("1/2").expect("Key 1/2 should exist");
+                assert_eq!(values.len(), 2);
+
+                if let WeightedSithElement::Simple(val) = &values[0] {
+                    assert_eq!(val, "1");
+                } else {
+                    panic!("Expected Simple element in complex map");
+                }
+            },
+            _ => panic!("Expected Complex element"),
+        }
+
+        // Additional test: validate we can parse nested Array elements
+        let json_str5 = r#"["1/2", ["1/3", "1/3", "1/3"], "1/4"]"#;
+        let elements5: Vec<WeightedSithElement> = serde_json::from_str(json_str5)?;
+
+        assert_eq!(elements5.len(), 3);
+
+        // Second element should be an Array
+        match &elements5[1] {
+            WeightedSithElement::Array(arr) => {
+                assert_eq!(arr.len(), 3);
+                if let WeightedSithElement::Simple(val) = &arr[0] {
+                    assert_eq!(val, "1/3");
+                } else {
+                    panic!("Expected Simple element in array");
+                }
+            },
+            _ => panic!("Expected Array element"),
+        }
+
+        // Verify weight parsing works for these elements
+        if let WeightedSithElement::Simple(val) = &elements1[0] {
+            let weight = Tholder::weight(val)?;
+            assert_eq!(weight, Rational32::new(1, 2));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_json_bytes() -> Result<(), Box<dyn std::error::Error>> {
+        // Test deserializing from JSON bytes
+        let json_bytes = br#"["1/2", "1/2", "1/4", "1/4", "1/4"]"#;
+        let elements: Vec<WeightedSithElement> = serde_json::from_slice(json_bytes)?;
+
+        assert_eq!(elements.len(), 5);
+        if let WeightedSithElement::Simple(val) = &elements[0] {
+            assert_eq!(val, "1/2");
+            let weight = Tholder::weight(val)?;
+            assert_eq!(weight, Rational32::new(1, 2));
+        } else {
+            panic!("Expected Simple element");
+        }
+
+        // Test more complex structure from bytes
+        let complex_json_bytes = br#"[{"1/3":["1/2", "1/2", "1/2"]}, "1/3", "1/2", {"1/2": ["1", "1"]}]"#;
+        let complex_elements: Vec<WeightedSithElement> = serde_json::from_slice(complex_json_bytes)?;
+
+        assert_eq!(complex_elements.len(), 4);
+
+        // Verify the "1/3" key exists in the first element
+        match &complex_elements[0] {
+            WeightedSithElement::Complex(map) => {
+                assert!(map.contains_key("1/3"));
+                let values = map.get("1/3").unwrap();
+                assert_eq!(values.len(), 3);
+            },
+            _ => panic!("Expected Complex element"),
+        }
+
+        Ok(())
+    }
+
+    // Optional: Add a helper to demonstrate a real world usage scenario
+    #[test]
+    fn test_process_weighted_sith() -> Result<(), Box<dyn std::error::Error>> {
+        // This test simulates how these deserializations might be used in a real application
+
+        let json_str = r#"["1/2", "1/2", "1/4", "1/4", "1/4"]"#;
+        let elements: Vec<WeightedSithElement> = serde_json::from_str(json_str)?;
+
+        // Calculate total weight (in a real application this might determine if a threshold is met)
+        let mut total_weight = Rational32::new(0, 1);
+
+        for element in &elements {
+            if let WeightedSithElement::Simple(val) = element {
+                total_weight = total_weight + Tholder::weight(val)?;
+            }
+        }
+
+        // Verify the total weight is greater than 1 (which would satisfy a threshold in a real app)
+        assert!(total_weight > Rational32::new(1, 1));
+        assert_eq!(total_weight, Rational32::new(7, 4)); // 1/2 + 1/2 + 1/4 + 1/4 + 1/4 = 7/4
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_tholder_weighted() -> Result<(), Box<dyn std::error::Error>> {
+        // Create string array of weighted thresholds
+        let json_str = r#"["1/2", "1/2", "1/4", "1/4", "1/4"]"#;
+        let weights: Vec<WeightedSithElement> = serde_json::from_str(json_str)?;
+
+        // Create Tholder with weighted threshold
+        let tholder = Tholder::new(None, None, Some(TholderSith::Weights(weights)))?;
+
+        // Verify the weighted flag
+        assert!(tholder.weighted());
+        assert_eq!(tholder.size(), 5);
+
+        // Verify the parsed threshold structure
+        if let TholderThold::Weighted(clauses) = tholder.thold() {
+            // There should be one clause with 5 elements
+            assert_eq!(clauses.len(), 1);
+            assert_eq!(clauses[0].len(), 5);
+
+            // Check the fraction values
+            if let WeightSpec::Simple(fraction) = clauses[0][0] {
+                assert_eq!(fraction, Rational32::new(1, 2));
+            } else {
+                panic!("Expected Simple weight spec for first element");
+            }
+
+            if let WeightSpec::Simple(fraction) = clauses[0][1] {
+                assert_eq!(fraction, Rational32::new(1, 2));
+            } else {
+                panic!("Expected Simple weight spec for second element");
+            }
+
+            if let WeightSpec::Simple(fraction) = clauses[0][2] {
+                assert_eq!(fraction, Rational32::new(1, 4));
+            } else {
+                panic!("Expected Simple weight spec for third element");
+            }
+        } else {
+            panic!("Expected Weighted threshold type");
+        }
+
+        // Check the serialized limen
+        assert_eq!(tholder.limen(), b"4AAFA1s2c1s2c1s4c1s4c1s4");
+
+        // Verify sith representation
+        // Note: This requires a properly implemented sith() method for weighted thresholds
+        if let TholderSith::Weights(weights) = tholder.sith() {
+            assert_eq!(weights.len(), 5);
+            if let WeightedSithElement::Simple(s) = &weights[0] {
+                assert_eq!(s, "1/2");
+            } else {
+                panic!("Expected Simple weight element");
+            }
+        } else {
+            panic!("Expected Weights sith type");
+        }
+
+        // Verify JSON representation matches the input
+        // This should return a JSON string representation of the threshold
+        let expected_json = r#"["1/2","1/2","1/4","1/4","1/4"]"#;
+        assert_eq!(tholder.json(), expected_json);
+
+        // Verify numeric threshold is None for weighted thresholds
+        assert_eq!(tholder.num(), None);
+
+        // Now test the satisfy method with various signatures
+        // This requires a functioning satisfy_weighted implementation
+
+        // These should all satisfy the threshold (weights sum to ≥ 1)
+        assert!(tholder.satisfy(&[0, 2, 4])); // 1/2 + 1/4 + 1/4 = 1
+        assert!(tholder.satisfy(&[0, 1]));    // 1/2 + 1/2 = 1
+        assert!(tholder.satisfy(&[1, 3, 4])); // 1/2 + 1/4 + 1/4 = 1
+        assert!(tholder.satisfy(&[0, 1, 2, 3, 4])); // All weights
+        assert!(tholder.satisfy(&[3, 2, 0])); // 1/4 + 1/4 + 1/2 = 1
+        assert!(tholder.satisfy(&[0, 0, 1, 2, 1])); // Duplicates should be ignored in calculation
+
+        // These should not satisfy the threshold
+        assert!(!tholder.satisfy(&[0, 2]));    // 1/2 + 1/4 = 3/4 < 1
+        assert!(!tholder.satisfy(&[2, 3, 4])); // 1/4 + 1/4 + 1/4 = 3/4 < 1
+
+        Ok(())
+    }
+    
+    
 }

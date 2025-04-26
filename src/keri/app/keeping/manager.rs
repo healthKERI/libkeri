@@ -10,7 +10,6 @@ use crate::keri::KERIError;
 use crate::Matter;
 use chrono::Utc;
 use sodiumoxide::crypto::sign::SecretKey;
-use std::str::from_utf8;
 
 /// Manager struct for key pair creation, storage, retrieval, and message signing
 ///
@@ -1772,7 +1771,7 @@ mod tests {
         let oldpubs: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
         let deadpubs = ps.old.clone().unwrap().pubs.clone();
 
-        let (verfers, digers) = manager.rotate(
+        let (_verfers, _digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
             None,
             None,
@@ -1816,7 +1815,7 @@ mod tests {
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test salty algorithm rotate to null (non-transferable)
-        let (verfers, digers) = manager.rotate(
+        let (_verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
             None,
             Some(0),
@@ -1911,7 +1910,7 @@ mod tests {
         // Test randy algorithm rotate
         let oldpubs: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
 
-        let (verfers, digers) = manager.rotate(
+        let (_verfers, _digers) = manager.rotate(
             &String::from_utf8(rpre.clone()).unwrap().as_bytes(),
             None,
             None,
@@ -2141,7 +2140,6 @@ mod tests {
         let salter = Salter::new(Some(&rawsalt), None, None)?;
         let salt = salter.qb64();
         assert_eq!(salt, "0AAwMTIzNDU2Nzg5YWJjZGVm");
-        let stem = "blue";
 
         // First crypto seed
         let cryptseed0 =
@@ -2270,7 +2268,7 @@ mod tests {
         assert_eq!(pp.algo, Algos::Salty.to_string());
 
         // Decrypt and check the salt in parameters
-        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
+        let _decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
             None,
             Some(pp.salt.as_str()),
             None,
@@ -2523,7 +2521,7 @@ mod tests {
         assert_eq!(pp.algo, Algos::Salty.to_string());
 
         // Decrypt and verify salt
-        let decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
+        let _decrypted_salt = manager.decrypter.as_ref().unwrap().decrypt(
             None,
             Some(pp.salt.as_str()),
             None,
@@ -2598,7 +2596,7 @@ mod tests {
         let oldpubs: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
         let deadpubs = ps.old.as_ref().unwrap().pubs.clone();
 
-        let (verfers, digers) = manager.rotate(
+        let (_verfers, _digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
             None,
             None,
@@ -2638,7 +2636,7 @@ mod tests {
         assert_eq!(pl.pubs, ps.nxt.pubs);
 
         // Test rotation to null (ncount=0)
-        let (verfers, digers) = manager.rotate(
+        let (_verfers, digers) = manager.rotate(
             &String::from_utf8(spre.clone()).unwrap().as_bytes(),
             None,
             Some(0),
