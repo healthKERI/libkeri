@@ -17,7 +17,7 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
         sep: Option<u8>,
         verify: bool,
     ) -> Result<Self, SuberError> {
-        let base = SuberBase::new(db, subkey, sep, verify)?;
+        let base = SuberBase::new(db, subkey, sep, verify, Some(false))?;
         Ok(Self { base })
     }
 

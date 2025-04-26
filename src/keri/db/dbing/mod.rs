@@ -1630,6 +1630,276 @@ impl LMDBer {
 
         Ok(count)
     }
+
+    /// Add value bytes as duplicate to key in database
+    /// Adds to existing values at key if any
+    /// Returns true if written else false if duplicate value already exists
+    ///
+    /// Duplicates are inserted in lexicographic order not insertion order.
+    /// LMDB does not insert a duplicate unless it is a unique value for that key.
+    ///
+    /// Does inclusion test to detect if duplicate already exists
+    /// Uses a HashSet for the duplicate inclusion test. Set inclusion scales
+    /// with O(1) whereas list inclusion scales with O(n).
+    ///
+    /// # Parameters
+    /// * `db` - opened named sub database with dupsort=True
+    /// * `key` - bytes of key within sub db's keyspace
+    /// * `val` - bytes of value to be written
+    pub fn add_val(&self, db: &BytesDatabase, key: &[u8], val: &[u8]) -> Result<bool, DBError> {
+        // Get preexisting duplicates (if any) and convert to a HashSet for O(1) inclusion test
+        let mut dups = std::collections::HashSet::new();
+
+        // Use the get_vals_iter method to populate the HashSet
+        self.get_vals_iter(db, key, |v| {
+            dups.insert(v.to_vec());
+            Ok(true) // Continue iteration
+        })?;
+
+        // If the value is already in the set, return false (no write needed)
+        if dups.contains(val) {
+            return Ok(false);
+        }
+
+        // Otherwise, write the value
+        let env = match &self.env {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let mut txn = match env.write_txn() {
+            Ok(txn) => txn,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        // Add the new value
+        match db.put(&mut txn, key, val) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                    key
+                )));
+            }
+        }
+
+        // Commit the transaction
+        if let Err(e) = txn.commit() {
+            return Err(DBError::EnvError(e));
+        }
+
+        // If we got here, the value was successfully written
+        Ok(true)
+    }
+
+    /// Put each entry from a list of values to the given key in the database
+    /// Adds to existing values at key if any
+    /// Returns true if successful
+    ///
+    /// Duplicates are inserted in lexicographic order not insertion order.
+    /// LMDB does not insert a duplicate unless it is a unique value for that key.
+    ///
+    /// # Parameters
+    /// * `db` - opened named sub database with dupsort=True
+    /// * `key` - bytes of key within sub db's keyspace
+    /// * `vals` - list of values to be written
+    pub fn put_vals(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        vals: &[impl AsRef<[u8]>],
+    ) -> Result<bool, DBError> {
+        let env = match &self.env {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let mut txn = match env.write_txn() {
+            Ok(txn) => txn,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        for val in vals {
+            match db.put(&mut txn, key, val.as_ref()) {
+                Ok(_) => {} // Success returns (), no boolean to check
+                Err(e) => {
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                        key
+                    )));
+                }
+            }
+        }
+
+        if let Err(e) = txn.commit() {
+            return Err(DBError::EnvError(e));
+        }
+
+        // Since we got here without errors, all values were added successfully
+        Ok(true)
+    }
+
+    /// Return iterator of all duplicate values at key in database
+    /// Uses a callback function to handle each value
+    ///
+    /// Duplicates are retrieved in lexicographic order not insertion order.
+    ///
+    /// # Parameters
+    /// * `db` - opened named sub database with dupsort=True
+    /// * `key` - bytes of key within sub db's keyspace
+    /// * `callback` - function that processes each value
+    pub fn get_vals_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(&[u8]) -> Result<bool, DBError>,
+    {
+        let env = match &self.env {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let txn = match env.read_txn() {
+            Ok(txn) => txn,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        // Use a prefix-based range to iterate through duplicate values
+        // This gets all entries with exactly matching key
+        let prefix_iter = match db.prefix_iter(&txn, &key) {
+            Ok(iter) => iter,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        // Iterate through values and call the callback
+        for res in prefix_iter {
+            match res {
+                Ok((k, val)) => {
+                    // Make sure we only process exact key matches
+                    if k == key {
+                        if !callback(val)? {
+                            break;
+                        }
+                    }
+                }
+                Err(e) => return Err(DBError::EnvError(e)),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Return count of duplicate values at key in database, or zero otherwise
+    ///
+    /// # Parameters
+    /// * `db` - opened named sub database with dupsort=True
+    /// * `key` - bytes of key within sub db's keyspace
+    pub fn cnt_vals(&self, db: &BytesDatabase, key: &[u8]) -> Result<usize, DBError> {
+        let env = match &self.env {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let txn = match env.read_txn() {
+            Ok(txn) => txn,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        // Count the values by iterating through all entries with the key
+        let count = self.count_duplicates(db, &txn, key)?;
+
+        Ok(count)
+    }
+
+    // Helper method to count duplicates since we can't use cursor.count()
+    fn count_duplicates(
+        &self,
+        db: &BytesDatabase,
+        txn: &heed::RoTxn,
+        key: &[u8],
+    ) -> Result<usize, DBError> {
+        let prefix_iter = match db.prefix_iter(txn, &key) {
+            Ok(iter) => iter,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        let mut count = 0;
+        for res in prefix_iter {
+            match res {
+                Ok((k, _)) => {
+                    // Make sure we only count exact key matches
+                    if k == key {
+                        count += 1;
+                    }
+                }
+                Err(e) => return Err(DBError::EnvError(e)),
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Deletes all values at key in database if val is empty,
+    /// otherwise deletes the duplicate that equals val
+    ///
+    /// Returns true if key (and val if not empty) exists in database, otherwise false
+    ///
+    /// # Parameters
+    /// * `db` - opened named sub database with dupsort=True
+    /// * `key` - bytes of key within sub db's keyspace
+    /// * `val` - bytes of duplicate value at key to delete (empty means delete all duplicates)
+    pub fn del_vals(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        val: Option<&[u8]>,
+    ) -> Result<bool, DBError> {
+        let env = match &self.env {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let mut txn = match env.write_txn() {
+            Ok(txn) => txn,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        let result = match val {
+            Some(v) if !v.is_empty() => {
+                // Delete specific key-value pair
+                match db.delete_one_duplicate(&mut txn, key, v) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        return Err(DBError::KeyError(format!(
+                            "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                            key
+                        )));
+                    }
+                }
+            }
+            _ => {
+                // Delete all duplicates (empty val or None)
+                match db.delete(&mut txn, key) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        return Err(DBError::KeyError(format!(
+                            "Key: `{:?}` is either empty, too big, or wrong DUPFIXED size",
+                            key
+                        )));
+                    }
+                }
+            }
+        };
+
+        if let Err(e) = txn.commit() {
+            return Err(DBError::EnvError(e));
+        }
+
+        Ok(result)
+    }
 }
 
 impl Drop for LMDBer {
@@ -1915,6 +2185,123 @@ mod tests {
 
         // Clean up
         lmdber.close(true)?;
+
+        Ok(())
+    }
+    #[test]
+    fn test_vals_dup_methods() -> Result<(), DBError> {
+        // Set up temporary database
+        let dber = LMDBer::builder().temp(true).build()?;
+
+        let key = b"A";
+        let vals = [b"z", b"m", b"x", b"a"];
+
+        // Create a database with dupsort enabled
+        let db = dber.create_database(Some("boop."), Some(true))?;
+
+        // Test initial empty state
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        assert_eq!(retrieved_vals, Vec::<Vec<u8>>::new());
+
+        assert_eq!(dber.del_vals(&db, key, None)?, false);
+        assert_eq!(dber.cnt_vals(&db, key)?, 0);
+
+        // Test putting values
+        assert_eq!(dber.put_vals(&db, key, &vals)?, true);
+
+        // Values should be stored in lexicographic order
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+
+        // Convert retrieved_vals Vec<Vec<u8>> to Vec<&[u8]> for easier comparison
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, [b"a", b"m", b"x", b"z"]);
+
+        // Test count
+        assert_eq!(dber.cnt_vals(&db, key)?, vals.len());
+
+        // Test putting a duplicate value - should succeed but not change stored values
+        assert_eq!(dber.put_vals(&db, key, &[b"a"])?, true);
+
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, [b"a", b"m", b"x", b"z"]);
+
+        // Test add_val with existing and new values
+        assert_eq!(dber.add_val(&db, key, b"a")?, false); // duplicate
+        assert_eq!(dber.add_val(&db, key, b"b")?, true); // new value
+
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, [b"a", b"b", b"m", b"x", b"z"]);
+
+        // Test get_vals_iter explicitly
+        let mut iter_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            iter_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        let iter_vals_refs: Vec<&[u8]> = iter_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(iter_vals_refs, [b"a", b"b", b"m", b"x", b"z"]);
+
+        // Test deleting all values
+        assert_eq!(dber.del_vals(&db, key, None)?, true);
+
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        assert_eq!(retrieved_vals, Vec::<Vec<u8>>::new());
+
+        // Test deleting individual values
+        assert_eq!(dber.put_vals(&db, key, &vals)?, true);
+
+        for val in &vals {
+            assert_eq!(dber.del_vals(&db, key, Some(*val))?, true);
+        }
+
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        assert_eq!(retrieved_vals, Vec::<Vec<u8>>::new());
+
+        // Test deleting values while iterating
+        assert_eq!(dber.put_vals(&db, key, &vals)?, true);
+
+        let mut vals_to_delete = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            vals_to_delete.push(v.to_vec());
+            Ok(true)
+        })?;
+
+        for val in vals_to_delete {
+            assert_eq!(dber.del_vals(&db, key, Some(&val))?, true);
+        }
+
+        let mut retrieved_vals = Vec::new();
+        dber.get_vals_iter(&db, key, |v| {
+            retrieved_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        assert_eq!(retrieved_vals, Vec::<Vec<u8>>::new());
 
         Ok(())
     }

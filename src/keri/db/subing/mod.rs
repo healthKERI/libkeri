@@ -1,4 +1,5 @@
 pub mod cesr;
+pub mod dup;
 pub mod ioset;
 pub mod serder;
 pub mod signer;
@@ -89,6 +90,7 @@ pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
     sdb: BytesDatabase,     // The sub-database
     sep: u8,                // Separator for combining keys
     verify: bool,           // Whether to verify data when deserializing
+    dupsort: bool,          // Whether the database allows duplicates
     _codec: PhantomData<C>, // Phantom data to track the codec type
 }
 
@@ -98,16 +100,23 @@ impl<'db, C: ValueCodec> SuberBase<'db, C> {
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
+        dupsort: Option<bool>,
     ) -> Result<Self, SuberError> {
-        let sdb = db.create_database(Some(subkey), Some(false))?;
+        let dupsort = dupsort.unwrap_or(false);
+        let sdb = db.create_database(Some(subkey), Some(dupsort))?;
 
         Ok(Self {
             db,
             sdb,
             sep: sep.unwrap_or(b'.'),
             verify,
+            dupsort,
             _codec: PhantomData,
         })
+    }
+
+    pub fn is_dupsort(&self) -> bool {
+        self.dupsort
     }
 
     // Convert various key forms to bytes
@@ -218,7 +227,7 @@ impl<'db, C: ValueCodec> Suber<'db, C> {
         verify: bool,
     ) -> Result<Self, SuberError> {
         Ok(Self {
-            base: SuberBase::new(db, subkey, sep, verify)?,
+            base: SuberBase::new(db, subkey, sep, verify, Some(false))?,
         })
     }
 

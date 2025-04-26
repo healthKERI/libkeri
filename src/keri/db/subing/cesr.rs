@@ -46,7 +46,7 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
         sep: Option<u8>,
         verify: bool,
     ) -> Result<Self, SuberError> {
-        let base = SuberBase::<'db, CesrCodec<M>>::new(db, subkey, sep, verify)?;
+        let base = SuberBase::<'db, CesrCodec<M>>::new(db, subkey, sep, verify, Some(false))?;
 
         Ok(Self {
             base,
