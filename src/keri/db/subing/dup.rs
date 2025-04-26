@@ -184,6 +184,14 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
         Ok(results.into_iter())
     }
 
+    pub fn get_item_iter<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        topive: bool,
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
+        Ok(self.base.get_item_iter(keys, topive)?)
+    }
+
     /// Return count of dup values at key made from keys, zero otherwise
     pub fn cnt<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<usize, SuberError> {
         let key = self.base.to_key(keys, false);
@@ -312,12 +320,11 @@ mod tests {
         assert_eq!(String::from_utf8(iter_bytes[1].clone()).unwrap(), sue);
         assert_eq!(String::from_utf8(iter_bytes[2].clone()).unwrap(), sal);
 
-        // Test get_item_iter
-        let items = dupber.base.get_item_iter::<Vec<u8>>(&[], true)?;
-        // Verify items have the expected format and contents
-        // Since the exact structure depends on the implementation, we'll just ensure
-        // it contains the right number of elements
-        let parsed_items: Vec<(Vec<String>, String)> = items
+        // Test get_item_iter with correct parameters
+        let items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = dupber.get_item_iter::<&str>(&[], true)?;
+
+        // Convert the bytes to strings for easier assertions
+        let items_as_strings: Vec<(Vec<String>, String)> = items
             .into_iter()
             .map(|(keys_bytes, val_bytes)| {
                 let parsed_keys = keys_bytes
@@ -327,6 +334,63 @@ mod tests {
                 (parsed_keys, String::from_utf8(val_bytes).unwrap())
             })
             .collect();
+
+        // Assert that we have the expected items
+        assert_eq!(items_as_strings.len(), 5);
+        assert!(items_as_strings.contains(&(
+            vec!["test_key".to_string(), "0001".to_string()],
+            "Hey gorgeous!".to_string()
+        )));
+        assert!(items_as_strings.contains(&(
+            vec!["test_key".to_string(), "0001".to_string()],
+            "See ya later.".to_string()
+        )));
+        assert!(items_as_strings.contains(&(
+            vec!["test_key".to_string(), "0002".to_string()],
+            "A real charmer!".to_string()
+        )));
+        assert!(items_as_strings.contains(&(
+            vec!["test_key".to_string(), "0002".to_string()],
+            "Hello sailer!".to_string()
+        )));
+        assert!(items_as_strings.contains(&(
+            vec!["test_key".to_string(), "0002".to_string()],
+            "Not my type.".to_string()
+        )));
+
+        // Add test with ("test", "blue") keys as in the Python test
+        assert!(dupber.put(&["test", "blue"], &[&sal, &sue, &sam])?);
+
+        // Test getting items with a prefix - similar to the Python test's usage of topkeys
+        let topkeys = ["test", ""];
+        let prefix_items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = dupber.get_item_iter(&topkeys, true)?;
+
+        // Convert to strings for easier assertions
+        let prefix_items_as_strings: Vec<(Vec<String>, String)> = prefix_items
+            .into_iter()
+            .map(|(keys_bytes, val_bytes)| {
+                let parsed_keys = keys_bytes
+                    .into_iter()
+                    .map(|k| String::from_utf8(k).unwrap())
+                    .collect();
+                (parsed_keys, String::from_utf8(val_bytes).unwrap())
+            })
+            .collect();
+
+        // Assert we have the correct items with the test prefix
+        assert_eq!(prefix_items_as_strings.len(), 3);
+        assert!(prefix_items_as_strings.contains(&(
+            vec!["test".to_string(), "blue".to_string()],
+            "A real charmer!".to_string()
+        )));
+        assert!(prefix_items_as_strings.contains(&(
+            vec!["test".to_string(), "blue".to_string()],
+            "Hello sailer!".to_string()
+        )));
+        assert!(prefix_items_as_strings.contains(&(
+            vec!["test".to_string(), "blue".to_string()],
+            "Not my type.".to_string()
+        )));
 
         // Test with string key (not tuple)
         let keys2 = ["keystr"];
@@ -365,26 +429,93 @@ mod tests {
         // Test with multiple values per key using on_key
         let vals1 = ["hi", "me", "my"];
         for (i, val) in vals1.iter().enumerate() {
-            let key = on_key("bob", i as u64, Some([b'.']));
+            let key = on_key("bob", i as u64, None);
             assert!(dupber.put(&[&key], &[val])?);
         }
 
         let vals2 = ["bye", "guy", "gal"];
         for (i, val) in vals2.iter().enumerate() {
-            let key = on_key("bob", i as u64, Some([b'.']));
+            let key = on_key("bob", i as u64, None);
             assert!(dupber.put(&[&key], &[val])?);
         }
 
+        // Test getting items with "bob" prefix
+        let bob_items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = dupber.get_item_iter(&["bob"], true)?;
+
+        // Convert to strings for easier assertions
+        let bob_items_as_strings: Vec<(Vec<String>, String)> = bob_items
+            .into_iter()
+            .map(|(keys_bytes, val_bytes)| {
+                let parsed_keys = keys_bytes
+                    .into_iter()
+                    .map(|k| String::from_utf8(k).unwrap())
+                    .collect();
+                (parsed_keys, String::from_utf8(val_bytes).unwrap())
+            })
+            .collect();
+
+        // Check all "bob" prefix items match expected
+        assert_eq!(bob_items_as_strings.len(), 6);
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000000".to_string()
+            ],
+            "bye".to_string()
+        )));
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000000".to_string()
+            ],
+            "hi".to_string()
+        )));
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000001".to_string()
+            ],
+            "guy".to_string()
+        )));
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000001".to_string()
+            ],
+            "me".to_string()
+        )));
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000002".to_string()
+            ],
+            "gal".to_string()
+        )));
+        assert!(bob_items_as_strings.contains(&(
+            vec![
+                "bob".to_string(),
+                "00000000000000000000000000000002".to_string()
+            ],
+            "my".to_string()
+        )));
+
         // Test count of values for a specific key
-        let key1 = on_key("bob", 1, Some([b'.']));
+        let key1 = on_key("bob", 1, None);
         assert_eq!(dupber.cnt(&[&key1])?, 2);
 
         // Test get iterator for specific key
-        let key2 = on_key("bob", 2, Some([b'.']));
-        let bytes: Vec<Vec<u8>> = dupber.get(&[&key2])?;
-        assert_eq!(bytes.len(), 2);
-        assert_eq!(String::from_utf8(bytes[0].clone()).unwrap(), "gal");
-        assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), "my");
+        let key2 = on_key("bob", 2, None);
+        let iter = dupber.get_iter::<_, Vec<u8>>(&[&key2])?;
+        let vals: Vec<Vec<u8>> = iter.collect::<Result<Vec<_>, _>>()?;
+        // Then convert to strings if needed
+        let vals_as_strings: Vec<String> = vals
+            .into_iter()
+            .map(|bytes| String::from_utf8(bytes).unwrap())
+            .collect();
+
+        assert_eq!(vals_as_strings.len(), 2);
+        assert_eq!(vals_as_strings[0], "gal");
+        assert_eq!(vals_as_strings[1], "my");
 
         // The database should be removed when db goes out of scope
         Ok(())
