@@ -2294,6 +2294,10 @@ mod tests {
         let iter_vals_refs: Vec<&[u8]> = iter_vals.iter().map(|v| v.as_slice()).collect();
         assert_eq!(iter_vals_refs, [b"a", b"b", b"m", b"x", b"z"]);
 
+        // Test the get_val_last function
+        let last_val = dber.get_val_last(&db, key)?;
+        assert_eq!(last_val, Some(b"z".to_vec()));
+
         // Test deleting all values
         assert_eq!(dber.del_vals(&db, key, None)?, true);
 
