@@ -7,7 +7,6 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::{fmt, str};
-use std::str::FromStr;
 
 pub mod bexter;
 pub mod cigar;
@@ -46,42 +45,6 @@ impl Display for Versionage {
         write!(f, "{}.{}", self.major, self.minor)
     }
 }
-
-impl From<String> for Versionage {
-    fn from(version_str: String) -> Self {
-        Self::from(version_str.as_str())
-    }
-}
-
-impl From<&str> for Versionage {
-    fn from(version_str: &str) -> Self {
-        // Handle version strings in format "X.Y"
-        if let Some(index) = version_str.find('.') {
-            // Try to extract the major and minor versions
-            if let (Ok(major), Ok(minor)) = (
-                u32::from_str(&version_str[..index]),
-                u32::from_str(&version_str[index + 1..]),
-            ) {
-                return Versionage { major, minor };
-            }
-        }
-
-        // If the version string contains other patterns like "KERIX-JSON-..."
-        // Try to extract version from KERI format
-        if version_str.starts_with("KERI") && version_str.len() >= 6 {
-            if let (Ok(major), Ok(minor)) = (
-                u32::from_str(&version_str[4..5]),
-                u32::from_str(&version_str[5..6]),
-            ) {
-                return Versionage { major, minor };
-            }
-        }
-
-        // Default to current version if parsing fails
-        VERSION
-    }
-}
-
 
 /// Maps Base64 index to corresponding character
 pub static B64_CHR_BY_IDX: Lazy<HashMap<u8, char>> = Lazy::new(|| {
@@ -141,7 +104,7 @@ impl From<&str> for Tiers {
 }
 
 impl Display for Tiers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let str = match self {
             Tiers::LOW => "low",
             Tiers::MED => "med",
@@ -223,7 +186,7 @@ impl Default for Coldage {
     }
 }
 
-impl fmt::Display for Coldage {
+impl Display for Coldage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -3478,30 +3441,4 @@ mod tests {
         // assert_eq!(matter2.soft, soft);
         // assert_eq!(matter2.raw(), raw);
     }
-
-    #[test]
-    fn test_versionage_from_string() {
-        // Test simple version format
-        let version = Versionage::from("1.0");
-        assert_eq!(version, Versionage { major: 1, minor: 0 });
-
-        let version = Versionage::from("2.5");
-        assert_eq!(version, Versionage { major: 2, minor: 5 });
-
-        // Test KERI format
-        let version = Versionage::from("KERI10JSON000000_");
-        assert_eq!(version, Versionage { major: 1, minor: 0 });
-
-        let version = Versionage::from("KERI20JSON000000_");
-        assert_eq!(version, Versionage { major: 2, minor: 0 });
-
-        // Test invalid format (should return default)
-        let version = Versionage::from("invalid");
-        assert_eq!(version, VERSION);
-
-        // Test owned string variant
-        let version = Versionage::from(String::from("1.0"));
-        assert_eq!(version, Versionage { major: 1, minor: 0 });
-    }
-
 }
