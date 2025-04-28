@@ -1935,6 +1935,629 @@ impl LMDBer {
 
         Ok(result)
     }
+    /// Return list of duplicate values at key in db in insertion order
+    /// Returns empty vector if no entry at key
+    /// Removes prepended proem ordinal from each val before returning
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Vec<u8>>)`: List of values with proem removed
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_io_dup_vals(&self, db: &BytesDatabase, key: &[u8]) -> Result<Vec<Vec<u8>>, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a read-only transaction
+        let txn = env.read_txn()?;
+
+        let mut vals = Vec::new();
+
+        // Use a prefix-based range to iterate through duplicate values
+        // This gets all entries with exactly matching key
+        let prefix_iter = match db.prefix_iter(&txn, &key) {
+            Ok(iter) => iter,
+            Err(e) => return Err(DBError::EnvError(e)),
+        };
+
+        // Iterate through values and extract them
+        for res in prefix_iter {
+            match res {
+                Ok((k, val)) => {
+                    // Make sure we only process exact key matches
+                    if k == key {
+                        // Skip values that are too short (must be at least 33 bytes for the proem)
+                        if val.len() > 33 {
+                            // Remove the 33-byte proem from the value
+                            vals.push(Vec::from(&val[33..]));
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Convert BadValsizeError to KeyError, similar to Python implementation
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            }
+        }
+
+        Ok(vals)
+    }
+
+    /// Write each entry from list of bytes vals to key in db in insertion order
+    /// Adds to existing values at key if any
+    /// Returns true if at least one of vals is added as dup, false otherwise
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    /// - `vals`: list of bytes of values to be written
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if at least one value was added, false otherwise
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn put_io_dup_vals(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        vals: &[impl AsRef<[u8]>],
+    ) -> Result<bool, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Get preexisting dups if any
+        let existing_vals = self.get_io_dup_vals(db, key)?;
+        let existing_set: std::collections::HashSet<Vec<u8>> = existing_vals.into_iter().collect();
+
+        // Create a write transaction
+        let mut wtxn = env.write_txn()?;
+        let mut result = false;
+
+        // Find the current highest index
+        let mut idx = 0;
+
+        // Use prefix iterator to find all values at the key
+        // and get the highest index
+        let prefix_iter = match db.prefix_iter(&wtxn, key) {
+            Ok(iter) => iter,
+            Err(e) => {
+                // If this is a BadValsizeError, convert to KeyError
+                return Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                    key
+                )));
+            }
+        };
+
+        // Find the last duplicate value (highest index)
+        let mut last_val: Option<Vec<u8>> = None;
+
+        for res in prefix_iter {
+            match res {
+                Ok((k, v)) => {
+                    // Make sure we only process exact key matches
+                    if k == key {
+                        last_val = Some(v.to_vec());
+                    }
+                }
+                Err(e) => {
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            }
+        }
+
+        // If we found a last value, extract the index from it
+        if let Some(last_val) = last_val {
+            if last_val.len() >= 32 {
+                // Convert first 32 bytes to a hex string and parse as integer
+                if let Ok(hex_str) = std::str::from_utf8(&last_val[0..32]) {
+                    if let Ok(last_idx) = u64::from_str_radix(hex_str, 16) {
+                        idx = last_idx + 1;
+                    }
+                }
+            }
+        }
+
+        // Process each value
+        for val in vals {
+            let val_bytes = val.as_ref();
+
+            // Only add if not already in the set
+            if !existing_set.contains(val_bytes) {
+                // Create the proem: 32 bytes of hex + '.'
+                let proem = format!("{:032x}.", idx);
+
+                // Prepend proem to value
+                let mut val_with_proem = proem.into_bytes();
+                val_with_proem.extend_from_slice(val_bytes);
+
+                // Add to database with duplication
+                db.put(&mut wtxn, key, &val_with_proem)?;
+
+                idx += 1;
+                result = true;
+            }
+        }
+
+        // Commit the transaction
+        wtxn.commit()?;
+
+        Ok(result)
+    }
+
+    /// Add val bytes as dup in insertion order to key in db
+    /// Adds to existing values at key if any
+    /// Returns True if written else False if val is already a dup
+    /// Actual value written include prepended proem ordinal
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    /// - `val`: bytes of value to be written
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if written, false if val is already a dup
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn add_io_dup_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        val: &[u8],
+    ) -> Result<bool, DBError> {
+        // Delegate to put_io_dup_vals with a single value
+        self.put_io_dup_vals(db, key, &[val])
+    }
+
+    pub fn get_io_dup_vals_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(&[u8]) -> Result<bool, DBError>,
+    {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a read-only transaction
+        let txn = env.read_txn()?;
+
+        // Use a prefix-based range to iterate through duplicate values
+        // This gets all entries with exactly matching key
+        let prefix_iter = match db.prefix_iter(&txn, &key) {
+            Ok(iter) => iter,
+            Err(e) => {
+                return Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                    key
+                )));
+            }
+        };
+
+        // Iterate through values and call the callback for each
+        for res in prefix_iter {
+            match res {
+                Ok((k, val)) => {
+                    // Make sure we only process exact key matches
+                    if k == key {
+                        // Skip values that are too short (must be at least 33 bytes for the proem)
+                        if val.len() > 33 {
+                            // Call the callback with the value with the proem removed
+                            if !callback(&val[33..])? {
+                                // If callback returns false, stop iteration
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Return count of dup values at key in db, or zero otherwise
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    ///
+    /// # Returns
+    /// - `Ok(usize)`: Count of duplicate values at key (0 if key doesn't exist)
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn cnt_io_dup_vals(&self, db: &BytesDatabase, key: &[u8]) -> Result<usize, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a read-only transaction
+        let txn = env.read_txn()?;
+
+        let mut count = 0;
+
+        // Use a prefix-based range to iterate through duplicate values
+        // This gets all entries with exactly matching key
+        let prefix_iter = match db.prefix_iter(&txn, &key) {
+            Ok(iter) => iter,
+            Err(_) => {
+                return Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                    key
+                )));
+            }
+        };
+
+        // Count the number of entries with this exact key
+        for res in prefix_iter {
+            match res {
+                Ok((k, _)) => {
+                    // Make sure we only count exact key matches
+                    if k == key {
+                        count += 1;
+                    }
+                }
+                Err(_) => {
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Deletes all values at key in db if key present.
+    /// Returns true if key exists and was deleted, false otherwise
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if key existed and was deleted, false otherwise
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn del_io_dup_vals(&self, db: &BytesDatabase, key: &[u8]) -> Result<bool, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a write transaction
+        let mut wtxn = env.write_txn()?;
+
+        // Try to delete the key and all its duplicates
+        let result = match db.delete(&mut wtxn, key) {
+            Ok(deleted) => {
+                // Commit the transaction if we got this far
+                wtxn.commit()?;
+                Ok(deleted)
+            }
+            Err(e) => {
+                // Don't leave the transaction hanging
+                let _ = wtxn.abort();
+
+                // Convert heed errors to our own error type
+                Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                    key
+                )))
+            }
+        };
+        result
+    }
+
+    /// Deletes dup io val at key in db. Performs strip search to find match.
+    /// Strips proems and then searches.
+    /// Returns True if delete else False if val not present
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// Does a linear search so not very efficient when not deleting from the front.
+    /// This is hack for supporting escrow which needs to delete individual dup.
+    /// The problem is that escrow is not fixed buts stuffs gets added and
+    /// deleted which just adds to the value of the proem. 2**16 is an impossibly
+    /// large number so the proem will not max out practically. But its not
+    /// an elegant solution.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=False
+    /// - `key`: bytes of key within sub db's keyspace
+    /// - `val`: bytes of value to be deleted without insertion ordering proem
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if deleted, false if val not present
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn del_io_dup_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        val: &[u8],
+    ) -> Result<bool, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a write transaction
+        let mut wtxn = env.write_txn()?;
+
+        // First, collect the key-value pair to delete
+        let to_delete = {
+            let prefix_iter = match db.prefix_iter(&wtxn, &key) {
+                Ok(iter) => iter,
+                Err(_) => {
+                    // Don't abort here, just return the error
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            };
+
+            let mut found = None;
+            for res in prefix_iter {
+                match res {
+                    Ok((k, proval)) => {
+                        // Make sure we only process exact key matches
+                        if k == key {
+                            // Skip values that are too short (must be at least 33 bytes for the proem)
+                            if proval.len() > 33 {
+                                // Compare the value without the proem
+                                if &proval[33..] == val {
+                                    // Found the value to delete
+                                    found = Some((k.to_vec(), proval.to_vec()));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Don't abort here, just return the error
+                        return Err(DBError::KeyError(format!(
+                            "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                            key
+                        )));
+                    }
+                }
+            }
+            found
+        };
+
+        // Now handle the result when the iterator is no longer active
+        match to_delete {
+            Some((k, v)) => {
+                // Delete the specific key-value pair
+                match db.delete_one_duplicate(&mut wtxn, &k, &v) {
+                    Ok(deleted) => {
+                        // Commit the transaction if deletion was successful
+                        wtxn.commit()?;
+                        Ok(deleted)
+                    }
+                    Err(e) => {
+                        // Abort the transaction and return an error
+                        let _ = wtxn.abort();
+                        Err(DBError::EnvError(e))
+                    }
+                }
+            }
+            None => {
+                // No value found to delete, abort the transaction and return false
+                let _ = wtxn.abort();
+                Ok(false)
+            }
+        }
+    }
+
+    /// Return last added dup value at key in db in insertion order
+    /// Returns None if no entry at key
+    /// Removes prepended proem ordinal from val before returning
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: bytes of key within sub db's keyspace
+    ///
+    /// # Returns
+    /// - `Ok(Option<Vec<u8>>)`: Last value with proem removed, or None if no entry exists
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_io_dup_val_last(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, DBError> {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a read-only transaction
+        let txn = env.read_txn()?;
+
+        // Since heed doesn't have direct last_dup functionality like LMDB's cursor,
+        // we'll iterate through all duplicates and keep the last one
+        let mut last_val: Option<Vec<u8>> = None;
+
+        // Use a prefix-based range to iterate through duplicate values
+        let prefix_iter = match db.prefix_iter(&txn, &key) {
+            Ok(iter) => iter,
+            Err(_) => {
+                return Err(DBError::KeyError(format!(
+                    "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                    key
+                )));
+            }
+        };
+
+        // Iterate through all values and keep the last one
+        for res in prefix_iter {
+            match res {
+                Ok((k, val)) => {
+                    // Make sure we only process exact key matches
+                    if k == key {
+                        // Skip values that are too short (must be at least 33 bytes for the proem)
+                        if val.len() > 33 {
+                            // Store this value (with proem removed)
+                            last_val = Some(Vec::from(&val[33..]));
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Err(DBError::KeyError(format!(
+                        "Key: `{:?}` is either empty, too big (for lmdb), or wrong DUPFIXED size.",
+                        key
+                    )));
+                }
+            }
+        }
+
+        Ok(last_val)
+    }
+    /// Iterates over top branch of db given by key of IoDup items where each value
+    /// has 33 byte insertion ordinal number proem (prefixed) with separator.
+    /// Automagically removes (strips) proem before returning items.
+    ///
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// Because cursor.iternext() advances cursor after returning item its safe
+    /// to delete the item within the iteration loop. Works for both dupsort==False and dupsort==True
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `top`: truncated top key, a key space prefix to get all the items
+    ///          from multiple branches of the key space. If top key is
+    ///          empty then gets all items in database
+    /// - `cb`: Callback function that processes key-value pairs with proem stripped from value
+    ///
+    /// # Returns
+    /// - `Ok(count)`: Number of items processed
+    /// - `Err(DBError)`: If a database error occurs
+    ///
+    /// Duplicates at a given key preserve insertion order of duplicate.
+    /// Because lmdb is lexocographic an insertion ordering proem is prepended to
+    /// all values that makes lexocographic order that same as insertion order.
+    ///
+    /// Duplicates are ordered as a pair of key plus value so prepending proem
+    /// to each value changes duplicate ordering. Proem is 33 characters long.
+    /// With 32 character hex string followed by '.' for essentially unlimited
+    /// number of values which will be limited by memory.
+    pub fn get_top_io_dup_item_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        top: &[u8],
+        mut cb: F,
+    ) -> Result<usize, DBError>
+    where
+        F: FnMut(&[u8], &[u8]) -> Result<bool, DBError>,
+    {
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+
+        // Create a read-only transaction
+        let txn = env.read_txn()?;
+
+        let mut count = 0;
+
+        // Get a range iterator for the top key prefix
+        let range: Box<dyn Iterator<Item = Result<(&[u8], &[u8]), heed::Error>>> = if top.is_empty()
+        {
+            // Empty top means get all items
+            Box::new(db.iter(&txn)?)
+        } else {
+            // Get items with the specified prefix
+            Box::new(db.prefix_iter(&txn, top)?)
+        };
+
+        // Iterate over all matching items
+        for result in range {
+            match result {
+                Ok((key, value)) => {
+                    // Skip values that are too short to have a proem
+                    if value.len() <= 33 {
+                        continue;
+                    }
+
+                    // Strip the 33-byte proem from the value
+                    let stripped_value = &value[33..];
+
+                    // Call the callback with the key and stripped value
+                    count += 1;
+                    if !cb(&key, stripped_value)? {
+                        // If callback returns false, stop iteration
+                        break;
+                    }
+                }
+                Err(e) => return Err(DBError::EnvError(e)),
+            }
+        }
+
+        Ok(count)
+    }
 }
 
 impl Drop for LMDBer {
@@ -2224,7 +2847,7 @@ mod tests {
         Ok(())
     }
     #[test]
-    fn test_vals_dup_methods() -> Result<(), DBError> {
+    fn test_dup_vals_methods() -> Result<(), DBError> {
         // Set up temporary database
         let dber = LMDBer::builder().temp(true).build()?;
 
@@ -2341,6 +2964,133 @@ mod tests {
             Ok(true)
         })?;
         assert_eq!(retrieved_vals, Vec::<Vec<u8>>::new());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_io_dup_val_methods() -> Result<(), DBError> {
+        // Set up temporary database
+        let dber = LMDBer::builder().temp(true).build()?;
+
+        let key = b"A";
+        let vals = [b"z", b"m", b"x", b"a"];
+
+        // Create a database with dupsort enabled
+        let db = dber.create_database(Some("peep."), Some(true))?;
+
+        // Test initial empty state
+        assert_eq!(dber.get_io_dup_vals(&db, key)?, Vec::<Vec<u8>>::new());
+        assert_eq!(dber.get_io_dup_val_last(&db, key)?, None);
+        assert_eq!(dber.cnt_io_dup_vals(&db, key)?, 0);
+        assert_eq!(dber.del_io_dup_vals(&db, key)?, false);
+
+        // Test putting values
+        assert_eq!(dber.put_io_dup_vals(&db, key, &vals)?, true);
+
+        // Values should be stored in insertion order (not lexicographically)
+        let retrieved_vals = dber.get_io_dup_vals(&db, key)?;
+
+        // Convert retrieved_vals to Vec<&[u8]> for easier comparison
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+
+        // Check that values are preserved in insertion order, not sorted
+        assert_eq!(retrieved_vals_refs, vals);
+
+        // Test count
+        assert_eq!(dber.cnt_io_dup_vals(&db, key)?, vals.len());
+
+        // Test get_io_dup_val_last
+        assert_eq!(dber.get_io_dup_val_last(&db, key)?, Some(vals[3].to_vec()));
+
+        // Test putting a duplicate value - should fail because 'a' already exists
+        assert_eq!(dber.put_io_dup_vals(&db, key, &[b"a"])?, false);
+
+        // Values should be unchanged
+        let retrieved_vals = dber.get_io_dup_vals(&db, key)?;
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, vals);
+
+        // Test add_io_dup_val
+        assert_eq!(dber.add_io_dup_val(&db, key, b"b")?, true); // new value
+        assert_eq!(dber.add_io_dup_val(&db, key, b"a")?, false); // duplicate
+
+        // Check values after adding 'b'
+        let expected_vals = vec![b"z", b"m", b"x", b"a", b"b"];
+        let retrieved_vals = dber.get_io_dup_vals(&db, key)?;
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, expected_vals);
+
+        // Test using iterator to get values
+        let mut iter_vals = Vec::new();
+        dber.get_io_dup_vals_iter(&db, key, |v| {
+            iter_vals.push(v.to_vec());
+            Ok(true)
+        })?;
+        let iter_vals_refs: Vec<&[u8]> = iter_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(iter_vals_refs, expected_vals);
+
+        // Test deleting all values
+        assert_eq!(dber.del_io_dup_vals(&db, key)?, true);
+        assert_eq!(dber.get_io_dup_vals(&db, key)?, Vec::<Vec<u8>>::new());
+
+        // Test deleting individual values
+        assert_eq!(dber.put_io_dup_vals(&db, key, &vals)?, true);
+
+        for val in &vals {
+            assert_eq!(dber.del_io_dup_val(&db, key, *val)?, true);
+        }
+
+        assert_eq!(dber.get_io_dup_vals(&db, key)?, Vec::<Vec<u8>>::new());
+
+        // Test deleting sorted values
+        assert_eq!(dber.put_io_dup_vals(&db, key, &vals)?, true);
+
+        let mut sorted_vals = vals.to_vec();
+        sorted_vals.sort();
+
+        for val in sorted_vals {
+            assert_eq!(dber.del_io_dup_val(&db, key, val)?, true);
+        }
+
+        assert_eq!(dber.get_io_dup_vals(&db, key)?, Vec::<Vec<u8>>::new());
+
+        // Test delete and add in odd order (matches Python test)
+        assert_eq!(dber.put_io_dup_vals(&db, key, &vals)?, true);
+        assert_eq!(dber.del_io_dup_val(&db, key, vals[2])?, true); // Delete "x"
+        assert_eq!(dber.add_io_dup_val(&db, key, b"w")?, true); // Add "w"
+        assert_eq!(dber.del_io_dup_val(&db, key, vals[0])?, true); // Delete "z"
+        assert_eq!(dber.add_io_dup_val(&db, key, b"e")?, true); // Add "e"
+
+        // Final state should be [b"m", b"a", b"w", b"e"]
+        let expected_vals = vec![b"m", b"a", b"w", b"e"];
+        let retrieved_vals = dber.get_io_dup_vals(&db, key)?;
+        let retrieved_vals_refs: Vec<&[u8]> = retrieved_vals.iter().map(|v| v.as_slice()).collect();
+        assert_eq!(retrieved_vals_refs, expected_vals);
+
+        // Test the top iterator
+        // First, add some more values with different keys
+        let key2 = b"B";
+        assert_eq!(dber.put_io_dup_vals(&db, key2, &[b"1", b"2", b"3"])?, true);
+
+        // Use get_top_io_dup_item_iter to traverse all keys
+        let mut all_items = Vec::new();
+        dber.get_top_io_dup_item_iter(&db, b"", |k, v| {
+            all_items.push((k.to_vec(), v.to_vec()));
+            Ok(true)
+        })?;
+
+        // Check that we get all items with their proems stripped
+        assert_eq!(all_items.len(), 7); // 4 for key "A" + 3 for key "B"
+
+        // Test with a specific key prefix
+        let mut a_items = Vec::new();
+        dber.get_top_io_dup_item_iter(&db, b"A", |k, v| {
+            a_items.push((k.to_vec(), v.to_vec()));
+            Ok(true)
+        })?;
+
+        assert_eq!(a_items.len(), 4); // Only the 4 items for key "A"
 
         Ok(())
     }

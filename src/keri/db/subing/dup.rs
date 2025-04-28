@@ -7,7 +7,7 @@ use std::sync::Arc;
 /// Do not use if serialized value is greater than 511 bytes.
 /// This is a limitation of dupsort==True sub dbs in LMDB.
 pub struct DupSuber<'db, C: ValueCodec = Utf8Codec> {
-    base: SuberBase<'db, C>,
+    pub base: SuberBase<'db, C>,
 }
 
 impl<'db, C: ValueCodec> DupSuber<'db, C> {
