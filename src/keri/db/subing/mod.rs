@@ -1,6 +1,6 @@
 pub mod cesr;
 pub mod dup;
-mod iodup;
+pub mod iodup;
 pub mod ioset;
 pub mod serder;
 pub mod signer;

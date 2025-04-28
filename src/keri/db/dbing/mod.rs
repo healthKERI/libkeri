@@ -2969,7 +2969,7 @@ mod tests {
     }
 
     #[test]
-    fn test_io_dup_val_methods() -> Result<(), DBError> {
+    fn test_io_dup_vals_methods() -> Result<(), DBError> {
         // Set up temporary database
         let dber = LMDBer::builder().temp(true).build()?;
 
