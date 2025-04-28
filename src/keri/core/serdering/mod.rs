@@ -95,9 +95,18 @@ fn get_version_span(vrsn: &Versionage, kind: &Kinds) -> Result<usize, KERIError>
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-enum AttribField {
+pub enum AttribField {
     StringList(Vec<String>),
-    StringMap(HashMap<String, String>),
+    StringMap(HashMap<String, Value>),
+}
+
+impl AttribField {
+    fn is_empty(&self) -> bool {
+        match self {
+            AttribField::StringList(v) => v.is_empty(),
+            AttribField::StringMap(v) => v.is_empty(),
+        }
+    }
 }
 
 /// A comprehensive struct containing all possible KERI event fields
@@ -159,7 +168,7 @@ pub struct Sadder {
 
     /// Configuration traits - inception events
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub c: Option<Vec<String>>,
+    pub c: Option<AttribField>,
 
     /// Anchors or additional data - various events
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -291,7 +300,7 @@ impl Sadder {
                 sad.n = orig.n.clone().or(Some(vec![]));
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
-                sad.c = orig.c.clone().or(Some(vec![]));
+                sad.c = orig.c.clone().or(Some(AttribField::StringList(vec![])));
                 sad.a = orig
                     .a
                     .clone()
@@ -331,7 +340,7 @@ impl Sadder {
                 sad.n = orig.n.clone().or(Some(vec![]));
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
-                sad.c = orig.c.clone().or(Some(vec![]));
+                sad.c = orig.c.clone().or(Some(AttribField::StringList(vec![])));
                 sad.a = orig
                     .a
                     .clone()
@@ -416,7 +425,7 @@ impl Sadder {
                 sad.i = orig.i.clone().or(Some("".to_string()));
                 sad.ii = orig.ii.clone().or(Some("".to_string()));
                 sad.s = orig.s.clone().or(Some("0".to_string()));
-                sad.c = orig.c.clone().or(Some(vec![]));
+                sad.c = orig.c.clone().or(Some(AttribField::StringList(vec![])));
                 sad.bt = orig.bt.clone().or(Some("0".to_string()));
                 sad.b = orig.b.clone().or(Some(vec![]));
             }
@@ -488,7 +497,7 @@ impl Sadder {
                 if !self.i.clone().unwrap().is_empty() {
                     match BaseMatter::from_qb64(&self.i.clone().unwrap()) {
                         Ok(mtr) => {
-                            let code = String::from(mtr.code().clone());
+                            let code = String::from(mtr.code());
                             if dig_dex::TUPLE.contains(&code.as_str()) {
                                 _saids.insert("i", code);
                             }
@@ -1153,37 +1162,14 @@ impl BaseSerder {
                     ))),
                 }
             }
-
             Kinds::Mgpk => {
-                // For msgpack, direct deserialization from bytes
-                // In a real implementation, you would use the rmp_serde crate
-                // This is a placeholder that simulates the error handling pattern
-                Err(KERIError::MgpkError(
-                    "MGPK deserialization not implemented".to_string(),
-                ))
-
-                // A real implementation might look like:
-                // rmp_serde::from_slice(data)
-                //     .map_err(|e| KERIError::MgpkError(
-                //         format!("{}: {:?}", e, data)
-                //     ))
+                let sadder = rmp_serde::from_slice(data).map_err(|e| KERIError::MgpkError(e.to_string()))?;
+                Ok(sadder)
             }
 
             Kinds::Cbor => {
-                // For CBOR, direct deserialization from bytes
-                // In a real implementation, you would use the ciborium crate
-                // This is a placeholder that simulates the error handling pattern
-                Err(KERIError::CborError(
-                    "CBOR deserialization not implemented".to_string(),
-                ))
-
-                // A real implementation might look like:
-                // let mut deserializer = ciborium::de::Deserializer::from_reader(data);
-                // let value = serde::de::Deserialize::deserialize(&mut deserializer)
-                //     .map_err(|e| KERIError::CborError(
-                //         format!("{}: {:?}", e, data)
-                //     ));
-                // value
+                let sadder = serde_cbor::from_slice(data).map_err(|e| KERIError::CborError(e.to_string()))?;
+                Ok(sadder)
             }
             Kinds::Cesr => Err(KERIError::MgpkError(
                 "CESR deserialization not implemented".to_string(),
@@ -1209,12 +1195,14 @@ impl BaseSerder {
                 Ok(json_str) => Ok(json_str.into_bytes()),
                 Err(e) => Err(KERIError::DeserializeError(e.to_string())),
             },
-            Kinds::Mgpk => Err(KERIError::DeserializeError(
-                "MsgPack serialization not enabled".to_string(),
-            )),
-            Kinds::Cbor => Err(KERIError::DeserializeError(
-                "CBOR serialization not enabled".to_string(),
-            )),
+            Kinds::Mgpk => match rmp_serde::to_vec(sad) {
+                Ok(mgpk_bytes) => Ok(mgpk_bytes),
+                Err(e) => Err(KERIError::DeserializeError(e.to_string())),
+            },
+            Kinds::Cbor => match serde_cbor::to_vec(sad) {
+                Ok(cbor_bytes) => Ok(cbor_bytes),
+                Err(e) => Err(KERIError::DeserializeError(e.to_string())),
+            },
             Kinds::Cesr => Err(KERIError::DeserializeError(
                 "CESR serialization not enabled".to_string(),
             )),
@@ -1299,7 +1287,7 @@ impl BaseSerder {
                 if !sad.i.clone().unwrap().is_empty() {
                     match BaseMatter::from_qb64(&sad.i.clone().unwrap()) {
                         Ok(mtr) => {
-                            let code = String::from(mtr.code().clone());
+                            let code = String::from(mtr.code());
                             if dig_dex::TUPLE.contains(&code.as_str()) {
                                 said_fields.insert("i", code);
                             }
@@ -1765,7 +1753,7 @@ impl SerderKERI {
     }
 
     /// Traits list (config traits) from .sad["c"]
-    pub fn traits(&self) -> Option<Vec<String>> {
+    pub fn traits(&self) -> Option<AttribField> {
         self.base.sad.c.clone()
     }
 
@@ -2100,7 +2088,7 @@ impl SerderACDC {
     ///
     /// Returns:
     ///    Option<&String>: from ._sad["a"]
-    pub fn attrib(&self) -> Option<HashMap<String, String>> {
+    pub fn attrib(&self) -> Option<HashMap<String, Value>> {
         match &self.base.sad.a {
             Some(AttribField::StringMap(map)) => Some(map.clone()),
             Some(AttribField::StringList(_)) => None,
@@ -2115,7 +2103,7 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["a"]["i"] issuee AID
     pub fn issuee(&self) -> Option<&str> {
         match &self.base.sad.a {
-            Some(AttribField::StringMap(map)) => map.get("i").map(|s| s.as_str()),
+            Some(AttribField::StringMap(map)) => map.get("i").map(|s| s.as_str().unwrap()),
             Some(AttribField::StringList(_)) => None,
             None => None,
         }
@@ -2273,7 +2261,7 @@ mod tests {
             ]),
             bt: Some("0".to_string()),
             b: Some(vec![]),
-            c: Some(vec![]),
+            c: Some(AttribField::StringList(vec![])),
             ..Default::default()
         };
 
@@ -2297,7 +2285,7 @@ mod tests {
             ]),
             bt: Some("0".to_string()),
             b: Some(vec![]),
-            c: Some(vec![]),
+            c: Some(AttribField::StringList(vec![])),
             ..Default::default()
         };
 
@@ -2344,7 +2332,7 @@ mod tests {
 
         // Store values for reconstruction tests
         let sad_clone = serder.sad().clone();
-        let raw_clone = serder.raw().clone();
+        let raw_clone = serder.raw();
         let said = serder.said().clone();
         let size = serder.size();
 

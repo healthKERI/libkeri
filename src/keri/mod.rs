@@ -8,9 +8,9 @@ use regex::Regex;
 use std::fmt;
 use thiserror::Error;
 
-mod app;
-mod core;
-mod db;
+pub mod app;
+pub mod core;
+pub mod db;
 
 /// Format string for version
 pub const VERFMT: &str = "{}{:x}{:x}{}{:0{}x}_";
@@ -147,6 +147,12 @@ pub enum KERIError {
 
     #[error("Database komer error: {0}")]
     KomerError(#[from] KomerError),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("Deserialization error: {0}")]
+    DeserializationError(String),
 }
 
 impl From<MatterError> for KERIError {

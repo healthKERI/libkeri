@@ -188,6 +188,4 @@ pub enum MatterError {
     
     #[error("Decoding error: {0}")]
     DecodingError(String),
-    
-    
 }
