@@ -7,6 +7,9 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::{fmt, str};
+use std::str::FromStr;
+use crate::keri::KERIError;
+
 
 pub mod bexter;
 pub mod cigar;
@@ -45,6 +48,64 @@ impl Display for Versionage {
         write!(f, "{}.{}", self.major, self.minor)
     }
 }
+
+
+impl From<String> for Versionage {
+    fn from(version_str: String) -> Self {
+        // Try to extract version information from the string
+        if let Ok(versionage) = Self::parse_version_string(&version_str) {
+            return versionage;
+        }
+
+        // Default to version 1.0 if string can't be parsed
+        Versionage { major: 1, minor: 0 }
+    }
+}
+
+impl From<&str> for Versionage {
+    fn from(version_str: &str) -> Self {
+        Self::from(version_str.to_string())
+    }
+}
+
+impl Versionage {
+    /// Extracts version information from a KERI version string
+    /// Expects string in format like "KERI10JSON000000_" where
+    /// the first digit after KERI is the major version and the second is minor
+    fn parse_version_string(version_str: &str) -> Result<Self, KERIError> {
+        // Ensure the string is long enough to contain version info
+        if version_str.len() < 6 {
+            return Err(KERIError::VersionError(
+                format!("Version string too short: {}", version_str)
+            ));
+        }
+
+        // Check for "KERI" prefix
+        if !version_str.starts_with("KERI") {
+            return Err(KERIError::VersionError(
+                format!("Invalid version string prefix: {}", version_str)
+            ));
+        }
+
+        // Extract the major and minor version numbers (at positions 4 and 5)
+        let major_char = version_str.chars().nth(4).unwrap();
+        let minor_char = version_str.chars().nth(5).unwrap();
+
+        // Convert from hex character to integer
+        let major = u32::from_str_radix(&major_char.to_string(), 16)
+            .map_err(|_| KERIError::VersionError(
+                format!("Invalid major version: {}", major_char)
+            ))?;
+
+        let minor = u32::from_str_radix(&minor_char.to_string(), 16)
+            .map_err(|_| KERIError::VersionError(
+                format!("Invalid minor version: {}", minor_char)
+            ))?;
+
+        Ok(Versionage { major, minor })
+    }
+}
+
 
 /// Maps Base64 index to corresponding character
 pub static B64_CHR_BY_IDX: Lazy<HashMap<u8, char>> = Lazy::new(|| {
@@ -3441,4 +3502,48 @@ mod tests {
         // assert_eq!(matter2.soft, soft);
         // assert_eq!(matter2.raw(), raw);
     }
+
+    #[test]
+    fn test_versionage_from_string() {
+        // Valid version string
+        let version_str = "KERI10JSON000000_".to_string();
+        let versionage = Versionage::from(version_str);
+        assert_eq!(versionage.major, 1);
+        assert_eq!(versionage.minor, 0);
+
+        // Version with different numbers
+        let version_str = "KERI25CBOR000123_".to_string();
+        let versionage = Versionage::from(version_str);
+        assert_eq!(versionage.major, 2);
+        assert_eq!(versionage.minor, 5);
+
+        // Reference implementation
+        let version_str = "KERI10JSON000000_";
+        let versionage = Versionage::from(version_str);
+        assert_eq!(versionage.major, 1);
+        assert_eq!(versionage.minor, 0);
+    }
+
+    #[test]
+    fn test_parse_version_string() {
+        // Valid version string
+        let result = Versionage::parse_version_string("KERI10JSON000000_");
+        assert!(result.is_ok());
+        let versionage = result.unwrap();
+        assert_eq!(versionage.major, 1);
+        assert_eq!(versionage.minor, 0);
+
+        // Invalid prefix
+        let result = Versionage::parse_version_string("XERI10JSON000000_");
+        assert!(result.is_err());
+
+        // Too short
+        let result = Versionage::parse_version_string("KERI");
+        assert!(result.is_err());
+
+        // Invalid hex digits
+        let result = Versionage::parse_version_string("KERIGZJSON000000_");
+        assert!(result.is_err());
+    }
+
 }

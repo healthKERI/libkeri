@@ -1,3 +1,8 @@
+mod sad;
+
+pub use sad::SadValue;
+pub use sad::Sadd;
+
 use crate::cesr::counting::gen_dex;
 use crate::cesr::diger::Diger;
 use crate::cesr::number::Number;
@@ -12,7 +17,7 @@ use keri::Ilks;
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tracing::error;
 
 /// Create a validation schema for the different event types
@@ -97,7 +102,7 @@ fn get_version_span(vrsn: &Versionage, kind: &Kinds) -> Result<usize, KERIError>
 #[serde(untagged)]
 pub enum AttribField {
     StringList(Vec<String>),
-    StringMap(HashMap<String, Value>),
+    StringMap(BTreeMap<String, Value>),
 }
 
 impl AttribField {
@@ -125,6 +130,10 @@ pub struct Sadder {
     /// Identifier - required in most events
     #[serde(skip_serializing_if = "Option::is_none")]
     pub i: Option<String>,
+
+    /// Identifier - required in most events
+    #[serde(skip_serializing_if = "Option::is_none", rename="$id")]
+    pub dollar_id: Option<String>,
 
     /// Identifier - required in most events
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1336,8 +1345,6 @@ impl BaseSerder {
         // Serialize sad to raw based on kind
         let raw = Self::dumps(&sad, &kind)?;
 
-        println!("Raw: {:}", String::from_utf8(raw.clone()).unwrap());
-
         // Compute the digest for each SAID field
         for (label, code) in said_fields {
             // Check if the code is digestive (in DigDex)
@@ -2088,7 +2095,7 @@ impl SerderACDC {
     ///
     /// Returns:
     ///    Option<&String>: from ._sad["a"]
-    pub fn attrib(&self) -> Option<HashMap<String, Value>> {
+    pub fn attrib(&self) -> Option<BTreeMap<String, Value>> {
         match &self.base.sad.a {
             Some(AttribField::StringMap(map)) => Some(map.clone()),
             Some(AttribField::StringList(_)) => None,

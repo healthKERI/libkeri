@@ -1,7 +1,8 @@
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
-use blake2::{Blake2b512, Blake2s256, Digest as Blake2Digest};
+use blake2::{Blake2b512, Blake2bVar, Blake2s256, Digest as Blake2Digest};
+use blake2::digest::{VariableOutput};
 use blake3::Hasher as Blake3Hasher;
 use sha2::{Sha256, Sha512};
 use sha3::{Digest as Sha3Digest, Sha3_256, Sha3_512};
@@ -89,10 +90,10 @@ impl Diger {
                 let result = Diger::digest_blake2b_512(ser)?;
                 Ok(result.to_vec())
             }
-            // code if code == dig_dex::BLAKE2B_256 => {
-            //     let result = Diger::digest_blake2b_256(ser)?;
-            //     Ok(result.to_vec())
-            // },
+            code if code == dig_dex::BLAKE2B_256 => {
+                let result = Diger::digest_blake2b_256(ser)?;
+                Ok(result.to_vec())
+            },
             // This should never happen because we validate in the constructor
             _ => Err(MatterError::UnsupportedCodeError(String::from(code))),
         }
@@ -115,15 +116,19 @@ impl Diger {
     }
 
     // /// Calculate Blake2b 256-bit hash
-    // fn digest_blake2b_256(data: &[u8]) -> Result<[u8; 32], MatterError> {
-    //     let mut hasher = Blake2b::new_with_params(32);
-    //     hasher.update(data);
-    //     let result = hasher.finalize();
-    //     let mut digest = [0u8; 32];
-    //     digest.copy_from_slice(&result[..32]);
-    //     Ok(digest)
-    // }
-    //
+    fn digest_blake2b_256(data: &[u8]) -> Result<[u8; 32], MatterError> {
+        use blake2::Blake2bVar;
+        use blake2::digest::{Update, VariableOutput};
+
+        let mut hasher = Blake2bVar::new(32).unwrap();
+        hasher.update(data);
+        let mut result = vec![0u8; 32];
+        hasher.finalize_variable(&mut result).unwrap();
+
+        let mut digest = [0u8; 32];
+        digest.copy_from_slice(&result);
+        Ok(digest)
+    }
 
     /// Calculate Blake2s 256-bit hash
     fn digest_blake2s_256(data: &[u8]) -> Result<[u8; 32], MatterError> {

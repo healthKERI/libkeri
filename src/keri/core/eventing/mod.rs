@@ -1,5 +1,5 @@
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::error::Error;
 use num_bigint::BigUint;
 use serde_json::{json, Value};
@@ -43,7 +43,7 @@ impl InceptionEventBuilder {
             nsith: None,
             toad: None,
             wits: Vec::new(),
-            cnfg: AttribField::StringMap(HashMap::new()),
+            cnfg: AttribField::StringMap(BTreeMap::new()),
             data: Vec::new(),
             version: "KERI10JSON000000_".to_string(), // Default version
             kind: "JSON".to_string(),                // Default kind
@@ -84,7 +84,7 @@ impl InceptionEventBuilder {
     }
 
     /// Sets the configuration traits (cnfg)
-    pub fn with_cnfg(mut self, cnfg: HashMap<String, Value>) -> Self {
+    pub fn with_cnfg(mut self, cnfg: BTreeMap<String, Value>) -> Self {
         self.cnfg = AttribField::StringMap(cnfg);
         self
     }
@@ -371,14 +371,6 @@ fn is_prefix_code(code: &str) -> bool {
     ["A", "B", "C", "D"].contains(&code)
 }
 
-// Usage example:
-// let serder = InceptionEventBuilder::new(vec!["key1".to_string(), "key2".to_string()])
-//     .with_isith(TholderSith::Integer(2))
-//     .with_ndigs(vec!["dig1".to_string(), "dig2".to_string()])
-//     .with_wits(vec!["wit1".to_string(), "wit2".to_string()])
-//     .build()?;
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,7 +442,7 @@ mod tests {
             "DT1iAhBWCkvChxNWsby2J0pJyxBIxbAtbLA0Ljx-Grh8".to_string(),
         ];
 
-        let config_map: HashMap<String, Value> = [
+        let config_map: BTreeMap<String, Value> = [
             ("EO".to_string(), json!(true))
         ].iter().cloned().collect();
 
