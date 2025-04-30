@@ -409,26 +409,41 @@ impl BaseSerder {
         saids: Option<HashMap<&str, String>>,
     ) -> Result<(), KERIError> {
         // Determine protocol to use
+        let mut sproto = None;
+        let mut svrsn = None;
+        let mut skind = None;
+        match sad.get("v") {
+            Some(SadValue::String(v)) if !v.is_empty() => {
+                let smellage = deversify(v.as_str())?;
+                sproto = Some(smellage.proto);
+                svrsn = Some(smellage.vrsn);
+                skind = Some(Kinds::from(&smellage.kind)?);
+            }
+            _ => {}
+        }
         let proto = proto
             .or_else(|| {
-                // Extract from sad (this would need implementation details)
-                Some("KERI".to_string())
+                sproto.or_else(|| Some("KERI".to_string())) // Extract from sad (this would need implementation details)
             })
             .unwrap_or_else(|| self.proto.clone());
 
         // Determine version to use
         let vrsn = vrsn
             .or_else(|| {
-                // Extract from sad (this would need implementation details)
-                Some(VRSN_1_0)
+                svrsn.or_else(|| {
+                    // Extract from sad (this would need implementation details)
+                    Some(VRSN_1_0)
+                })
             })
             .unwrap_or_else(|| self.vrsn.clone());
 
         // Determine kind to use
         let kind = kind
             .or_else(|| {
-                // Extract from sad (this would need implementation details)
-                Some(Kinds::Json)
+                skind.or_else(|| {
+                    // Extract from sad (this would need implementation details)
+                    Some(Kinds::Json)
+                })
             })
             .unwrap_or_else(|| self.kind.clone());
 
@@ -497,8 +512,6 @@ impl BaseSerder {
         self.prepare_version(&mut sad, kind.clone(), proto.clone(), vrsn.clone())?;
         // Serialize sad to raw based on kind
         let raw = Self::dumps(&sad, &kind)?;
-
-        println!("Raw: {:}", String::from_utf8(raw.clone()).unwrap());
 
         // Compute the digest for each SAID field
         for (label, code) in said_fields {
