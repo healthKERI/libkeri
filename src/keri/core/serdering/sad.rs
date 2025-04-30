@@ -909,7 +909,7 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
         "rpy" => {
             sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
             sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
-            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+            sad.insert("a".to_string(), get_object_or_empty(orig, "a"));
         }
         "pro" => {
             sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
