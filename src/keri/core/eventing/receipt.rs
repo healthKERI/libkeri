@@ -227,9 +227,18 @@ mod tests {
         assert_eq!(ked["s"].as_str().unwrap(), "0");
         
         let raw = b"{\"v\":\"KERI10JSON000091_\",\"t\":\"rct\",\"d\":\"EKKccCumVQdgxvsrSXvuTtjmS28Xqf3zRJ8T6peKgl9J\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\"}";
-        let raw_str = std::str::from_utf8(serder.raw())?;
-        
         assert_eq!(raw, serder.raw());
+
+        let serder = ReceiptEventBuilder::new(pre.to_string(), 2, said.to_string()).build()?;
+
+        let ked = serder.ked();
+        assert_eq!(ked["t"].as_str().unwrap(), Ilks::RCT);
+        assert_eq!(ked["i"].as_str().unwrap(), pre);
+        assert_eq!(ked["s"].as_str().unwrap(), "2");
+
+        let raw = b"{\"v\":\"KERI10JSON000091_\",\"t\":\"rct\",\"d\":\"EKKccCumVQdgxvsrSXvuTtjmS28Xqf3zRJ8T6peKgl9J\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"2\"}";
+        assert_eq!(raw, serder.raw());
+        
         Ok(())
     }
 }
