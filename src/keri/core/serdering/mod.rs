@@ -481,7 +481,7 @@ impl BaseSerder {
             "rot" | "drt" | "vrt" | "rev" | "brv" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
             }
-            "ixn" | "rct" => {
+            "ixn" => {
                 said_fields.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
             }
             "qry" | "rpy" | "pro" | "bar" | "exn" => {

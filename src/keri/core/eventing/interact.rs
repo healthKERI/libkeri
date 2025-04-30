@@ -309,5 +309,6 @@ mod tests {
         assert_eq!(serder.raw(), raw);
 
         Ok(())
+
     }
 }

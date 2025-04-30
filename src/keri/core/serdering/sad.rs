@@ -650,7 +650,7 @@ pub fn set_said_placeholders(sad: &mut Sadder, saids: Option<HashMap<&str, Strin
         "rot" | "drt" | "vrt" | "rev" | "brv" => {
             _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
         }
-        "ixn" | "rct" => {
+        "ixn" => {
             _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
         }
         "qry" | "rpy" | "pro" | "bar" | "exn" => {

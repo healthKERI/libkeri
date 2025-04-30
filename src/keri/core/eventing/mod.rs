@@ -1,6 +1,7 @@
 mod incept;
 mod interact;
 mod rotate;
+mod receipt;
 
 use crate::Matter;
 use std::error::Error;
