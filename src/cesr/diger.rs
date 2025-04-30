@@ -1,8 +1,8 @@
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
+use blake2::digest::VariableOutput;
 use blake2::{Blake2b512, Blake2bVar, Blake2s256, Digest as Blake2Digest};
-use blake2::digest::{VariableOutput};
 use blake3::Hasher as Blake3Hasher;
 use sha2::{Sha256, Sha512};
 use sha3::{Digest as Sha3Digest, Sha3_256, Sha3_512};
@@ -93,7 +93,7 @@ impl Diger {
             code if code == dig_dex::BLAKE2B_256 => {
                 let result = Diger::digest_blake2b_256(ser)?;
                 Ok(result.to_vec())
-            },
+            }
             // This should never happen because we validate in the constructor
             _ => Err(MatterError::UnsupportedCodeError(String::from(code))),
         }
@@ -117,8 +117,8 @@ impl Diger {
 
     // /// Calculate Blake2b 256-bit hash
     fn digest_blake2b_256(data: &[u8]) -> Result<[u8; 32], MatterError> {
-        use blake2::Blake2bVar;
         use blake2::digest::{Update, VariableOutput};
+        use blake2::Blake2bVar;
 
         let mut hasher = Blake2bVar::new(32).unwrap();
         hasher.update(data);

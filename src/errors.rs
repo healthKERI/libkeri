@@ -185,7 +185,7 @@ pub enum MatterError {
 
     #[error("Invalid key: {0}")]
     InvalidKey(String),
-    
+
     #[error("Decoding error: {0}")]
     DecodingError(String),
 }

@@ -9,15 +9,17 @@ use crate::cesr::number::Number;
 use crate::cesr::tholder::Tholder;
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Versionage, VRSN_1_0};
-use crate::keri::core::serdering::sad::{default_with_type, get_primary_said_label, set_said_placeholders};
+use crate::keri::core::serdering::sad::{
+    default_with_type, get_primary_said_label, set_said_placeholders,
+};
 use crate::keri::{deversify, smell, versify, Ilk, KERIError, Kinds, Protocolage, Said, Smellage};
-use crate::{Matter};
+use crate::Matter;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use indexmap::IndexMap;
 use serde_json::{self};
 use std::any::Any;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use tracing::error;
 
 /// Get the span length for a given version and serialization format
@@ -317,12 +319,14 @@ impl BaseSerder {
                 }
             }
             Kinds::Mgpk => {
-                let sadder = rmp_serde::from_slice(data).map_err(|e| KERIError::MgpkError(e.to_string()))?;
+                let sadder =
+                    rmp_serde::from_slice(data).map_err(|e| KERIError::MgpkError(e.to_string()))?;
                 Ok(sadder)
             }
 
             Kinds::Cbor => {
-                let sadder = serde_cbor::from_slice(data).map_err(|e| KERIError::CborError(e.to_string()))?;
+                let sadder = serde_cbor::from_slice(data)
+                    .map_err(|e| KERIError::CborError(e.to_string()))?;
                 Ok(sadder)
             }
             Kinds::Cesr => Err(KERIError::MgpkError(
@@ -454,7 +458,8 @@ impl BaseSerder {
                         }
                     }
                     _ => {
-                        said_fields.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                        said_fields.insert("i", mtr_dex::BLAKE3_256.to_string());
+                        // Blake3_256
                     }
                 }
             }
@@ -513,13 +518,11 @@ impl BaseSerder {
 
         // Compute SAID (Self-Addressing IDentifier) for the sad
         let said = match sad.get("d") {
-            Some(SadValue::String(d)) if !d.is_empty() => { Some(d.to_string()) }
-            _ => {
-                match sad.get("i") {
-                    Some(SadValue::String(i)) if !i.is_empty() => { Some(i.to_string()) }
-                    _ => None
-                }
-            }
+            Some(SadValue::String(d)) if !d.is_empty() => Some(d.to_string()),
+            _ => match sad.get("i") {
+                Some(SadValue::String(i)) if !i.is_empty() => Some(i.to_string()),
+                _ => None,
+            },
         };
 
         // Update object properties
@@ -846,10 +849,23 @@ impl SerderKERI {
         let base = BaseSerder::from_sad(sad)?;
         Ok(Self { base })
     }
-    
-    pub fn from_sad_and_saids(sad: &Sadder, saids: Option<HashMap<&str, String>>) -> Result<Self, KERIError> {
-        let base = BaseSerder::from_init(None, Some(sad), Some(true), None, None, None, None, None, saids)?;
-        Ok(Self {base})
+
+    pub fn from_sad_and_saids(
+        sad: &Sadder,
+        saids: Option<HashMap<&str, String>>,
+    ) -> Result<Self, KERIError> {
+        let base = BaseSerder::from_init(
+            None,
+            Some(sad),
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            None,
+            saids,
+        )?;
+        Ok(Self { base })
     }
 
     /// Returns true if Serder represents an establishment event
@@ -865,7 +881,16 @@ impl SerderKERI {
 
     /// Returns qb64 of .sad["i"] identifier prefix
     pub fn pre(&self) -> Option<String> {
-        Some(self.base.sad.get("i").unwrap().as_str().unwrap().to_string().clone())
+        Some(
+            self.base
+                .sad
+                .get("i")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string()
+                .clone(),
+        )
     }
 
     /// Returns qb64b of .pre identifier prefix as bytes
@@ -875,7 +900,14 @@ impl SerderKERI {
 
     /// Number instance of sequence number
     pub fn sner(&self) -> Option<Number> {
-        let num = Number::from_numh(self.base.sad.get("s").unwrap_or(&SadValue::String("0".to_string())).as_str().unwrap());
+        let num = Number::from_numh(
+            self.base
+                .sad
+                .get("s")
+                .unwrap_or(&SadValue::String("0".to_string()))
+                .as_str()
+                .unwrap(),
+        );
         match num {
             Ok(num) => Some(num),
             Err(e) => {
@@ -910,12 +942,12 @@ impl SerderKERI {
                     }
                 }
                 Some(seals)
-            },
+            }
             Some(SadValue::Object(map)) => {
                 let mut seals = Vec::new();
                 seals.push(map.clone());
                 Some(seals)
-            },
+            }
             _ => None,
         }
     }
@@ -937,8 +969,8 @@ impl SerderKERI {
                         None
                     }
                 }
-            },
-            None => None
+            }
+            None => None,
         }
     }
 
@@ -985,8 +1017,8 @@ impl SerderKERI {
                         None
                     }
                 }
-            },
-            None => None
+            }
+            None => None,
         }
     }
 
@@ -1023,7 +1055,14 @@ impl SerderKERI {
 
     /// Number of backer TOAD threshold
     pub fn bner(&self) -> Option<Number> {
-        let num = Number::from_numh(self.base.sad.get("bt").unwrap_or(&SadValue::String("0".to_string())).as_str().unwrap());
+        let num = Number::from_numh(
+            self.base
+                .sad
+                .get("bt")
+                .unwrap_or(&SadValue::String("0".to_string()))
+                .as_str()
+                .unwrap(),
+        );
         match num {
             Ok(num) => Some(num),
             Err(e) => {
@@ -1075,13 +1114,11 @@ impl SerderKERI {
     /// Prior event SAID from .sad['p']
     pub fn prior(&self) -> Option<String> {
         match self.base.sad.get("p") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1127,13 +1164,11 @@ impl SerderKERI {
     /// Delegator ID prefix from .sad["di"]
     pub fn delpre(&self) -> Option<String> {
         match self.base.sad.get("di") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1145,52 +1180,44 @@ impl SerderKERI {
     /// Date-time-stamp from .sad["dt"]
     pub fn stamp(&self) -> Option<String> {
         match self.base.sad.get("dt") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
     /// UUID (salty nonce) from .sad["u"]
     pub fn uuid(&self) -> Option<String> {
         match self.base.sad.get("u") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
     /// Alias for .uuid property with version check
     pub fn nonce(&self) -> Option<String> {
         match self.base.sad.get("n") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
     /// Get the ilk of the event
     pub fn ilk(&self) -> Option<Ilk> {
         match self.base.sad.get("t") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Ilk::from_str(val)}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Ilk::from_str(val),
+                _ => None,
+            },
+            None => None,
         }
     }
 }
@@ -1291,13 +1318,11 @@ impl SerderACDC {
     /// UUID (salty nonce) from .sad["u"]
     pub fn uuid(&self) -> Option<String> {
         match self.base.sad.get("u") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1317,13 +1342,11 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["i"] issuer AID
     pub fn issuer(&self) -> Option<String> {
         match self.base.sad.get("i") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1343,13 +1366,11 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["ri"] registry SAID
     pub fn regi(&self) -> Option<String> {
         match self.base.sad.get("ri") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1371,13 +1392,11 @@ impl SerderACDC {
     ///    Option<&Value>: from ._sad["s"]
     pub fn schema(&self) -> Option<String> {
         match self.base.sad.get("s") {
-            Some(sv) => {
-                match sv {
-                    SadValue::String(val) => {Some(val.clone())}
-                    _ => None
-                }
-            }
-            None => None
+            Some(sv) => match sv {
+                SadValue::String(val) => Some(val.clone()),
+                _ => None,
+            },
+            None => None,
         }
     }
 
@@ -1389,9 +1408,7 @@ impl SerderACDC {
     pub fn attrib(&self) -> Option<IndexMap<String, SadValue>> {
         match &self.base.sad.get("a") {
             Some(SadValue::Array(_)) => None,
-            Some(SadValue::Object(map)) => {
-                Some(map.clone())
-            },
+            Some(SadValue::Object(map)) => Some(map.clone()),
             _ => None,
         }
     }
@@ -1403,18 +1420,14 @@ impl SerderACDC {
     ///    Option<String>: qb64 of .sad["a"]["i"] issuee AID
     pub fn issuee(&self) -> Option<String> {
         match &self.attrib() {
-            Some(map) => {
-                match map.get("i") {
-                    Some(sv) => {
-                        match sv {
-                            SadValue::String(val) => {Some(val.clone())}
-                            _ => None
-                        }
-                    }
-                    None => None
-                }
-            }
-            _ => None
+            Some(map) => match map.get("i") {
+                Some(sv) => match sv {
+                    SadValue::String(val) => Some(val.clone()),
+                    _ => None,
+                },
+                None => None,
+            },
+            _ => None,
         }
     }
 
@@ -1434,9 +1447,7 @@ impl SerderACDC {
     ///    Option<&Value>: from ._sad["A"]
     pub fn attagg(&self) -> Option<&SadValue> {
         match &self.base.sad.get("A") {
-            Some(sv) => {
-                Some(sv.clone())
-            },
+            Some(sv) => Some(sv.clone()),
             _ => None,
         }
     }
@@ -1449,9 +1460,7 @@ impl SerderACDC {
     pub fn edge(&self) -> Option<IndexMap<String, SadValue>> {
         match &self.base.sad.get("e") {
             Some(SadValue::Array(_)) => None,
-            Some(SadValue::Object(map)) => {
-                Some(map.clone())
-            },
+            Some(SadValue::Object(map)) => Some(map.clone()),
             _ => None,
         }
     }
@@ -1464,9 +1473,7 @@ impl SerderACDC {
     pub fn rule(&self) -> Option<IndexMap<String, SadValue>> {
         match &self.base.sad.get("r") {
             Some(SadValue::Array(_)) => None,
-            Some(SadValue::Object(map)) => {
-                Some(map.clone())
-            },
+            Some(SadValue::Object(map)) => Some(map.clone()),
             _ => None,
         }
     }
@@ -1566,7 +1573,6 @@ fn is_iterable(value: &SadValue) -> bool {
     matches!(value, SadValue::Array(_) | SadValue::Object(_))
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::keri::core::serdering::sad::validate;
@@ -1584,10 +1590,16 @@ mod tests {
         icp_event.insert("t".to_string(), SadValue::from_string("icp"));
 
         // Add SAID digest
-        icp_event.insert("d".to_string(), SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"));
+        icp_event.insert(
+            "d".to_string(),
+            SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"),
+        );
 
         // Add identifier
-        icp_event.insert("i".to_string(), SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"));
+        icp_event.insert(
+            "i".to_string(),
+            SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"),
+        );
 
         // Add sequence number
         icp_event.insert("s".to_string(), SadValue::from_string("0"));
@@ -1596,14 +1608,18 @@ mod tests {
         icp_event.insert("kt".to_string(), SadValue::from_string("1"));
 
         // Add keys as array
-        let keys = vec![SadValue::from_string("DQbYDpQRN5cmkQ94mR69N_c98C0-SIVYEj2LM2VAGUhZ")];
+        let keys = vec![SadValue::from_string(
+            "DQbYDpQRN5cmkQ94mR69N_c98C0-SIVYEj2LM2VAGUhZ",
+        )];
         icp_event.insert("k".to_string(), SadValue::from_array(keys));
 
         // Add next key threshold
         icp_event.insert("nt".to_string(), SadValue::from_string("1"));
 
         // Add next keys as array
-        let next_keys = vec![SadValue::from_string("EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y")];
+        let next_keys = vec![SadValue::from_string(
+            "EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y",
+        )];
         icp_event.insert("n".to_string(), SadValue::from_array(next_keys));
 
         // Add backer threshold
@@ -1641,17 +1657,17 @@ mod tests {
     //         c: Some(AttribField::StringList(vec![])),
     //         ..Default::default()
     //     };
-    // 
+    //
     //     assert!(invalid_icp.validate().is_err());
     // }
-    // 
+    //
     // #[test]
     // fn test_serder_initialization_and_verification() {
     //     // Test creating a Serder with makify=true and icp ilk
     //     let serder =
     //         BaseSerder::from_init(None, None, Some(true), None, None, None, None, None, None)
     //             .unwrap();
-    // 
+    //
     //     // Check the generated SAD structure
     //     let sad = serder.sad();
     //     assert_eq!(sad.t, "icp");
@@ -1663,32 +1679,32 @@ mod tests {
     //     assert!(sad.n.as_ref().unwrap().is_empty());
     //     assert!(sad.b.as_ref().unwrap().is_empty());
     //     assert!(sad.c.as_ref().unwrap().is_empty());
-    // 
+    //
     //     // In Python there's an assert for 'a' field, assuming it exists in Rust as well
     //     match &sad.a {
     //         Some(AttribField::StringList(list)) => assert!(list.is_empty()),
     //         Some(AttribField::StringMap(map)) => assert!(map.is_empty()),
     //         None => panic!("Expected 'a' field to exist but be empty"),
     //     }
-    // 
+    //
     //     // Verify the SAID is consistent
     //     assert_eq!(sad.d, sad.i.clone().unwrap());
-    // 
+    //
     //     // Get raw bytes and verify they match the expected pattern
     //     let raw = serder.raw();
     //     assert!(raw.starts_with(b"{\"v\":\"KERI10JSON"));
     //     // assert!(raw.contains(b"\"t\":\"icp\""));
-    // 
+    //
     //     // Verify other properties
     //     // assert!(serder.verify().is_ok());
     //     assert_eq!(serder.ilk().unwrap(), "icp");
-    // 
+    //
     //     // Store values for reconstruction tests
     //     let sad_clone = serder.sad().clone();
     //     let raw_clone = serder.raw();
     //     let said = serder.said().clone();
     //     let size = serder.size();
-    // 
+    //
     //     // Test reconstruction from SAD
     //     let serder_from_sad = SerderKERI::from_sad(&sad_clone).unwrap();
     //     assert_eq!(serder_from_sad.raw(), raw_clone);
@@ -1699,18 +1715,18 @@ mod tests {
     //     assert_eq!(serder_from_sad.kind(), &Kinds::Json);
     //     assert_eq!(serder_from_sad.said(), said);
     //     assert_eq!(serder_from_sad.ilk().unwrap(), Ilk::Icp);
-    // 
+    //
     //     // Test reconstruction from raw bytes
     //     let serder_from_raw = SerderKERI::from_raw(&raw_clone, None).unwrap();
     //     assert_eq!(serder_from_raw.raw(), raw_clone);
-    // 
+    //
     //     // Check that SAD matches between original and reconstructed from raw
     //     let regenerated_sad = serder_from_raw.sad();
     //     assert_eq!(regenerated_sad.v, sad.v);
     //     assert_eq!(regenerated_sad.t, sad.t);
     //     assert_eq!(regenerated_sad.d, sad.d);
     //     assert_eq!(regenerated_sad.i, sad.i);
-    // 
+    //
     //     // Additional verification
     //     assert_eq!(serder_from_raw.proto(), "KERI");
     //     assert_eq!(serder_from_raw.vrsn(), &VRSN_1_0);
@@ -1718,7 +1734,7 @@ mod tests {
     //     assert_eq!(serder_from_raw.kind(), &Kinds::Json);
     //     assert_eq!(serder_from_raw.said(), said);
     //     assert_eq!(serder_from_raw.ilk().unwrap(), Ilk::Icp);
-    // 
+    //
     //     // Test creating a Serder with makify=true and icp ilk
     //     let mut sad = Sadder::default();
     //     sad.i = Some("DKxy2sgzfplyr-tgwIxS19f2OchFHtLwPWD3v4oYimBx".to_string());

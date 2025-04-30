@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use serde::{de, ser};
-use serde::{Deserializer, Serializer};
-use serde_json::Number;
-use std::fmt;
-use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
-use serde::ser::{SerializeMap, SerializeSeq};
 use crate::cesr::{dig_dex, get_sizes, mtr_dex, BaseMatter};
 use crate::keri::{Ilk, Ilks, KERIError, Kinds, Said};
 use crate::Matter;
+use indexmap::IndexMap;
+use serde::ser::{SerializeMap, SerializeSeq};
+use serde::{de, ser};
+use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer};
+use serde_json::Number;
+use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Clone)]
 pub enum SadValue {
@@ -58,12 +58,14 @@ impl SadValue {
                 }
             }
             Kinds::Mgpk => {
-                let sadder = rmp_serde::from_slice(data).map_err(|e| KERIError::MgpkError(e.to_string()))?;
+                let sadder =
+                    rmp_serde::from_slice(data).map_err(|e| KERIError::MgpkError(e.to_string()))?;
                 Ok(sadder)
             }
 
             Kinds::Cbor => {
-                let sadder = serde_cbor::from_slice(data).map_err(|e| KERIError::CborError(e.to_string()))?;
+                let sadder = serde_cbor::from_slice(data)
+                    .map_err(|e| KERIError::CborError(e.to_string()))?;
                 Ok(sadder)
             }
             Kinds::Cesr => Err(KERIError::MgpkError(
@@ -304,7 +306,7 @@ impl SadValue {
                         return None;
                     }
                 }
-                _ => return None
+                _ => return None,
             }
         }
 
@@ -329,9 +331,7 @@ impl SadValue {
             let token = token.replace("~1", "/").replace("~0", "~");
 
             target = match target {
-                SadValue::Object(map) => {
-                    map.get_mut(&token)?
-                }
+                SadValue::Object(map) => map.get_mut(&token)?,
                 SadValue::Array(vec) => {
                     if let Ok(index) = token.parse::<usize>() {
                         vec.get_mut(index)?
@@ -339,14 +339,12 @@ impl SadValue {
                         return None;
                     }
                 }
-                _ => return None
+                _ => return None,
             };
         }
 
         match target {
-            SadValue::Object(map) => {
-                map.get_mut(&last_token)
-            }
+            SadValue::Object(map) => map.get_mut(&last_token),
             SadValue::Array(vec) => {
                 if let Ok(index) = last_token.parse::<usize>() {
                     vec.get_mut(index)
@@ -354,7 +352,7 @@ impl SadValue {
                     None
                 }
             }
-            _ => None
+            _ => None,
         }
     }
 
@@ -553,7 +551,7 @@ impl<'de> de::Visitor<'de> for SadVisitor {
     where
         E: de::Error,
     {
-        // SadValue doesn't have a Null variant, 
+        // SadValue doesn't have a Null variant,
         // so we represent null as a special Boolean value
         // An alternative could be to return a default empty value
         Ok(SadValue::Bool(false))
@@ -638,7 +636,8 @@ pub fn set_said_placeholders(sad: &mut Sadder, saids: Option<HashMap<&str, Strin
                             }
                         }
                         Err(_) => {
-                            _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                            _saids.insert("i", mtr_dex::BLAKE3_256.to_string());
+                            // Blake3_256
                         }
                     }
                 } else {
@@ -807,11 +806,20 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
         "icp" => {
             sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
             sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
-            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert(
+                "kt".to_string(),
+                get_string_or_number_default(orig, "kt", "0"),
+            );
             sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
-            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert(
+                "nt".to_string(),
+                get_string_or_number_default(orig, "nt", "0"),
+            );
             sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
-            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert(
+                "bt".to_string(),
+                get_string_or_number_default(orig, "bt", "0"),
+            );
             sad.insert("b".to_string(), get_array_or_empty(orig, "b"));
             sad.insert("c".to_string(), get_array_or_empty(orig, "c"));
             sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
@@ -820,11 +828,20 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
             sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
             sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
             sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
-            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert(
+                "kt".to_string(),
+                get_string_or_number_default(orig, "kt", "0"),
+            );
             sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
-            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert(
+                "nt".to_string(),
+                get_string_or_number_default(orig, "nt", "0"),
+            );
             sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
-            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert(
+                "bt".to_string(),
+                get_string_or_number_default(orig, "bt", "0"),
+            );
             sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
             sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
             sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
@@ -838,11 +855,20 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
         "dip" => {
             sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
             sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
-            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert(
+                "kt".to_string(),
+                get_string_or_number_default(orig, "kt", "0"),
+            );
             sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
-            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert(
+                "nt".to_string(),
+                get_string_or_number_default(orig, "nt", "0"),
+            );
             sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
-            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert(
+                "bt".to_string(),
+                get_string_or_number_default(orig, "bt", "0"),
+            );
             sad.insert("b".to_string(), get_array_or_empty(orig, "b"));
             sad.insert("c".to_string(), get_array_or_empty(orig, "c"));
             sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
@@ -852,11 +878,20 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
             sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
             sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
             sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
-            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert(
+                "kt".to_string(),
+                get_string_or_number_default(orig, "kt", "0"),
+            );
             sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
-            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert(
+                "nt".to_string(),
+                get_string_or_number_default(orig, "nt", "0"),
+            );
             sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
-            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert(
+                "bt".to_string(),
+                get_string_or_number_default(orig, "bt", "0"),
+            );
             sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
             sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
             sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
@@ -909,7 +944,10 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
             sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
             sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
             sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
-            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert(
+                "bt".to_string(),
+                get_string_or_number_default(orig, "bt", "0"),
+            );
             sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
             sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
         }
@@ -948,7 +986,6 @@ pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
 
     sad
 }
-
 
 /// Create a validation schema for the different event types
 pub fn build_validation_schema() -> HashMap<Ilk, Vec<&'static str>> {
@@ -1017,20 +1054,34 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
     // Get the ilk value which determines the schema to use
     let ilk_str = match sad.get("t") {
         Some(SadValue::String(t)) => t.as_str(),
-        _ => return Err(KERIError::ValidationError("Missing or invalid 't' field".to_string())),
+        _ => {
+            return Err(KERIError::ValidationError(
+                "Missing or invalid 't' field".to_string(),
+            ))
+        }
     };
 
     // Try to convert string ilk to Ilk enum
     let ilk = match Ilk::from_str(ilk_str) {
-        Some(ilk) => {ilk}
-        None => return Err(KERIError::ValidationError(format!("Invalid ilk type: {}", ilk_str))),
+        Some(ilk) => ilk,
+        None => {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid ilk type: {}",
+                ilk_str
+            )))
+        }
     };
 
     // Get the validation schema for this ilk
     let schema = build_validation_schema();
     let fields = match schema.get(&ilk) {
         Some(fields) => fields,
-        None => return Err(KERIError::ValidationError(format!("No schema found for ilk: {}", ilk_str))),
+        None => {
+            return Err(KERIError::ValidationError(format!(
+                "No schema found for ilk: {}",
+                ilk_str
+            )))
+        }
     };
 
     // Check that all required fields are present and have appropriate values
@@ -1039,7 +1090,9 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             "v" => {
                 // Version is required and must not be empty
                 if !has_non_empty_string(sad, "v") {
-                    return Err(KERIError::ValidationError("Missing or empty version field 'v'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty version field 'v'".to_string(),
+                    ));
                 }
             }
             "t" => {
@@ -1048,49 +1101,74 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             "d" => {
                 // Digest is required and must not be empty
                 if !has_non_empty_string(sad, "d") {
-                    return Err(KERIError::ValidationError("Missing or empty digest field 'd'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty digest field 'd'".to_string(),
+                    ));
                 }
             }
             "i" => {
                 // Identifier is required for most events
                 if !has_non_empty_string(sad, "i") {
-                    return Err(KERIError::ValidationError("Missing or empty identifier field 'i'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty identifier field 'i'".to_string(),
+                    ));
                 }
             }
             "s" => {
                 // Sequence number is required for key events
                 if !has_field(sad, "s") {
-                    return Err(KERIError::ValidationError("Missing sequence number field 's'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing sequence number field 's'".to_string(),
+                    ));
                 }
 
                 // Validate as number string or parse as integer
                 if let Some(SadValue::String(s)) = sad.get("s") {
                     if s.parse::<u64>().is_err() {
-                        return Err(KERIError::ValidationError(format!("Invalid sequence number '{}': must be a non-negative integer", s)));
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid sequence number '{}': must be a non-negative integer",
+                            s
+                        )));
                     }
                 } else {
-                    return Err(KERIError::ValidationError("Sequence number 's' must be a string value".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Sequence number 's' must be a string value".to_string(),
+                    ));
                 }
             }
             "p" => {
                 // Prior event digest is required for rotation and interaction events
-                if matches!(ilk, Ilk::Rot | Ilk::Ixn | Ilk::Drt | Ilk::Vrt | Ilk::Rev | Ilk::Brv) && !has_non_empty_string(sad, "p") {
-                    return Err(KERIError::ValidationError("Missing or empty prior digest field 'p'".to_string()));
+                if matches!(
+                    ilk,
+                    Ilk::Rot | Ilk::Ixn | Ilk::Drt | Ilk::Vrt | Ilk::Rev | Ilk::Brv
+                ) && !has_non_empty_string(sad, "p")
+                {
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty prior digest field 'p'".to_string(),
+                    ));
                 }
             }
             "kt" => {
                 // Key threshold is required for inception and rotation events
-                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "kt") {
-                    return Err(KERIError::ValidationError("Missing key threshold field 'kt'".to_string()));
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "kt")
+                {
+                    return Err(KERIError::ValidationError(
+                        "Missing key threshold field 'kt'".to_string(),
+                    ));
                 }
 
                 // Validate as threshold string or parse as integer
                 if let Some(SadValue::String(kt)) = sad.get("kt") {
                     if kt.parse::<u64>().is_err() {
-                        return Err(KERIError::ValidationError(format!("Invalid key threshold '{}': must be a non-negative integer", kt)));
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid key threshold '{}': must be a non-negative integer",
+                            kt
+                        )));
                     }
                 } else if has_field(sad, "kt") {
-                    return Err(KERIError::ValidationError("Key threshold 'kt' must be a string value".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Key threshold 'kt' must be a string value".to_string(),
+                    ));
                 }
             }
             "k" => {
@@ -1098,7 +1176,10 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                 if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) {
                     // Must be an array of strings
                     if !has_string_array(sad, "k") {
-                        return Err(KERIError::ValidationError("Missing or invalid keys field 'k': must be an array of strings".to_string()));
+                        return Err(KERIError::ValidationError(
+                            "Missing or invalid keys field 'k': must be an array of strings"
+                                .to_string(),
+                        ));
                     }
 
                     // Validate each key is a non-empty string
@@ -1106,10 +1187,16 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                         for (i, key) in keys.iter().enumerate() {
                             if let Some(key_str) = key.as_str() {
                                 if key_str.is_empty() {
-                                    return Err(KERIError::ValidationError(format!("Empty key at index {} in 'k'", i)));
+                                    return Err(KERIError::ValidationError(format!(
+                                        "Empty key at index {} in 'k'",
+                                        i
+                                    )));
                                 }
                             } else {
-                                return Err(KERIError::ValidationError(format!("Non-string key at index {} in 'k'", i)));
+                                return Err(KERIError::ValidationError(format!(
+                                    "Non-string key at index {} in 'k'",
+                                    i
+                                )));
                             }
                         }
                     }
@@ -1117,17 +1204,25 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             }
             "nt" => {
                 // Next key threshold is required for inception and rotation events
-                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "nt") {
-                    return Err(KERIError::ValidationError("Missing next key threshold field 'nt'".to_string()));
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "nt")
+                {
+                    return Err(KERIError::ValidationError(
+                        "Missing next key threshold field 'nt'".to_string(),
+                    ));
                 }
 
                 // Validate as threshold string or parse as integer
                 if let Some(SadValue::String(nt)) = sad.get("nt") {
                     if nt.parse::<u64>().is_err() {
-                        return Err(KERIError::ValidationError(format!("Invalid next key threshold '{}': must be a non-negative integer", nt)));
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid next key threshold '{}': must be a non-negative integer",
+                            nt
+                        )));
                     }
                 } else if has_field(sad, "nt") {
-                    return Err(KERIError::ValidationError("Next key threshold 'nt' must be a string value".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Next key threshold 'nt' must be a string value".to_string(),
+                    ));
                 }
             }
             "n" => {
@@ -1135,7 +1230,10 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                 if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) {
                     // Must be an array of strings
                     if !has_string_array(sad, "n") {
-                        return Err(KERIError::ValidationError("Missing or invalid next keys field 'n': must be an array of strings".to_string()));
+                        return Err(KERIError::ValidationError(
+                            "Missing or invalid next keys field 'n': must be an array of strings"
+                                .to_string(),
+                        ));
                     }
 
                     // Validate each key is a non-empty string
@@ -1143,10 +1241,16 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                         for (i, key) in keys.iter().enumerate() {
                             if let Some(key_str) = key.as_str() {
                                 if key_str.is_empty() {
-                                    return Err(KERIError::ValidationError(format!("Empty next key at index {} in 'n'", i)));
+                                    return Err(KERIError::ValidationError(format!(
+                                        "Empty next key at index {} in 'n'",
+                                        i
+                                    )));
                                 }
                             } else {
-                                return Err(KERIError::ValidationError(format!("Non-string next key at index {} in 'n'", i)));
+                                return Err(KERIError::ValidationError(format!(
+                                    "Non-string next key at index {} in 'n'",
+                                    i
+                                )));
                             }
                         }
                     }
@@ -1154,23 +1258,36 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             }
             "bt" => {
                 // Backer threshold is required for inception and rotation events with backers
-                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && has_field(sad, "b") && !has_field(sad, "bt") {
-                    return Err(KERIError::ValidationError("Missing backer threshold field 'bt' when backers 'b' are present".to_string()));
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt)
+                    && has_field(sad, "b")
+                    && !has_field(sad, "bt")
+                {
+                    return Err(KERIError::ValidationError(
+                        "Missing backer threshold field 'bt' when backers 'b' are present"
+                            .to_string(),
+                    ));
                 }
 
                 // Validate as threshold string or parse as integer if present
                 if let Some(SadValue::String(bt)) = sad.get("bt") {
                     if bt.parse::<u64>().is_err() {
-                        return Err(KERIError::ValidationError(format!("Invalid backer threshold '{}': must be a non-negative integer", bt)));
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid backer threshold '{}': must be a non-negative integer",
+                            bt
+                        )));
                     }
                 } else if has_field(sad, "bt") {
-                    return Err(KERIError::ValidationError("Backer threshold 'bt' must be a string value".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Backer threshold 'bt' must be a string value".to_string(),
+                    ));
                 }
             }
             "b" => {
                 // Backers field must be an array of strings if present
                 if has_field(sad, "b") && !has_string_array(sad, "b") {
-                    return Err(KERIError::ValidationError("Invalid backers field 'b': must be an array of strings".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid backers field 'b': must be an array of strings".to_string(),
+                    ));
                 }
 
                 // Validate each backer is a non-empty string
@@ -1178,10 +1295,16 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                     for (i, backer) in backers.iter().enumerate() {
                         if let Some(backer_str) = backer.as_str() {
                             if backer_str.is_empty() {
-                                return Err(KERIError::ValidationError(format!("Empty backer at index {} in 'b'", i)));
+                                return Err(KERIError::ValidationError(format!(
+                                    "Empty backer at index {} in 'b'",
+                                    i
+                                )));
                             }
                         } else {
-                            return Err(KERIError::ValidationError(format!("Non-string backer at index {} in 'b'", i)));
+                            return Err(KERIError::ValidationError(format!(
+                                "Non-string backer at index {} in 'b'",
+                                i
+                            )));
                         }
                     }
                 }
@@ -1189,7 +1312,10 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             "br" => {
                 // Backer remove field must be an array of strings if present
                 if has_field(sad, "br") && !has_string_array(sad, "br") {
-                    return Err(KERIError::ValidationError("Invalid backer removes field 'br': must be an array of strings".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid backer removes field 'br': must be an array of strings"
+                            .to_string(),
+                    ));
                 }
 
                 // Validate each backer is a non-empty string
@@ -1197,10 +1323,16 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
                     for (i, backer) in backers.iter().enumerate() {
                         if let Some(backer_str) = backer.as_str() {
                             if backer_str.is_empty() {
-                                return Err(KERIError::ValidationError(format!("Empty backer remove at index {} in 'br'", i)));
+                                return Err(KERIError::ValidationError(format!(
+                                    "Empty backer remove at index {} in 'br'",
+                                    i
+                                )));
                             }
                         } else {
-                            return Err(KERIError::ValidationError(format!("Non-string backer remove at index {} in 'br'", i)));
+                            return Err(KERIError::ValidationError(format!(
+                                "Non-string backer remove at index {} in 'br'",
+                                i
+                            )));
                         }
                     }
                 }
@@ -1208,67 +1340,90 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
             "ba" => {
                 // Backer add field must be an array if present
                 if has_field(sad, "ba") && !is_array(sad, "ba") {
-                    return Err(KERIError::ValidationError("Invalid backer adds field 'ba': must be an array".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid backer adds field 'ba': must be an array".to_string(),
+                    ));
                 }
             }
             "c" => {
                 // Configuration traits must be array or object if present
                 if has_field(sad, "c") && !is_array(sad, "c") && !is_object(sad, "c") {
-                    return Err(KERIError::ValidationError("Invalid config field 'c': must be an array or object".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid config field 'c': must be an array or object".to_string(),
+                    ));
                 }
             }
             "a" => {
                 // Anchors must be array or object if present
                 if has_field(sad, "a") && !is_array(sad, "a") && !is_object(sad, "a") {
-                    return Err(KERIError::ValidationError("Invalid anchors field 'a': must be an array or object".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid anchors field 'a': must be an array or object".to_string(),
+                    ));
                 }
             }
             "di" => {
                 // Delegator identifier is required for delegated events
                 if matches!(ilk, Ilk::Dip | Ilk::Drt) && !has_non_empty_string(sad, "di") {
-                    return Err(KERIError::ValidationError("Missing or empty delegator field 'di'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty delegator field 'di'".to_string(),
+                    ));
                 }
             }
             "dt" => {
                 // Date-time is required for certain events
-                if matches!(ilk, Ilk::Rpy | Ilk::Qry | Ilk::Exn) && !has_non_empty_string(sad, "dt") {
-                    return Err(KERIError::ValidationError("Missing or empty date-time field 'dt'".to_string()));
+                if matches!(ilk, Ilk::Rpy | Ilk::Qry | Ilk::Exn) && !has_non_empty_string(sad, "dt")
+                {
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty date-time field 'dt'".to_string(),
+                    ));
                 }
             }
             "r" => {
                 // Route is required for query and reply events
                 if matches!(ilk, Ilk::Qry | Ilk::Rpy) && !has_non_empty_string(sad, "r") {
-                    return Err(KERIError::ValidationError("Missing or empty route field 'r'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty route field 'r'".to_string(),
+                    ));
                 }
             }
             "q" => {
                 // Query or payload must be object if present
                 if has_field(sad, "q") && !is_object(sad, "q") {
-                    return Err(KERIError::ValidationError("Invalid query field 'q': must be an object".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid query field 'q': must be an object".to_string(),
+                    ));
                 }
             }
             "ri" => {
                 // Registry identifier required for issuance and revocation events
                 if matches!(ilk, Ilk::Iss | Ilk::Rev) && !has_non_empty_string(sad, "ri") {
-                    return Err(KERIError::ValidationError("Missing or empty registry identifier 'ri'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty registry identifier 'ri'".to_string(),
+                    ));
                 }
             }
             "ii" => {
                 // Issuer identifier required for certain events
                 if matches!(ilk, Ilk::Bis | Ilk::Vcp) && !has_non_empty_string(sad, "ii") {
-                    return Err(KERIError::ValidationError("Missing or empty issuer identifier field 'ii'".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Missing or empty issuer identifier field 'ii'".to_string(),
+                    ));
                 }
             }
             "rules" => {
                 // Rules must be object if present
                 if has_field(sad, "rules") && !is_object(sad, "rules") {
-                    return Err(KERIError::ValidationError("Invalid rules field 'rules': must be an object".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid rules field 'rules': must be an object".to_string(),
+                    ));
                 }
             }
             "e" => {
                 // Exchange info must be object if present
                 if has_field(sad, "e") && !is_object(sad, "e") {
-                    return Err(KERIError::ValidationError("Invalid exchange field 'e': must be an object".to_string()));
+                    return Err(KERIError::ValidationError(
+                        "Invalid exchange field 'e': must be an object".to_string(),
+                    ));
                 }
             }
             // Add more fields here as needed
@@ -1284,9 +1439,11 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
         if let Some(SadValue::String(kt)) = sad.get("kt") {
             if let Ok(kt_val) = kt.parse::<usize>() {
                 if kt_val > keys.len() && kt_val != 0 {
-                    return Err(KERIError::ValidationError(
-                        format!("Invalid key threshold '{}': greater than number of keys {}", kt, keys.len())
-                    ));
+                    return Err(KERIError::ValidationError(format!(
+                        "Invalid key threshold '{}': greater than number of keys {}",
+                        kt,
+                        keys.len()
+                    )));
                 }
             }
         }
@@ -1297,9 +1454,11 @@ pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
         if let Some(SadValue::String(nt)) = sad.get("nt") {
             if let Ok(nt_val) = nt.parse::<usize>() {
                 if nt_val > nkeys.len() && nt_val != 0 {
-                    return Err(KERIError::ValidationError(
-                        format!("Invalid next key threshold '{}': greater than number of next keys {}", nt, nkeys.len())
-                    ));
+                    return Err(KERIError::ValidationError(format!(
+                        "Invalid next key threshold '{}': greater than number of next keys {}",
+                        nt,
+                        nkeys.len()
+                    )));
                 }
             }
         }
@@ -1362,8 +1521,12 @@ pub fn is_valid(sad: &Sadder) -> Result<(), String> {
 /// Creates a specific event type from this general structure
 pub fn ilk(sad: &Sadder) -> Result<Ilk, KERIError> {
     let t = match sad.get("t") {
-        Some(SadValue::String(t)) => {t}
-        _ => {return Err(KERIError::ValidationError("Missing or invalid 't' field".to_string()))}
+        Some(SadValue::String(t)) => t,
+        _ => {
+            return Err(KERIError::ValidationError(
+                "Missing or invalid 't' field".to_string(),
+            ))
+        }
     };
     match t.as_str() {
         Ilks::ICP => Ok(Ilk::Icp),
@@ -1381,7 +1544,6 @@ pub fn ilk(sad: &Sadder) -> Result<Ilk, KERIError> {
         _ => Err(KERIError::FieldError(String::from("Unknown event type"))),
     }
 }
-
 
 pub fn get_primary_said_label(sad: &Sadder) -> Option<Said> {
     match ilk(sad) {

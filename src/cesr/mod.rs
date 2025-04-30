@@ -1,4 +1,5 @@
 use crate::errors::MatterError;
+use crate::keri::KERIError;
 use base64::{engine::general_purpose, Engine};
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
@@ -6,10 +7,8 @@ use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::{fmt, str};
 use std::str::FromStr;
-use crate::keri::KERIError;
-
+use std::{fmt, str};
 
 pub mod bexter;
 pub mod cigar;
@@ -49,7 +48,6 @@ impl Display for Versionage {
     }
 }
 
-
 impl From<String> for Versionage {
     fn from(version_str: String) -> Self {
         // Try to extract version information from the string
@@ -75,16 +73,18 @@ impl Versionage {
     fn parse_version_string(version_str: &str) -> Result<Self, KERIError> {
         // Ensure the string is long enough to contain version info
         if version_str.len() < 6 {
-            return Err(KERIError::VersionError(
-                format!("Version string too short: {}", version_str)
-            ));
+            return Err(KERIError::VersionError(format!(
+                "Version string too short: {}",
+                version_str
+            )));
         }
 
         // Check for "KERI" prefix
         if !version_str.starts_with("KERI") {
-            return Err(KERIError::VersionError(
-                format!("Invalid version string prefix: {}", version_str)
-            ));
+            return Err(KERIError::VersionError(format!(
+                "Invalid version string prefix: {}",
+                version_str
+            )));
         }
 
         // Extract the major and minor version numbers (at positions 4 and 5)
@@ -92,20 +92,17 @@ impl Versionage {
         let minor_char = version_str.chars().nth(5).unwrap();
 
         // Convert from hex character to integer
-        let major = u32::from_str_radix(&major_char.to_string(), 16)
-            .map_err(|_| KERIError::VersionError(
-                format!("Invalid major version: {}", major_char)
-            ))?;
+        let major = u32::from_str_radix(&major_char.to_string(), 16).map_err(|_| {
+            KERIError::VersionError(format!("Invalid major version: {}", major_char))
+        })?;
 
-        let minor = u32::from_str_radix(&minor_char.to_string(), 16)
-            .map_err(|_| KERIError::VersionError(
-                format!("Invalid minor version: {}", minor_char)
-            ))?;
+        let minor = u32::from_str_radix(&minor_char.to_string(), 16).map_err(|_| {
+            KERIError::VersionError(format!("Invalid minor version: {}", minor_char))
+        })?;
 
         Ok(Versionage { major, minor })
     }
 }
-
 
 /// Maps Base64 index to corresponding character
 pub static B64_CHR_BY_IDX: Lazy<HashMap<u8, char>> = Lazy::new(|| {
@@ -3545,5 +3542,4 @@ mod tests {
         let result = Versionage::parse_version_string("KERIGZJSON000000_");
         assert!(result.is_err());
     }
-
 }

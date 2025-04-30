@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 
 use crate::cesr::Versionage;
 use crate::errors::MatterError;
-use crate::keri::{deversify, versify, KERIError, Kinds};
 use crate::keri::core::serdering::{SadValue, Sadder};
+use crate::keri::{deversify, versify, KERIError, Kinds};
 
 /// Regex to find version string in raw serialization
 static REVER: Lazy<Regex> = Lazy::new(|| {
@@ -46,7 +46,10 @@ pub fn sizeify(
 
     // Check if 'v' field exists in ked
     if !ked.contains_key("v") {
-        return Err(MatterError::ValueError("Missing version string in key event dict".to_string()).into());
+        return Err(MatterError::ValueError(
+            "Missing version string in key event dict".to_string(),
+        )
+        .into());
     }
 
     // Extract protocol, version, kind, and size from version string
@@ -55,9 +58,10 @@ pub fn sizeify(
 
     // Verify version is supported
     if vrsn != version {
-        return Err(KERIError::ValueError(
-            format!("Unsupported version = {}.{}", vrsn.major, vrsn.minor)
-        ));
+        return Err(KERIError::ValueError(format!(
+            "Unsupported version = {}.{}",
+            vrsn.major, vrsn.minor
+        )));
     }
 
     // Use provided kind or extracted kind
@@ -78,9 +82,12 @@ pub fn sizeify(
 
     let (fore, back) = match match_opt {
         Some(m) if m.start() <= 12 => (m.start(), m.end()),
-        _ => return Err(KERIError::ValueError(
-            format!("Invalid version string in raw = {:?}", raw)
-        )),
+        _ => {
+            return Err(KERIError::ValueError(format!(
+                "Invalid version string in raw = {:?}",
+                raw
+            )))
+        }
     };
 
     // Update version string with latest kind and size
@@ -97,9 +104,10 @@ pub fn sizeify(
     new_raw.extend_from_slice(back);
 
     if size != new_raw.len() {
-        return Err(KERIError::ValueError(
-            format!("Malformed version string size = {}", vs)
-        ));
+        return Err(KERIError::ValueError(format!(
+            "Malformed version string size = {}",
+            vs
+        )));
     }
 
     // Update ked with new version string
@@ -110,10 +118,10 @@ pub fn sizeify(
 
 #[cfg(test)]
 mod tests {
-    use indexmap::IndexMap;
     use super::*;
     use crate::keri::core::serdering::SadValue;
     use crate::keri::KERIError;
+    use indexmap::IndexMap;
 
     #[test]
     fn test_sizeify() -> Result<(), KERIError> {
@@ -121,17 +129,28 @@ mod tests {
         let mut ked = IndexMap::new();
 
         // Add required fields
-        ked.insert("v".to_string(), SadValue::String("KERI10JSON000000_".to_string()));
+        ked.insert(
+            "v".to_string(),
+            SadValue::String("KERI10JSON000000_".to_string()),
+        );
         ked.insert("t".to_string(), SadValue::String("icp".to_string()));
-        ked.insert("d".to_string(), SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()));
-        ked.insert("i".to_string(), SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()));
+        ked.insert(
+            "d".to_string(),
+            SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()),
+        );
+        ked.insert(
+            "i".to_string(),
+            SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()),
+        );
         ked.insert("s".to_string(), SadValue::String("0".to_string()));
         ked.insert("kt".to_string(), SadValue::String("1".to_string()));
 
         // Add key list
         ked.insert(
             "k".to_string(),
-            SadValue::Array(vec![SadValue::String("DKvWXaxQfN91JgPjrguoCTXPGtZWJoV9kFEu8MMuxVSZ".to_string())])
+            SadValue::Array(vec![SadValue::String(
+                "DKvWXaxQfN91JgPjrguoCTXPGtZWJoV9kFEu8MMuxVSZ".to_string(),
+            )]),
         );
 
         // Add empty lists
@@ -172,10 +191,19 @@ mod tests {
         let mut ked = IndexMap::new();
 
         // Add required fields
-        ked.insert("v".to_string(), SadValue::String("KERI10JSON000000_".to_string()));
+        ked.insert(
+            "v".to_string(),
+            SadValue::String("KERI10JSON000000_".to_string()),
+        );
         ked.insert("t".to_string(), SadValue::String("icp".to_string()));
-        ked.insert("d".to_string(), SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()));
-        ked.insert("i".to_string(), SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()));
+        ked.insert(
+            "d".to_string(),
+            SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()),
+        );
+        ked.insert(
+            "i".to_string(),
+            SadValue::String("E_0C8xxRQ8I7R5URH_SLED_YQFVpzw9_XYGg7p5YENGM".to_string()),
+        );
 
         // Call sizeify with CBOR kind
         let (_, _, kind, updated_ked, _) = sizeify(&ked, Some(&Kinds::Cbor), None)?;
@@ -199,7 +227,10 @@ mod tests {
         let mut ked = IndexMap::new();
 
         // Add required fields
-        ked.insert("v".to_string(), SadValue::String("KERI10JSON000000_".to_string()));
+        ked.insert(
+            "v".to_string(),
+            SadValue::String("KERI10JSON000000_".to_string()),
+        );
         ked.insert("t".to_string(), SadValue::String("icp".to_string()));
 
         // Call sizeify with unsupported version

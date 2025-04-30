@@ -65,9 +65,9 @@ impl Bexter {
     /// * `Result<Vec<u8>, MatterError>` - Raw binary equivalent of the input text
     pub fn rawify(bext: &[u8]) -> Result<Vec<u8>, MatterError> {
         // Calculate padding and lead sizes
-        let ts = bext.len() % 4;               // bext size mod 4
-        let ws = (4 - ts) % 4;                 // pre-conversion padding size in chars
-        let ls = (3 - ts) % 3;                 // post-conversion lead size in bytes
+        let ts = bext.len() % 4; // bext size mod 4
+        let ws = (4 - ts) % 4; // pre-conversion padding size in chars
+        let ls = (3 - ts) % 3; // post-conversion lead size in bytes
 
         // Create a new buffer with padding
         let mut base = Vec::with_capacity(ws + bext.len());
@@ -151,8 +151,6 @@ impl Bexter {
             Ok(String::new())
         }
     }
-
-
 }
 
 impl Parsable for Bexter {
