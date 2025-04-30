@@ -1,9 +1,9 @@
 mod incept;
 mod interact;
-mod rotate;
-mod receipt;
 mod query;
+mod receipt;
 mod reply;
+mod rotate;
 
 use crate::Matter;
 use std::error::Error;

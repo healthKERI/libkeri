@@ -1,9 +1,9 @@
 use crate::cesr::Versionage;
 use crate::keri::core::serdering::{SadValue, SerderKERI};
 use crate::keri::{versify, Ilks, Kinds};
+use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use std::error::Error;
-use chrono::{DateTime, Utc};
 
 /// Builder for creating KERI reply events
 pub struct ReplyEventBuilder {
@@ -108,7 +108,7 @@ impl ReplyEventBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keri::core::serdering::{Serder};
+    use crate::keri::core::serdering::Serder;
     use std::error::Error;
 
     #[test]
@@ -131,7 +131,7 @@ mod tests {
         assert!(ked.get("dt").is_some());
         let a = ked["a"].clone();
         let raw_str = std::str::from_utf8(serder.raw())?;
-        
+
         // Check a field is an empty object
         match &ked["a"] {
             SadValue::Object(obj) => assert!(obj.is_empty()),
@@ -147,20 +147,17 @@ mod tests {
         let mut data = IndexMap::new();
         data.insert(
             "d".to_string(),
-            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string())
+            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string()),
         );
         data.insert(
             "i".to_string(),
-            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string())
+            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string()),
         );
         data.insert(
             "name".to_string(),
-            SadValue::String("John Jones".to_string())
+            SadValue::String("John Jones".to_string()),
         );
-        data.insert(
-            "role".to_string(),
-            SadValue::String("Founder".to_string())
-        );
+        data.insert("role".to_string(), SadValue::String("Founder".to_string()));
 
         // Set a specific timestamp
         let timestamp = "2020-08-22T17:50:12.988921+00:00".to_string();
@@ -184,8 +181,14 @@ mod tests {
             _ => panic!("Expected a field to be an object"),
         };
 
-        assert_eq!(a["d"].as_str().unwrap(), "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM");
-        assert_eq!(a["i"].as_str().unwrap(), "EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM");
+        assert_eq!(
+            a["d"].as_str().unwrap(),
+            "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM"
+        );
+        assert_eq!(
+            a["i"].as_str().unwrap(),
+            "EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM"
+        );
         assert_eq!(a["name"].as_str().unwrap(), "John Jones");
         assert_eq!(a["role"].as_str().unwrap(), "Founder");
 
@@ -248,20 +251,17 @@ mod tests {
         let mut data = IndexMap::new();
         data.insert(
             "d".to_string(),
-            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string())
+            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string()),
         );
         data.insert(
             "i".to_string(),
-            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string())
+            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string()),
         );
         data.insert(
             "name".to_string(),
-            SadValue::String("John Jones".to_string())
+            SadValue::String("John Jones".to_string()),
         );
-        data.insert(
-            "role".to_string(),
-            SadValue::String("Founder".to_string())
-        );
+        data.insert("role".to_string(), SadValue::String("Founder".to_string()));
 
         let serder = ReplyEventBuilder::new()
             .with_route("logs/processor".to_string())
@@ -273,7 +273,10 @@ mod tests {
 
         // Check expected fields from Python example
         assert_eq!(ked["t"].as_str().unwrap(), Ilks::RPY);
-        assert_eq!(ked["dt"].as_str().unwrap(), "2020-08-22T17:50:12.988921+00:00");
+        assert_eq!(
+            ked["dt"].as_str().unwrap(),
+            "2020-08-22T17:50:12.988921+00:00"
+        );
         assert_eq!(ked["r"].as_str().unwrap(), "logs/processor");
 
         let a = match &ked["a"] {
@@ -281,8 +284,14 @@ mod tests {
             _ => panic!("Expected a field to be an object"),
         };
 
-        assert_eq!(a["d"].as_str().unwrap(), "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM");
-        assert_eq!(a["i"].as_str().unwrap(), "EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM");
+        assert_eq!(
+            a["d"].as_str().unwrap(),
+            "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM"
+        );
+        assert_eq!(
+            a["i"].as_str().unwrap(),
+            "EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM"
+        );
         assert_eq!(a["name"].as_str().unwrap(), "John Jones");
         assert_eq!(a["role"].as_str().unwrap(), "Founder");
 
@@ -295,20 +304,17 @@ mod tests {
         let mut data = IndexMap::new();
         data.insert(
             "d".to_string(),
-            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string())
+            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string()),
         );
         data.insert(
             "i".to_string(),
-            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string())
+            SadValue::String("EAoTNZH3ULvYAfSVPzhzS6baU6JR2nmwyZ-i0d8JZ5CM".to_string()),
         );
         data.insert(
             "name".to_string(),
-            SadValue::String("John Jones".to_string())
+            SadValue::String("John Jones".to_string()),
         );
-        data.insert(
-            "role".to_string(),
-            SadValue::String("Founder".to_string())
-        );
+        data.insert("role".to_string(), SadValue::String("Founder".to_string()));
 
         // Create a timestamp matching the Python example
         let timestamp = "2020-08-22T17:50:12.988921+00:00".to_string();
@@ -366,15 +372,12 @@ mod tests {
         let mut data = IndexMap::new();
         data.insert(
             "cid".to_string(),
-            SadValue::String("BLK_YxcmK_sAsSW1CbNLJl_FA0gw0FKDuPr_xUwKcj7y".to_string())
+            SadValue::String("BLK_YxcmK_sAsSW1CbNLJl_FA0gw0FKDuPr_xUwKcj7y".to_string()),
         );
-        data.insert(
-            "role".to_string(),
-            SadValue::String("watcher".to_string())
-        );
+        data.insert("role".to_string(), SadValue::String("watcher".to_string()));
         data.insert(
             "eid".to_string(),
-            SadValue::String("BF6YSJGAtVNmq3b7dpBi04Q0YdqvTfsk9PFkkZaR8LRr".to_string())
+            SadValue::String("BF6YSJGAtVNmq3b7dpBi04Q0YdqvTfsk9PFkkZaR8LRr".to_string()),
         );
 
         // Create a timestamp matching the Python test
@@ -389,7 +392,10 @@ mod tests {
 
         // Verify the timestamp
         let ked = serder.ked();
-        assert_eq!(ked["dt"].as_str().unwrap(), "2021-01-01T00:00:00.000000+00:00");
+        assert_eq!(
+            ked["dt"].as_str().unwrap(),
+            "2021-01-01T00:00:00.000000+00:00"
+        );
 
         // Get the raw serialized output
         let raw = serder.raw();
@@ -410,9 +416,15 @@ mod tests {
             _ => panic!("Expected a field to be an object"),
         };
 
-        assert_eq!(a["cid"].as_str().unwrap(), "BLK_YxcmK_sAsSW1CbNLJl_FA0gw0FKDuPr_xUwKcj7y");
+        assert_eq!(
+            a["cid"].as_str().unwrap(),
+            "BLK_YxcmK_sAsSW1CbNLJl_FA0gw0FKDuPr_xUwKcj7y"
+        );
         assert_eq!(a["role"].as_str().unwrap(), "watcher");
-        assert_eq!(a["eid"].as_str().unwrap(), "BF6YSJGAtVNmq3b7dpBi04Q0YdqvTfsk9PFkkZaR8LRr");
+        assert_eq!(
+            a["eid"].as_str().unwrap(),
+            "BF6YSJGAtVNmq3b7dpBi04Q0YdqvTfsk9PFkkZaR8LRr"
+        );
 
         Ok(())
     }

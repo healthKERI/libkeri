@@ -48,9 +48,6 @@ impl ReceiptEventBuilder {
     pub fn build(self) -> Result<SerderKERI, Box<dyn Error>> {
         // Validate sequence number
         let sner = Number::from_num(&BigUint::from(self.sn))?;
-        if sner.num() < 0 {
-            return Err(format!("Invalid sn = 0x{} for rect.", sner.numh()).into());
-        }
 
         if !Kinds::contains(&self.kind) {
             return Err(format!("Invalid kind = {} for rect.", self.kind).into());
@@ -218,14 +215,14 @@ mod tests {
     fn test_receipt() -> Result<(), Box<dyn Error>> {
         let pre = "DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH";
         let said = "EKKccCumVQdgxvsrSXvuTtjmS28Xqf3zRJ8T6peKgl9J";
-        
+
         let serder = ReceiptEventBuilder::new(pre.to_string(), 0, said.to_string()).build()?;
 
         let ked = serder.ked();
         assert_eq!(ked["t"].as_str().unwrap(), Ilks::RCT);
         assert_eq!(ked["i"].as_str().unwrap(), pre);
         assert_eq!(ked["s"].as_str().unwrap(), "0");
-        
+
         let raw = b"{\"v\":\"KERI10JSON000091_\",\"t\":\"rct\",\"d\":\"EKKccCumVQdgxvsrSXvuTtjmS28Xqf3zRJ8T6peKgl9J\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\"}";
         assert_eq!(raw, serder.raw());
 
@@ -238,7 +235,7 @@ mod tests {
 
         let raw = b"{\"v\":\"KERI10JSON000091_\",\"t\":\"rct\",\"d\":\"EKKccCumVQdgxvsrSXvuTtjmS28Xqf3zRJ8T6peKgl9J\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"2\"}";
         assert_eq!(raw, serder.raw());
-        
+
         Ok(())
     }
 }

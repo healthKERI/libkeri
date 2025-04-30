@@ -1,9 +1,9 @@
 use crate::cesr::Versionage;
 use crate::keri::core::serdering::{SadValue, SerderKERI};
 use crate::keri::{versify, Ilks, Kinds};
+use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use std::error::Error;
-use chrono::{DateTime, Utc};
 
 /// Builder for creating KERI query events
 pub struct QueryEventBuilder {
@@ -118,7 +118,7 @@ impl QueryEventBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keri::core::serdering::{Serder};
+    use crate::keri::core::serdering::Serder;
     use std::error::Error;
 
     #[test]
@@ -157,15 +157,12 @@ mod tests {
         let mut query_data = IndexMap::new();
         query_data.insert(
             "i".to_string(),
-            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string())
+            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string()),
         );
-        query_data.insert(
-            "sn".to_string(),
-            SadValue::String("5".to_string())
-        );
+        query_data.insert("sn".to_string(), SadValue::String("5".to_string()));
         query_data.insert(
             "dt".to_string(),
-            SadValue::String("2020-08-01T12:20:05.123456+00:00".to_string())
+            SadValue::String("2020-08-01T12:20:05.123456+00:00".to_string()),
         );
 
         // Set a specific timestamp
@@ -191,9 +188,15 @@ mod tests {
             _ => panic!("Expected q field to be an object"),
         };
 
-        assert_eq!(q["i"].as_str().unwrap(), "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM");
+        assert_eq!(
+            q["i"].as_str().unwrap(),
+            "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM"
+        );
         assert_eq!(q["sn"].as_str().unwrap(), "5");
-        assert_eq!(q["dt"].as_str().unwrap(), "2020-08-01T12:20:05.123456+00:00");
+        assert_eq!(
+            q["dt"].as_str().unwrap(),
+            "2020-08-01T12:20:05.123456+00:00"
+        );
 
         Ok(())
     }
@@ -254,15 +257,12 @@ mod tests {
         let mut query_data = IndexMap::new();
         query_data.insert(
             "i".to_string(),
-            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string())
+            SadValue::String("EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM".to_string()),
         );
-        query_data.insert(
-            "sn".to_string(),
-            SadValue::String("5".to_string())
-        );
+        query_data.insert("sn".to_string(), SadValue::String("5".to_string()));
         query_data.insert(
             "dt".to_string(),
-            SadValue::String("2020-08-01T12:20:05.123456+00:00".to_string())
+            SadValue::String("2020-08-01T12:20:05.123456+00:00".to_string()),
         );
 
         let serder = QueryEventBuilder::new()
@@ -276,7 +276,10 @@ mod tests {
 
         // Check expected fields from Python example
         assert_eq!(ked["t"].as_str().unwrap(), Ilks::QRY);
-        assert_eq!(ked["dt"].as_str().unwrap(), "2020-08-22T17:50:12.988921+00:00");
+        assert_eq!(
+            ked["dt"].as_str().unwrap(),
+            "2020-08-22T17:50:12.988921+00:00"
+        );
         assert_eq!(ked["r"].as_str().unwrap(), "logs");
         assert_eq!(ked["rr"].as_str().unwrap(), "log/processor");
 
@@ -285,9 +288,15 @@ mod tests {
             _ => panic!("Expected q field to be an object"),
         };
 
-        assert_eq!(q["i"].as_str().unwrap(), "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM");
+        assert_eq!(
+            q["i"].as_str().unwrap(),
+            "EaU6JR2nmwyZ-i0d8JZAoTNZH3ULvYAfSVPzhzS6b5CM"
+        );
         assert_eq!(q["sn"].as_str().unwrap(), "5");
-        assert_eq!(q["dt"].as_str().unwrap(), "2020-08-01T12:20:05.123456+00:00");
+        assert_eq!(
+            q["dt"].as_str().unwrap(),
+            "2020-08-01T12:20:05.123456+00:00"
+        );
 
         Ok(())
     }
@@ -298,7 +307,7 @@ mod tests {
         let mut query_data = IndexMap::new();
         query_data.insert(
             "i".to_string(),
-            SadValue::String("DAvCLRr5luWmp7keDvDuLP0kIqcyBYq79b3Dho1QvrjI".to_string())
+            SadValue::String("DAvCLRr5luWmp7keDvDuLP0kIqcyBYq79b3Dho1QvrjI".to_string()),
         );
 
         // Create a timestamp matching the Python test
@@ -319,7 +328,7 @@ mod tests {
 
         // Compare raw bytes with expected
         assert_eq!(raw, expected);
-        
+
         Ok(())
-    }    
+    }
 }
