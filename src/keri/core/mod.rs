@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use crate::cesr::Versionage;
 use crate::errors::MatterError;
 use crate::keri::{deversify, versify, KERIError, Kinds};
-use crate::keri::core::serdering::{SadValue, Sadd};
+use crate::keri::core::serdering::{SadValue, Sadder};
 
 /// Regex to find version string in raw serialization
 static REVER: Lazy<Regex> = Lazy::new(|| {
@@ -37,10 +37,10 @@ static REVER: Lazy<Regex> = Lazy::new(|| {
 ///   * MatterError: if version string is missing, unsupported version,
 ///     invalid kind, or malformed version string
 pub fn sizeify(
-    ked: &Sadd,
+    ked: &Sadder,
     kind_opt: Option<&Kinds>,
     version_opt: Option<Versionage>,
-) -> Result<(Vec<u8>, String, String, Sadd, Versionage), KERIError> {
+) -> Result<(Vec<u8>, String, String, Sadder, Versionage), KERIError> {
     // Get the default version if not provided
     let version = version_opt.unwrap_or_else(|| Versionage { major: 1, minor: 0 });
 

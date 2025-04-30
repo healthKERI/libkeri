@@ -3,7 +3,7 @@ use crate::errors::MatterError;
 use crate::Matter;
 use std::any::Any;
 use crate::cesr::diger::Diger;
-use crate::keri::core::serdering::{SadValue, Sadd};
+use crate::keri::core::serdering::{SadValue, Sadder};
 use crate::keri::{deversify, KERIError, Kinds};
 use crate::keri::core::sizeify;
 
@@ -123,7 +123,7 @@ impl Saider {
     /// * Returns KERIError if sad is None or doesn't contain label field
     /// * Returns KERIError if code is unsupported
     pub fn from_sad(
-        sad: &Sadd,
+        sad: &Sadder,
         label: &str,
         code_opt: Option<&str>,
         kind_opt: Option<&Kinds>,
@@ -197,7 +197,7 @@ impl Saider {
     ///
     /// # Errors
     /// * Returns a KERIError if serialization fails
-    pub fn _serialize(sad: Sadd, kind_opt: Option<&Kinds>) -> Result<Vec<u8>, KERIError> {
+    pub fn _serialize(sad: Sadder, kind_opt: Option<&Kinds>) -> Result<Vec<u8>, KERIError> {
         // Default to JSON serialization
         let mut knd = Kinds::Json;
 
@@ -232,12 +232,12 @@ impl Saider {
     /// * Returns KERIError if derivation fails
     pub fn derive(
         &self,
-        sad: &Sadd,
+        sad: &Sadder,
         code: Option<&str>,
         kind_opt: Option<&Kinds>,
         label: Option<&str>,
         ignore: Option<&[&str]>,
-    ) -> Result<(Vec<u8>, Sadd), KERIError> {
+    ) -> Result<(Vec<u8>, Sadder), KERIError> {
         // Use self.code() if code parameter is None
         let code_to_use = code.unwrap_or_else(|| self.code());
 
@@ -268,12 +268,12 @@ impl Saider {
     /// * Returns MatterError if code is unsupported
     /// * Returns KERIError if serialization fails
     pub fn _derive(
-        sad: &Sadd,
+        sad: &Sadder,
         code: &str,
         kind_opt: Option<&Kinds>,
         label: &str,
         ignore: Option<&[&str]>,
-    ) -> Result<(Vec<u8>, Sadd), KERIError> {
+    ) -> Result<(Vec<u8>, Sadder), KERIError> {
         // Validate the digest code
         if !dig_dex::TUPLE.contains(&code) {
             return Err(KERIError::ValueError(format!("Unsupported digest code={}.", code)));
@@ -304,7 +304,7 @@ impl Saider {
         // Remove ignored fields if any
         if let Some(ignored_fields) = ignore {
             for &field in ignored_fields {
-                ser_copy.remove(field);
+                ser_copy.shift_remove(field);
             }
         }
 
@@ -335,7 +335,7 @@ impl Saider {
     ///
     pub fn verify(
         &self,
-        sad: &Sadd,
+        sad: &Sadder,
         prefixed: bool,
         versioned: bool,
         kind_opt: Option<&Kinds>,
@@ -349,7 +349,7 @@ impl Saider {
     // Internal method that returns a Result to simplify error handling
     fn verify_internal(
         &self,
-        sad: &Sadd,
+        sad: &Sadder,
         prefixed: bool,
         versioned: bool,
         kind_opt: Option<&Kinds>,
@@ -403,12 +403,12 @@ impl Saider {
     /// * Returns KERIError if the label field is missing
     /// * Returns KERIError if the derive operation fails
     pub fn saidify(
-        sad: Sadd,
+        sad: Sadder,
         code: Option<String>,
         kind_opt: Option<&Kinds>,
         label: Option<String>,
         ignore_opt: Option<Vec<String>>,
-    ) -> Result<(Self, Sadd), KERIError> {
+    ) -> Result<(Self, Sadder), KERIError> {
         // Set default values if not provided
         let code = code.unwrap_or_else(|| "E".to_string()); // Assuming MtrDex.Blake3_256 is "E"
         let label = label.unwrap_or_else(|| "d".to_string()); // Assuming Saids.d is "d"
@@ -471,7 +471,7 @@ mod tests {
         let ser0 = br#"{"$id": "", "$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "number"}, "c": {"type": "string", "format": "date-time"}}}"#;
 
         // Parse JSON to create the sad0 equivalent
-        let sad0: Sadd = match serde_json::from_slice(ser0) {
+        let sad0: Sadder = match serde_json::from_slice(ser0) {
             Ok(value) => value,
             Err(e) => {
                 panic!("Failed to parse JSON: {}", e);
@@ -596,7 +596,7 @@ mod tests {
 
         // Test creating from JSON data with different SAID
         let ser2 = br#"{"$id":"FW1_1lgNJ69QPnJK-pD5s8cinFFYhnGN8nuyz8Mdrezg","$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"a":{"type":"string"},"b":{"type":"number"},"c":{"type":"string","format":"date-time"}}}"#;
-        let sad2: Sadd = serde_json::from_slice(ser2).unwrap();
+        let sad2: Sadder = serde_json::from_slice(ser2).unwrap();
 
         // Test saidify with specified code and label
         let (saider, sad) = Saider::saidify(
@@ -611,13 +611,13 @@ mod tests {
 
         // Test verifying with new SAD that includes the correct SAID
         let ser2 = br#"{"$id":"FFtf9ZYDSevUD5ySvqQ-bPHIpxRWIZxjfJ7ss_DHa3s4","$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"a":{"type":"string"},"b":{"type":"number"},"c":{"type":"string","format":"date-time"}}}"#;
-        let sad2: Sadd = serde_json::from_slice(ser2).unwrap();
+        let sad2: Sadder = serde_json::from_slice(ser2).unwrap();
 
         assert!(saider.verify(&sad2, true, false, None, label, None));
 
         // Test sad1 for comparison operations
         let ser0 = br#"{"$id":"","$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"a":{"type":"string"},"b":{"type":"number"},"c":{"type":"string","format":"date-time"}}}"#;
-        let sad1: Sadd = serde_json::from_slice(ser0).unwrap();
+        let sad1: Sadder = serde_json::from_slice(ser0).unwrap();
 
         // Initialize from sad with explicit code
         let saider = Saider::from_sad(

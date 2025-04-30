@@ -1,13 +1,15 @@
-
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::error::Error;
-use num_bigint::BigUint;
-use serde_json::{json, Value};
 use crate::cesr::number::Number;
 use crate::cesr::tholder::{Tholder, TholderSith};
-use crate::cesr::Versionage;
-use crate::keri::core::serdering::{AttribField, Sadder, SerderKERI};
-use crate::keri::versify;
+use crate::cesr::{mtr_dex, Versionage};
+use crate::keri::core::serdering::{SadValue, Sadder, SerderKERI};
+use crate::keri::{versify, Ilks};
+use num_bigint::BigUint;
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
+use crate::cesr::diger::Diger;
+use crate::cesr::signing::Signer;
+use crate::Matter;
 
 // Determine threshold representations based on intive flag
 const MAX_INT_THOLD: usize = 12; // Define this constant based on your system
@@ -24,8 +26,8 @@ pub struct InceptionEventBuilder {
     nsith: Option<TholderSith>,
     toad: Option<usize>,
     wits: Vec<String>,
-    cnfg: AttribField,
-    data: Vec<Value>,
+    cnfg: Vec<String>,
+    data: Vec<SadValue>,
     version: String,
     kind: String,
     code: Option<String>,
@@ -43,7 +45,7 @@ impl InceptionEventBuilder {
             nsith: None,
             toad: None,
             wits: Vec::new(),
-            cnfg: AttribField::StringMap(BTreeMap::new()),
+            cnfg: Vec::new(),
             data: Vec::new(),
             version: "KERI10JSON000000_".to_string(), // Default version
             kind: "JSON".to_string(),                // Default kind
@@ -84,13 +86,13 @@ impl InceptionEventBuilder {
     }
 
     /// Sets the configuration traits (cnfg)
-    pub fn with_cnfg(mut self, cnfg: BTreeMap<String, Value>) -> Self {
-        self.cnfg = AttribField::StringMap(cnfg);
+    pub fn with_cnfg(mut self, cnfg: Vec<String>) -> Self {
+        self.cnfg = cnfg;
         self
     }
 
     /// Sets the data (seal dicts)
-    pub fn with_data(mut self, data: Vec<Value>) -> Self {
+    pub fn with_data(mut self, data: Vec<SadValue>) -> Self {
         self.data = data;
         self
     }
@@ -134,7 +136,7 @@ impl InceptionEventBuilder {
         let ilk = if self.delpre.is_none() { "icp" } else { "dip" };
 
         // Create sner (sequence number) - must be 0 for inception
-        let sner = Number::from_num(&BigUint::from(0 as u32))?;
+        let sner = Number::from_num(&BigUint::from(0u32))?;
 
         // Process isith
         let isith = match self.isith {
@@ -244,90 +246,97 @@ impl InceptionEventBuilder {
         let mut ked = Sadder::default();
 
         // Set the required fields
-        ked.v = vs;
-        ked.t = ilk.to_string();
-        ked.d = String::new();  // qb64 SAID (empty for now)
-        ked.i = Some(String::new());  // qb64 prefix (empty for now)
-        ked.s = Some(sner.numh());  // hex string no leading zeros lowercase
+        ked.insert("v".to_string(), SadValue::String(vs));
+        ked.insert("t".to_string(), SadValue::String(ilk.to_string()));
+        ked.insert("d".to_string(), SadValue::String(String::new()));  // qb64 SAID (empty for now)
+        ked.insert("i".to_string(), SadValue::String(String::new()));  // qb64 prefix (empty for now)
+        ked.insert("s".to_string(), SadValue::String(sner.numh()));  // hex string no leading zeros lowercase
 
         match kt {
             Value::Number(n) => {
                 if let Some(n_u64) = n.as_u64() {
-                    ked.kt = Some(n_u64.to_string());
+                    ked.insert("kt".to_string(), SadValue::Number(n));
                 }
             },
-            Value::String(s) => ked.kt = Some(s),
+            Value::String(s) => {
+                ked.insert("kt".to_string(), SadValue::String(s.to_string()));
+                ()
+            },
             _ => {
                 if let Some(num) = tholder.num() {
-                    ked.kt = Some(num.to_string());
+                    ked.insert("kt".to_string(), SadValue::String(num.to_string()));
                 } else {
-                    ked.kt = Some(kt.to_string());
+                    ked.insert("kt".to_string(), SadValue::String(kt.to_string()));
                 }
             }
         };
 
         // Set the keys list
-        ked.k = Some(self.keys.clone());  // list of qb64
+        let key_values = self.keys.iter().map(|k| SadValue::String(k.clone())).collect();
+        ked.insert("k".to_string(), SadValue::Array(key_values));  // list of qb64
 
         // Set next threshold
         match nt {
             Value::Number(n) => {
                 if let Some(n_u64) = n.as_u64() {
-                    ked.nt = Some(n_u64.to_string());
+                    ked.insert("nt".to_string(), SadValue::Number(n));
                 }
             },
-            Value::String(s) => ked.nt = Some(s),
+            Value::String(s) => {
+                ked.insert("nt".to_string(), SadValue::String(s));
+                ()
+            },
             _ => {
                 if let Some(num) = ntholder.num() {
-                    ked.nt = Some(num.to_string());
+                    ked.insert("nt".to_string(), SadValue::String(num.to_string()));
                 } else {
-                    ked.nt = Some(nt.to_string());
+                    ked.insert("nt".to_string(), SadValue::String(nt.to_string()));
                 }
             }
         };
 
         // Set next digests list
-        ked.n = Some(self.ndigs.clone());  // list of hashes qb64
+        let ndig_values = self.ndigs.iter().map(|n| SadValue::String(n.clone())).collect();
+        ked.insert("n".to_string(), SadValue::Array(ndig_values));  // list of qb64
 
         // Set witness threshold
         match bt {
             Value::Number(n) => {
                 if let Some(n_u64) = n.as_u64() {
-                    ked.bt = Some(n_u64.to_string());
+                    ked.insert("bt".to_string(), SadValue::Number(n));
                 }
             },
-            Value::String(s) => ked.bt = Some(s),
-            _ => ked.bt = Some(toader.numh().to_string()),
+            Value::String(s) => {
+                ked.insert("bt".to_string(), SadValue::String(s));
+                ()
+            },
+            _ => {
+                ked.insert("bt".to_string(), SadValue::String(toader.numh().to_string()));
+                ()
+            },
         };
 
         // Set witnesses list
-        ked.b = Some(wits);  // list of qb64 may be empty
+        let wit_values = wits.iter().map(|w| SadValue::String(w.clone())).collect();
+        ked.insert("b".to_string(), SadValue::Array(wit_values));  // list of qb64
 
         // Set config traits
-        ked.c = Some(self.cnfg.clone());  // list of config ordered mappings may be empty
+        let cnfg_values = self.cnfg.iter().map(|c| SadValue::String(c.clone())).collect();
+        ked.insert("c".to_string(), SadValue::Array(cnfg_values));  // list of config ordered mappings may be empty
 
         // Set data (seal dicts)
         if !self.data.is_empty() {
-            // Convert Vec<Value> to AttribField
-            // This depends on the structure of your data
-            // You might need to adjust this based on your actual data structure
-            let field = AttribField::StringList(
-                self.data
-                    .iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            );
-            ked.a = Some(field);
+            ked.insert("a".to_string(), SadValue::Array(self.data.clone()));  // list of config ordered mappings may be empty
         }
 
         // Handle delegated inception
         if let Some(delpre) = self.delpre.clone() {
-            ked.di = Some(delpre.clone());
+            ked.insert("di".to_string(), SadValue::String(delpre.clone()));
         } else {
             // Non-delegated inception
             if (self.code.is_none() || !is_digest_code(&self.code.as_ref().unwrap())) && self.keys.len() == 1 {
                 // Use first key as default identifier
-                ked.i = Some(self.keys[0].clone());
+                ked.insert("i".to_string(), SadValue::String(self.keys[0].clone()));
             }
         }
 
@@ -342,16 +351,16 @@ impl InceptionEventBuilder {
         }
 
         // Handle delegated inception
-        let mut saids = None;
+        let mut saids = HashMap::new();
         // Use code to override all else if it's a prefix code
         if let Some(ref code) = self.code {
             if is_prefix_code(code) {
-                saids = Some(json!({ "i": code }));
+                saids.insert("i", code.to_string());
             }
         }
 
         // Create SerderKERI
-        let serder = SerderKERI::from_sad(&ked)?;
+        let serder = SerderKERI::from_sad_and_saids(&ked, Some(saids))?;
         Ok(serder)
     }
 }
@@ -375,20 +384,22 @@ fn is_prefix_code(code: &str) -> bool {
 mod tests {
     use super::*;
     use crate::cesr::mtr_dex;
-    use crate::cesr::tholder::TholderSith;
-    use std::error::Error;
-    use sodiumoxide::hex;
     use crate::cesr::signing::Signer;
+    use crate::cesr::tholder::TholderSith;
     use crate::keri::core::serdering::Serder;
     use crate::Matter;
+    use std::error::Error;
+    use crate::cesr::diger::Diger;
+    use crate::keri::Ilks;
 
     #[test]
     fn test_inception_event_builder_non_transferable() -> Result<(), Box<dyn Error>> {
         // Setup a fixed seed similar to the Python test
-        let seed = hex::decode("9f7ba8a7a8439626fab199ebaa20c41b4711c4ae53415243c9bd049d85297e93").expect("Bad hex");
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+             \xc9\xbd\x04\x9d\x85)~\x93";
 
         // Create a non-transferable signer (ephemeral case)
-        let signer0 = Signer::new(Some(&seed), Some(mtr_dex::ED25519_SEED), Some(false))?;
+        let signer0 = Signer::new(Some(&seed[..]), Some(mtr_dex::ED25519_SEED), Some(false))?;
         assert_eq!(signer0.code(), mtr_dex::ED25519_SEED);
         assert_eq!(signer0.verfer().code(), mtr_dex::ED25519N);
 
@@ -402,11 +413,13 @@ mod tests {
         // Verify the key event data
         let ked = serder.ked();
 
+        let raw_str = std::str::from_utf8(serder.raw()).expect("Bad raw");
+
         // Check identifier matches our expectations
-        assert_eq!(ked.i.unwrap(), "BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH");
+        assert_eq!(ked["i"].as_str(), Some("BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH"));
 
         // Check next key digests are empty
-        if let Some(ndigs) = ked.n {
+        if let Some(ndigs) = ked["n"].as_array() {
             assert!(ndigs.is_empty());
         } else {
             assert!(true); // n is None which is also valid for empty
@@ -415,21 +428,12 @@ mod tests {
         // Check the raw serialized form if needed
         // This may be challenging due to string serialization differences
         let raw = serder.raw();
-        let raw_str = std::str::from_utf8(raw)?;
-
         // Verify the content contains the expected elements
         // Instead of checking exact bytes, check for key elements
-        assert!(raw_str.contains("\"v\":\"KERI10JSON"));
-        assert!(raw_str.contains("\"t\":\"icp\""));
-        assert!(raw_str.contains("\"i\":\"BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\""));
-        assert!(raw_str.contains("\"s\":\"0\""));
-        assert!(raw_str.contains("\"kt\":\"1\""));
-        assert!(raw_str.contains("\"k\":[\"BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"]"));
-        assert!(raw_str.contains("\"nt\":\"0\""));
-        assert!(raw_str.contains("\"n\":[]"));
-        assert!(raw_str.contains("\"bt\":\"0\""));
-        assert!(raw_str.contains("\"b\":[]"));
-
+        assert_eq!(raw, b"{\"v\":\"KERI10JSON0000fd_\",\"t\":\"icp\",\"d\":\"EMW0zK3bagYPO6gx3w7Ua90f-I7x5kGIaI4X\
+            eq9W8_As\",\"i\":\"BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\",\"kt\":\"1\
+            \",\"k\":[\"BFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":\"0\",\"n\":[],\"bt\":\
+            \"0\",\"b\":[],\"c\":[],\"a\":[]}");
         Ok(())
     }
 
@@ -442,9 +446,7 @@ mod tests {
             "DT1iAhBWCkvChxNWsby2J0pJyxBIxbAtbLA0Ljx-Grh8".to_string(),
         ];
 
-        let config_map: BTreeMap<String, Value> = [
-            ("EO".to_string(), json!(true))
-        ].iter().cloned().collect();
+        let configs = vec!("EO".to_string());
 
         // Create inception event with custom thresholds
         let serder = InceptionEventBuilder::new(keys.clone())
@@ -459,37 +461,43 @@ mod tests {
                 "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM".to_string(),
             ])
             .with_toad(2)  // Witness threshold
-            .with_cnfg(config_map)  // Example config
+            .with_cnfg(configs)  // Example config
             .build()?;
 
         // Verify the key event data
         let ked = serder.ked();
 
+        assert_eq!(ked["v"].as_str(), Some("KERI10JSON000219_"));
+        assert_eq!(ked["t"].as_str(), Some("icp"));
+        assert_eq!(ked["d"].as_str(), Some("EBJ57YenBaTk-SvA5hDVf4KPKmotcKe-8imGK4bSu5xY"));
+        assert_eq!(ked["i"].as_str(), Some("EBJ57YenBaTk-SvA5hDVf4KPKmotcKe-8imGK4bSu5xY"));
+        
         // Verify key elements
-        if let Some(k) = ked.k {
-            assert_eq!(k, keys);
+        if let Some(k) = ked["k"].as_array() {
+            let ks: Vec<String> = k.iter().map(|k| k.as_str().unwrap().to_string()).collect();
+            assert_eq!(ks, keys);
         } else {
             panic!("Keys missing in KED");
         }
 
         // Verify thresholds
-        assert_eq!(ked.kt, Some("2".to_string()));
-        assert_eq!(ked.nt, Some("1".to_string()));
-        assert_eq!(ked.bt, Some("2".to_string()));
+        assert_eq!(ked["kt"].as_str(), Some("2"));
+        assert_eq!(ked["nt"].as_str(), Some("1"));
+        assert_eq!(ked["bt"].as_str(), Some("2"));
 
         // Verify witnesses
-        if let Some(wits) = ked.b {
+        if let Some(wits) = ked["b"].as_array() {
             assert_eq!(wits.len(), 2);
-            assert_eq!(wits[0], "BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha");
-            assert_eq!(wits[1], "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM");
+            assert_eq!(wits[0], SadValue::String("BBilc4-L3tFUnfM_wJr4S4OJanAv_VmF_dJNN6vkf2Ha".to_string()));
+            assert_eq!(wits[1], SadValue::String("BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM".to_string()));
         } else {
             panic!("Witnesses missing in KED");
         }
 
         // Verify configs
-        if let Some(AttribField::StringMap(configs)) = ked.c {
+        if let Some(configs) = ked["c"].as_array() {
             assert_eq!(configs.len(), 1);
-            assert_eq!(configs.get("EO"), Some(&json!(true)));
+            assert_eq!(configs[0], SadValue::String("EO".to_string()));
         } else {
             panic!("Config missing in KED");
         }
@@ -512,34 +520,221 @@ mod tests {
         let ked = serder.ked();
 
         // Check it's a delegated inception
-        assert_eq!(ked.t, "dip");
+        assert_eq!(ked["t"].as_str(), Some("dip"));
 
         // Check delegator prefix
-        assert_eq!(ked.di, Some(delegator_prefix));
+        assert_eq!(ked["di"].as_str(), Some(delegator_prefix.as_str()));
 
         Ok(())
     }
 
     #[test]
-    fn test_inception_event_builder_with_prefixer_code() -> Result<(), Box<dyn Error>> {
-        // Create inception with a specific prefix code
-        let keys = vec!["DSuhyBcPZEZLK-fcw5tzHn2N46wRCG_ZOoeKtWTOunRA".to_string()];
+    fn test_inception_transferable_case_abandoned() -> Result<(), Box<dyn Error>> {
+        // Original signing keypair - transferable default
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+                     \xc9\xbd\x04\x9d\x85)~\x93";
 
-        // Using a prefix code
-        let serder = InceptionEventBuilder::new(keys)
-            .with_code("B".to_string())  // Ed25519N prefix
-            .build()?;
+        let signer0 = Signer::new(Some(seed), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        assert_eq!(signer0.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer0.verfer().code(), mtr_dex::ED25519);
 
-        // The prefix should be set according to the code
-        let ked = serder.ked();
+        let keys0 = vec![signer0.verfer().qb64()];
 
-        // The "i" field should contain a value starting with "B" (prefix code)
-        if let Some(i) = ked.i {
-            assert!(i.starts_with('B'), "Prefix should start with 'B' but was {}", i);
-        } else {
-            panic!("Identifier missing in KED");
-        }
+        // Default nxt is empty so abandoned
+        let serder = InceptionEventBuilder::new(keys0).build()?;
+
+        assert_eq!(serder.ked()["i"].as_str().unwrap(), "DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH");
+        assert!(serder.ked()["n"].as_array().unwrap().is_empty());
+
+        assert_eq!(serder.raw(), b"{\"v\":\"KERI10JSON0000fd_\",\"t\":\"icp\",\"d\":\"EPLRRJFe2FHdXKVTkSEX4xb4x-YaPFJ2Xds1\
+                                 vhtNTd4n\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\",\"kt\":\"1\
+                                 \",\"k\":[\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":\"0\",\"n\":[],\"bt\":\
+                                 \"0\",\"b\":[],\"c\":[],\"a\":[]}");
 
         Ok(())
     }
+
+    #[test]
+    fn test_inception_transferable_not_abandoned_self_addressing() -> Result<(), Box<dyn Error>> {
+        // Original signing keypair
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+                         \xc9\xbd\x04\x9d\x85)~\x93";
+    
+        let signer0 = Signer::new(Some(seed), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        let keys0 = vec![signer0.verfer().qb64()];
+    
+        // Next signing keypair - transferable default
+        let seed1 = b"\x83B~\x04\x94\xe3\xceUQy\x11f\x0c\x93]\x1e\xbf\xacQ\xb5\xd6Y^\xa2E\xfa\x015\
+                          \x98Y\xdd\xe8";
+    
+        let signer1 = Signer::new(Some(seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        assert_eq!(signer1.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer1.verfer().code(), mtr_dex::ED25519);
+    
+        // Compute nxt digest
+        let nxt1 = vec![Diger::from_ser(&signer1.verfer().qb64b(), Some(mtr_dex::BLAKE3_256))?.qb64()];
+        assert_eq!(nxt1, vec!["EIf-ENw7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W"]);
+    
+        // Create inception event with self-addressing and nxt digest
+        let serder0 = InceptionEventBuilder::new(keys0.clone())
+            .with_ndigs(nxt1.clone())
+            .with_code(mtr_dex::BLAKE3_256.to_string())
+            .build()?;
+    
+        let ked = serder0.ked();
+        let pre = ked["i"].as_str().unwrap();
+        assert_eq!(ked["t"].as_str().unwrap(), Ilks::ICP);
+        assert_eq!(ked["d"].as_str().unwrap(), pre);
+        assert_eq!(pre, "EAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2QtV8BB0C");
+        assert_eq!(ked["s"].as_str().unwrap(), "0");
+        assert_eq!(ked["kt"].as_str().unwrap(), "1");
+        assert_eq!(ked["nt"].as_str().unwrap(), "1");
+        assert_eq!(ked["n"].as_array().unwrap()[0].as_str().unwrap(), nxt1[0]);
+        assert_eq!(ked["bt"].as_str().unwrap(), "0");
+        
+
+        assert_eq!(serder0.raw(), b"{\"v\":\"KERI10JSON00012b_\",\"t\":\"icp\",\"d\":\"EAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2\
+                                       QtV8BB0C\",\"i\":\"EAKCxMOuoRzREVHsHCkLilBrUXTvyenBiuM2QtV8BB0C\",\"s\":\"0\",\"kt\":\"1\
+                                       \",\"k\":[\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":\"1\",\"n\":[\"EIf-EN\
+                                       w7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W\"],\"bt\":\"0\",\"b\":[],\"c\":[],\"a\":[]}");
+
+        Ok(())
+    }
+    
+    #[test]
+    fn test_inception_transferable_not_abandoned_self_addressing_intive() -> Result<(), Box<dyn Error>> {
+        // Original signing keypair
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+                         \xc9\xbd\x04\x9d\x85)~\x93";
+    
+        let signer0 = Signer::new(Some(seed), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        let keys0 = vec![signer0.verfer().qb64()];
+    
+        // Next signing keypair - transferable default
+        let seed1 = b"\x83B~\x04\x94\xe3\xceUQy\x11f\x0c\x93]\x1e\xbf\xacQ\xb5\xd6Y^\xa2E\xfa\x015\
+                          \x98Y\xdd\xe8";
+    
+        let signer1 = Signer::new(Some(seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        assert_eq!(signer1.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer1.verfer().code(), mtr_dex::ED25519);
+    
+        // Compute nxt digest
+        let nxt1 = vec![Diger::from_ser(&signer1.verfer().qb64b(), Some(mtr_dex::BLAKE3_256))?.qb64()];
+        assert_eq!(nxt1, vec!["EIf-ENw7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W"]);
+    
+        // Create inception event with self-addressing, nxt digest, and intive=true
+        let serder0 = InceptionEventBuilder::new(keys0.clone())
+            .with_ndigs(nxt1.clone())
+            .with_code(mtr_dex::BLAKE3_256.to_string())
+            .with_intive(true)
+            .build()?;
+
+        let raw_str = std::str::from_utf8(serder0.raw())?;
+        
+        let ked = serder0.ked();
+        let pre = ked["i"].as_str().unwrap();
+        assert_eq!(ked["t"].as_str().unwrap(), Ilks::ICP);
+        assert_eq!(ked["d"].as_str().unwrap(), pre);
+        assert_eq!(pre, "EIflL4H4134zYoRM6ls6Q086RLC_BhfNFh5uk-WxvhsL");
+        assert_eq!(ked["s"].as_str().unwrap(), "0");
+        assert!(ked["kt"].is_number());  // Number instead of string
+        assert!(ked["nt"].is_number());  // Number instead of string
+        assert_eq!(ked["n"].as_array().unwrap()[0].as_str().unwrap(), nxt1[0]);
+        assert!(ked["bt"].is_number());  // Number instead of string
+
+        assert_eq!(serder0.raw(), b"{\"v\":\"KERI10JSON000125_\",\"t\":\"icp\",\"d\":\"EIflL4H4134zYoRM6ls6Q086RLC_BhfNFh5u\
+                           k-WxvhsL\",\"i\":\"EIflL4H4134zYoRM6ls6Q086RLC_BhfNFh5uk-WxvhsL\",\"s\":\"0\",\"kt\":1,\
+                           \"k\":[\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":1,\"n\":[\"EIf-ENw7Pr\
+                           M52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W\"],\"bt\":0,\"b\":[],\"c\":[],\"a\":[]}");        
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_inception_transferable_not_abandoned_intive_true() -> Result<(), Box<dyn Error>> {
+        // Original signing keypair
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+                         \xc9\xbd\x04\x9d\x85)~\x93";
+    
+        let signer0 = Signer::new(Some(seed), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        let keys0 = vec![signer0.verfer().qb64()];
+    
+        // Next signing keypair - transferable default
+        let seed1 = b"\x83B~\x04\x94\xe3\xceUQy\x11f\x0c\x93]\x1e\xbf\xacQ\xb5\xd6Y^\xa2E\xfa\x015\
+                          \x98Y\xdd\xe8";
+    
+        let signer1 = Signer::new(Some(seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        assert_eq!(signer1.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer1.verfer().code(), mtr_dex::ED25519);
+    
+        // Compute nxt digest
+        let nxt1 = vec![Diger::from_ser(&signer1.verfer().qb64b(), Some(mtr_dex::BLAKE3_256))?.qb64()];
+        assert_eq!(nxt1, vec!["EIf-ENw7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W"]);
+    
+        // Create inception event with nxt digest and intive=true
+        let serder0 = InceptionEventBuilder::new(keys0.clone())
+            .with_ndigs(nxt1.clone())
+            .with_intive(true)
+            .build()?;
+    
+        let ked = serder0.ked();
+        assert_eq!(ked["t"].as_str().unwrap(), Ilks::ICP);
+        assert_eq!(ked["i"].as_str().unwrap(), "DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH");
+        assert_eq!(ked["s"].as_str().unwrap(), "0");
+        assert!(ked["kt"].is_number());  // Number instead of string
+        assert!(ked["nt"].is_number());  // Number instead of string
+        assert_eq!(ked["n"].as_array().unwrap()[0].as_str().unwrap(), nxt1[0]);
+        assert!(ked["bt"].is_number());  // Integer instead of string
+
+        assert_eq!(serder0.raw(), b"{\"v\":\"KERI10JSON000125_\",\"t\":\"icp\",\"d\":\"EFSJqZE0K0WU95dmccrg_8EKSuVSrt4kGIZN\
+                           jqWFA_HL\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\",\"kt\":1,\
+                           \"k\":[\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":1,\"n\":[\"EIf-ENw7Pr\
+                           M52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W\"],\"bt\":0,\"b\":[],\"c\":[],\"a\":[]}");    
+        Ok(())
+    }
+
+    #[test]
+    fn test_inception_transferable_not_abandoned() -> Result<(), Box<dyn Error>> {
+        // Original signing keypair
+        let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
+                         \xc9\xbd\x04\x9d\x85)~\x93";
+    
+        let signer0 = Signer::new(Some(seed), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        let keys0 = vec![signer0.verfer().qb64()];
+    
+        // Next signing keypair - transferable default
+        let seed1 = b"\x83B~\x04\x94\xe3\xceUQy\x11f\x0c\x93]\x1e\xbf\xacQ\xb5\xd6Y^\xa2E\xfa\x015\
+                          \x98Y\xdd\xe8";
+    
+        let signer1 = Signer::new(Some(seed1), Some(mtr_dex::ED25519_SEED), Some(true))?;
+        assert_eq!(signer1.code(), mtr_dex::ED25519_SEED);
+        assert_eq!(signer1.verfer().code(), mtr_dex::ED25519);
+    
+        // Compute nxt digest
+        let nxt1 = vec![Diger::from_ser(&signer1.verfer().qb64b(), Some(mtr_dex::BLAKE3_256))?.qb64()];
+        assert_eq!(nxt1, vec!["EIf-ENw7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W"]);
+    
+        // Create inception event with nxt digest
+        let serder0 = InceptionEventBuilder::new(keys0.clone())
+            .with_ndigs(nxt1.clone())
+            .build()?;
+
+        let ked = serder0.ked();
+        assert_eq!(ked["t"].as_str().unwrap(), Ilks::ICP);
+        assert_eq!(ked["i"].as_str().unwrap(), "DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH");
+        assert_eq!(ked["s"].as_str().unwrap(), "0");
+        assert_eq!(ked["kt"].as_str().unwrap(), "1");
+        assert_eq!(ked["nt"].as_str().unwrap(), "1");
+        assert_eq!(ked["n"].as_array().unwrap()[0].as_str().unwrap(), nxt1[0]);
+        assert_eq!(ked["bt"].as_str().unwrap(), "0");
+    
+        assert_eq!(serder0.raw(), b"{\"v\":\"KERI10JSON00012b_\",\"t\":\"icp\",\"d\":\"EJQUyxnzIAtmZPoq9f4fExeGN0qfJmaFnUEK\
+                               TwIiTBPj\",\"i\":\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\",\"s\":\"0\",\"kt\":\"1\
+                               \",\"k\":[\"DFs8BBx86uytIM0D2BhsE5rrqVIT8ef8mflpNceHo4XH\"],\"nt\":\"1\",\"n\":[\"EIf-EN\
+                               w7PrM52w4H-S7NGU2qVIfraXVIlV9hEAaMHg7W\"],\"bt\":\"0\",\"b\":[],\"c\":[],\"a\":[]}");
+    
+    
+    Ok(())
+    }
+    
 }

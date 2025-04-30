@@ -835,8 +835,9 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
 
                 // Validate signatures
                 if sigers.is_empty() {
-                    let d = keri_serder.sad().d;
-                    let msg = format!("Missing attached signature(s) for evt = {}", d.as_str());
+                    let sad = keri_serder.sad();
+                    let d = sad["d"].as_str().unwrap();
+                    let msg = format!("Missing attached signature(s) for evt = {}", d);
                     tracing::info!("{}", msg);
                     tracing::debug!("Event Body = \n{}\n", keri_serder.pretty(None));
                     return Err(MatterError::ValidationError(msg));

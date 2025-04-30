@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{de, ser};
 use serde::{Deserializer, Serializer};
 use serde_json::Number;
@@ -5,7 +6,9 @@ use std::fmt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde::ser::{SerializeMap, SerializeSeq};
-use crate::keri::{KERIError, Kinds};
+use crate::cesr::{dig_dex, get_sizes, mtr_dex, BaseMatter};
+use crate::keri::{Ilk, Ilks, KERIError, Kinds, Said};
+use crate::Matter;
 
 #[derive(Clone)]
 pub enum SadValue {
@@ -16,7 +19,7 @@ pub enum SadValue {
     Object(IndexMap<String, SadValue>),
 }
 
-pub type Sadd = IndexMap<String, SadValue>;
+pub type Sadder = IndexMap<String, SadValue>;
 
 impl SadValue {
     /// Deserializes raw bytes into a data structure based on the specified kind
@@ -34,7 +37,7 @@ impl SadValue {
     /// # Notes
     ///
     /// JSON deserialization uses UTF-8 string conversion, while CBOR and MGPK operate directly on bytes
-    pub fn loads(raw: &[u8], size: Option<usize>, kind: Kinds) -> Result<Sadd, KERIError> {
+    pub fn loads(raw: &[u8], size: Option<usize>, kind: Kinds) -> Result<Sadder, KERIError> {
         // Determine how many bytes to use
         let limit = size.unwrap_or(raw.len());
         let data = &raw[..std::cmp::min(limit, raw.len())];
@@ -81,7 +84,7 @@ impl SadValue {
     ///
     /// # Errors:
     /// Returns a KERIError if serialization fails
-    pub fn dumps(sad: &Sadd, kind: &Kinds) -> Result<Vec<u8>, KERIError> {
+    pub fn dumps(sad: &Sadder, kind: &Kinds) -> Result<Vec<u8>, KERIError> {
         match kind {
             Kinds::Json => match serde_json::to_string(sad) {
                 Ok(json_str) => Ok(json_str.into_bytes()),
@@ -598,5 +601,809 @@ impl<'de> Deserialize<'de> for SadValue {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_any(SadVisitor)
+    }
+}
+
+/// Sets the SAID fields with dummy placeholders of the appropriate length in a Sadd map
+///
+/// # Arguments
+/// * `sad` - The Sadd map to modify
+/// * `saids` - Optional map of label to digest type code overrides
+///
+/// This function sets the digestive fields with proper length placeholders
+/// based on the digest type
+pub fn set_said_placeholders(sad: &mut Sadder, saids: Option<HashMap<&str, String>>) {
+    // Define the default SAIDs mapping
+    let mut _saids: HashMap<&str, String> = HashMap::new();
+
+    // Get the ilk type
+    let ilk = if let Some(SadValue::String(t)) = sad.get("t") {
+        t.as_str()
+    } else {
+        return; // No ilk type, can't set placeholders
+    };
+
+    // Set up the defaults based on the ilk type
+    match ilk {
+        "icp" | "dip" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+
+            if let Some(SadValue::String(i)) = sad.get("i") {
+                if !i.is_empty() {
+                    match BaseMatter::from_qb64(i) {
+                        Ok(mtr) => {
+                            let code = String::from(mtr.code());
+                            if dig_dex::TUPLE.contains(&code.as_str()) {
+                                _saids.insert("i", code);
+                            }
+                        }
+                        Err(_) => {
+                            _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                        }
+                    }
+                } else {
+                    _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+                }
+            } else {
+                _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+            }
+        }
+        "rot" | "drt" | "vrt" | "rev" | "brv" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        "ixn" | "rct" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        "qry" | "rpy" | "pro" | "bar" | "exn" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        "vcp" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+            _saids.insert("i", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        "iss" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        "bis" => {
+            _saids.insert("d", mtr_dex::BLAKE3_256.to_string()); // Blake3_256
+        }
+        _ => {} // No defaults for unknown types
+    }
+
+    // Dummy character for padding
+    let dummy = "#";
+
+    // Field sizes for different digest types (fs = full size in characters)
+    let sizes = get_sizes();
+
+    // Process each SAID field
+    for (label, code) in _saids.iter() {
+        // Check for override in provided saids
+        let code = if let Some(saids_map) = &saids {
+            saids_map.get(label).unwrap_or(code)
+        } else {
+            code
+        };
+
+        // Check if this is a digestive code that needs padding
+        if let Some(size) = sizes.get(code.as_str()) {
+            if let Some(fs) = size.fs {
+                // Create a properly sized dummy string
+                let dummy_value = dummy.repeat(fs as usize);
+
+                // Set the appropriate field based on the label
+                match *label {
+                    "d" => {
+                        sad.insert("d".to_string(), SadValue::String(dummy_value));
+                    }
+                    "i" => {
+                        sad.insert("i".to_string(), SadValue::String(dummy_value));
+                    }
+                    // Add other SAID fields as needed
+                    _ => {} // Ignore unknown labels
+                }
+            }
+        }
+    }
+}
+
+/// Creates a Sadd with type-specific field defaults based on an existing Sadd
+///
+/// # Arguments
+/// * `ilk` - The event type (Ilk)
+/// * `orig` - The original Sadd object to preserve values from
+///
+/// # Returns
+/// A new Sadd instance with appropriate defaults for the given ilk,
+/// preserving any existing values from the original
+pub fn default_with_type(ilk: Ilk, orig: &Sadder) -> Sadder {
+    let mut sad = Sadder::new();
+
+    // Determine the actual ilk to use
+    let ilk_str = if let Some(SadValue::String(t)) = orig.get("t") {
+        if !t.is_empty() {
+            t.clone()
+        } else {
+            ilk.as_str().to_string()
+        }
+    } else {
+        ilk.as_str().to_string()
+    };
+
+    // Preserve version if already set
+    if let Some(SadValue::String(v)) = orig.get("v") {
+        if !v.is_empty() {
+            sad.insert("v".to_string(), SadValue::String(v.clone()));
+        } else {
+            sad.insert("v".to_string(), SadValue::String("".to_string()));
+        }
+    } else {
+        sad.insert("v".to_string(), SadValue::String("".to_string()));
+    }
+
+    // Set the type field
+    sad.insert("t".to_string(), SadValue::String(ilk_str.clone()));
+
+    // Preserve digest if already set
+    if let Some(SadValue::String(d)) = orig.get("d") {
+        if !d.is_empty() {
+            sad.insert("d".to_string(), SadValue::String(d.clone()));
+        } else {
+            sad.insert("d".to_string(), SadValue::String("".to_string()));
+        }
+    } else {
+        sad.insert("d".to_string(), SadValue::String("".to_string()));
+    }
+
+    // Helper function to get a string value or empty string default
+    let get_string_or_empty = |map: &Sadder, key: &str| -> SadValue {
+        if let Some(SadValue::String(s)) = map.get(key) {
+            SadValue::String(s.clone())
+        } else {
+            SadValue::String("".to_string())
+        }
+    };
+
+    // Helper function to get a string value with default
+    let get_string_or_default = |map: &Sadder, key: &str, default: &str| -> SadValue {
+        if let Some(SadValue::String(s)) = map.get(key) {
+            SadValue::String(s.clone())
+        } else {
+            SadValue::String(default.to_string())
+        }
+    };
+
+    // Helper function to get a string value with default
+    let get_string_or_number_default = |map: &Sadder, key: &str, default: &str| -> SadValue {
+        if let Some(SadValue::String(s)) = map.get(key) {
+            SadValue::String(s.clone())
+        } else if let Some(SadValue::Number(n)) = map.get(key) {
+            SadValue::Number(n.clone())
+        } else {
+            SadValue::String(default.to_string())
+        }
+    };
+
+    // Helper function to get an array or empty array
+    let get_array_or_empty = |map: &Sadder, key: &str| -> SadValue {
+        if let Some(SadValue::Array(a)) = map.get(key) {
+            SadValue::Array(a.clone())
+        } else {
+            SadValue::Array(vec![])
+        }
+    };
+
+    // Helper function to get an empty object
+    let get_object_or_empty = |map: &Sadder, key: &str| -> SadValue {
+        if let Some(SadValue::Object(o)) = map.get(key) {
+            SadValue::Object(o.clone())
+        } else {
+            SadValue::Object(IndexMap::new())
+        }
+    };
+
+    // Apply type-specific defaults based on ilk
+    match ilk_str.as_str() {
+        "icp" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
+            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
+            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert("b".to_string(), get_array_or_empty(orig, "b"));
+            sad.insert("c".to_string(), get_array_or_empty(orig, "c"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "rot" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
+            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
+            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
+            sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "ixn" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "dip" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
+            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
+            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert("b".to_string(), get_array_or_empty(orig, "b"));
+            sad.insert("c".to_string(), get_array_or_empty(orig, "c"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+            sad.insert("di".to_string(), get_string_or_empty(orig, "di"));
+        }
+        "drt" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("kt".to_string(), get_string_or_number_default(orig, "kt", "0"));
+            sad.insert("k".to_string(), get_array_or_empty(orig, "k"));
+            sad.insert("nt".to_string(), get_string_or_number_default(orig, "nt", "0"));
+            sad.insert("n".to_string(), get_array_or_empty(orig, "n"));
+            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
+            sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "rct" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+        }
+        "qry" => {
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+            sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
+            sad.insert("rr".to_string(), get_string_or_empty(orig, "rr"));
+            sad.insert("q".to_string(), get_object_or_empty(orig, "q"));
+        }
+        "rpy" => {
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+            sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "pro" => {
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+            sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
+            sad.insert("rr".to_string(), get_string_or_empty(orig, "rr"));
+            sad.insert("q".to_string(), get_object_or_empty(orig, "q"));
+        }
+        "bar" => {
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+            sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+        }
+        "exn" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("rp".to_string(), get_string_or_empty(orig, "rp"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+            sad.insert("r".to_string(), get_string_or_empty(orig, "r"));
+            sad.insert("q".to_string(), get_object_or_empty(orig, "q"));
+            sad.insert("a".to_string(), get_array_or_empty(orig, "a"));
+            sad.insert("e".to_string(), get_object_or_empty(orig, "e"));
+        }
+        "vcp" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("ii".to_string(), get_string_or_empty(orig, "ii"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("c".to_string(), get_array_or_empty(orig, "c"));
+            sad.insert("bt".to_string(), get_string_or_default(orig, "bt", "0"));
+            sad.insert("b".to_string(), get_array_or_empty(orig, "b"));
+        }
+        "vrt" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("bt".to_string(), get_string_or_number_default(orig, "bt", "0"));
+            sad.insert("br".to_string(), get_array_or_empty(orig, "br"));
+            sad.insert("ba".to_string(), get_array_or_empty(orig, "ba"));
+        }
+        "iss" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("ri".to_string(), get_string_or_empty(orig, "ri"));
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+        }
+        "rev" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("ri".to_string(), get_string_or_empty(orig, "ri"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+        }
+        "bis" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("ii".to_string(), get_string_or_empty(orig, "ii"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("r".to_string(), get_object_or_empty(orig, "rules"));
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+        }
+        "brv" => {
+            sad.insert("i".to_string(), get_string_or_empty(orig, "i"));
+            sad.insert("s".to_string(), get_string_or_default(orig, "s", "0"));
+            sad.insert("p".to_string(), get_string_or_empty(orig, "p"));
+            sad.insert("r".to_string(), get_object_or_empty(orig, "rules"));
+            sad.insert("dt".to_string(), get_string_or_empty(orig, "dt"));
+        }
+        // Default case for unknown ilk types
+        _ => {
+            // Keep the base defaults initialized above
+        }
+    }
+
+    sad
+}
+
+
+/// Create a validation schema for the different event types
+pub fn build_validation_schema() -> HashMap<Ilk, Vec<&'static str>> {
+    let mut schema = HashMap::new();
+
+    // For each ilk, define the required fields (those that must be present)
+    schema.insert(
+        Ilk::Icp,
+        vec![
+            "v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c",
+        ],
+    );
+    schema.insert(
+        Ilk::Rot,
+        vec![
+            "v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba",
+        ],
+    );
+    schema.insert(Ilk::Ixn, vec!["v", "t", "d", "i", "s", "p"]);
+    schema.insert(
+        Ilk::Dip,
+        vec![
+            "v", "t", "d", "i", "s", "kt", "k", "nt", "n", "bt", "b", "c", "di",
+        ],
+    );
+    schema.insert(
+        Ilk::Drt,
+        vec![
+            "v", "t", "d", "i", "s", "p", "kt", "k", "nt", "n", "bt", "br", "ba",
+        ],
+    );
+    schema.insert(Ilk::Rct, vec!["v", "t", "d", "i", "s"]);
+    schema.insert(Ilk::Qry, vec!["v", "t", "d", "dt", "r", "rr", "q"]);
+    schema.insert(Ilk::Rpy, vec!["v", "t", "d", "dt", "r", "a"]);
+    schema.insert(Ilk::Pro, vec!["v", "t", "d", "dt", "r", "rr", "q"]);
+    schema.insert(Ilk::Bar, vec!["v", "t", "d", "dt", "r", "a"]);
+    schema.insert(
+        Ilk::Exn,
+        vec!["v", "t", "d", "i", "rp", "p", "dt", "r", "q", "a", "e"],
+    );
+    schema.insert(
+        Ilk::Vcp,
+        vec!["v", "t", "d", "i", "ii", "s", "c", "bt", "b", "n"],
+    );
+    schema.insert(
+        Ilk::Vrt,
+        vec!["v", "t", "d", "i", "p", "s", "bt", "br", "ba"],
+    );
+    schema.insert(Ilk::Iss, vec!["v", "t", "d", "i", "s", "ri", "dt"]);
+    schema.insert(Ilk::Rev, vec!["v", "t", "d", "i", "s", "ri", "p", "dt"]);
+    schema.insert(Ilk::Bis, vec!["v", "t", "d", "i", "ii", "s", "ra", "dt"]);
+    schema.insert(Ilk::Brv, vec!["v", "t", "d", "i", "s", "p", "ra", "dt"]);
+
+    schema
+}
+
+/// Validates a Sadd map against the schema requirements
+///
+/// # Arguments
+/// * `sad` - The Sadd map to validate
+///
+/// # Returns
+/// * `Ok(())` if validation passes
+/// * `Err(KERIError)` with a detailed error message if validation fails
+pub fn validate(sad: &Sadder) -> Result<(), KERIError> {
+    // Get the ilk value which determines the schema to use
+    let ilk_str = match sad.get("t") {
+        Some(SadValue::String(t)) => t.as_str(),
+        _ => return Err(KERIError::ValidationError("Missing or invalid 't' field".to_string())),
+    };
+
+    // Try to convert string ilk to Ilk enum
+    let ilk = match Ilk::from_str(ilk_str) {
+        Some(ilk) => {ilk}
+        None => return Err(KERIError::ValidationError(format!("Invalid ilk type: {}", ilk_str))),
+    };
+
+    // Get the validation schema for this ilk
+    let schema = build_validation_schema();
+    let fields = match schema.get(&ilk) {
+        Some(fields) => fields,
+        None => return Err(KERIError::ValidationError(format!("No schema found for ilk: {}", ilk_str))),
+    };
+
+    // Check that all required fields are present and have appropriate values
+    for &field in fields {
+        match field {
+            "v" => {
+                // Version is required and must not be empty
+                if !has_non_empty_string(sad, "v") {
+                    return Err(KERIError::ValidationError("Missing or empty version field 'v'".to_string()));
+                }
+            }
+            "t" => {
+                // Type is already validated above
+            }
+            "d" => {
+                // Digest is required and must not be empty
+                if !has_non_empty_string(sad, "d") {
+                    return Err(KERIError::ValidationError("Missing or empty digest field 'd'".to_string()));
+                }
+            }
+            "i" => {
+                // Identifier is required for most events
+                if !has_non_empty_string(sad, "i") {
+                    return Err(KERIError::ValidationError("Missing or empty identifier field 'i'".to_string()));
+                }
+            }
+            "s" => {
+                // Sequence number is required for key events
+                if !has_field(sad, "s") {
+                    return Err(KERIError::ValidationError("Missing sequence number field 's'".to_string()));
+                }
+
+                // Validate as number string or parse as integer
+                if let Some(SadValue::String(s)) = sad.get("s") {
+                    if s.parse::<u64>().is_err() {
+                        return Err(KERIError::ValidationError(format!("Invalid sequence number '{}': must be a non-negative integer", s)));
+                    }
+                } else {
+                    return Err(KERIError::ValidationError("Sequence number 's' must be a string value".to_string()));
+                }
+            }
+            "p" => {
+                // Prior event digest is required for rotation and interaction events
+                if matches!(ilk, Ilk::Rot | Ilk::Ixn | Ilk::Drt | Ilk::Vrt | Ilk::Rev | Ilk::Brv) && !has_non_empty_string(sad, "p") {
+                    return Err(KERIError::ValidationError("Missing or empty prior digest field 'p'".to_string()));
+                }
+            }
+            "kt" => {
+                // Key threshold is required for inception and rotation events
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "kt") {
+                    return Err(KERIError::ValidationError("Missing key threshold field 'kt'".to_string()));
+                }
+
+                // Validate as threshold string or parse as integer
+                if let Some(SadValue::String(kt)) = sad.get("kt") {
+                    if kt.parse::<u64>().is_err() {
+                        return Err(KERIError::ValidationError(format!("Invalid key threshold '{}': must be a non-negative integer", kt)));
+                    }
+                } else if has_field(sad, "kt") {
+                    return Err(KERIError::ValidationError("Key threshold 'kt' must be a string value".to_string()));
+                }
+            }
+            "k" => {
+                // Keys are required for inception and rotation events
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) {
+                    // Must be an array of strings
+                    if !has_string_array(sad, "k") {
+                        return Err(KERIError::ValidationError("Missing or invalid keys field 'k': must be an array of strings".to_string()));
+                    }
+
+                    // Validate each key is a non-empty string
+                    if let Some(SadValue::Array(keys)) = sad.get("k") {
+                        for (i, key) in keys.iter().enumerate() {
+                            if let Some(key_str) = key.as_str() {
+                                if key_str.is_empty() {
+                                    return Err(KERIError::ValidationError(format!("Empty key at index {} in 'k'", i)));
+                                }
+                            } else {
+                                return Err(KERIError::ValidationError(format!("Non-string key at index {} in 'k'", i)));
+                            }
+                        }
+                    }
+                }
+            }
+            "nt" => {
+                // Next key threshold is required for inception and rotation events
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && !has_field(sad, "nt") {
+                    return Err(KERIError::ValidationError("Missing next key threshold field 'nt'".to_string()));
+                }
+
+                // Validate as threshold string or parse as integer
+                if let Some(SadValue::String(nt)) = sad.get("nt") {
+                    if nt.parse::<u64>().is_err() {
+                        return Err(KERIError::ValidationError(format!("Invalid next key threshold '{}': must be a non-negative integer", nt)));
+                    }
+                } else if has_field(sad, "nt") {
+                    return Err(KERIError::ValidationError("Next key threshold 'nt' must be a string value".to_string()));
+                }
+            }
+            "n" => {
+                // Next keys are required for inception and rotation events
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) {
+                    // Must be an array of strings
+                    if !has_string_array(sad, "n") {
+                        return Err(KERIError::ValidationError("Missing or invalid next keys field 'n': must be an array of strings".to_string()));
+                    }
+
+                    // Validate each key is a non-empty string
+                    if let Some(SadValue::Array(keys)) = sad.get("n") {
+                        for (i, key) in keys.iter().enumerate() {
+                            if let Some(key_str) = key.as_str() {
+                                if key_str.is_empty() {
+                                    return Err(KERIError::ValidationError(format!("Empty next key at index {} in 'n'", i)));
+                                }
+                            } else {
+                                return Err(KERIError::ValidationError(format!("Non-string next key at index {} in 'n'", i)));
+                            }
+                        }
+                    }
+                }
+            }
+            "bt" => {
+                // Backer threshold is required for inception and rotation events with backers
+                if matches!(ilk, Ilk::Icp | Ilk::Rot | Ilk::Dip | Ilk::Drt) && has_field(sad, "b") && !has_field(sad, "bt") {
+                    return Err(KERIError::ValidationError("Missing backer threshold field 'bt' when backers 'b' are present".to_string()));
+                }
+
+                // Validate as threshold string or parse as integer if present
+                if let Some(SadValue::String(bt)) = sad.get("bt") {
+                    if bt.parse::<u64>().is_err() {
+                        return Err(KERIError::ValidationError(format!("Invalid backer threshold '{}': must be a non-negative integer", bt)));
+                    }
+                } else if has_field(sad, "bt") {
+                    return Err(KERIError::ValidationError("Backer threshold 'bt' must be a string value".to_string()));
+                }
+            }
+            "b" => {
+                // Backers field must be an array of strings if present
+                if has_field(sad, "b") && !has_string_array(sad, "b") {
+                    return Err(KERIError::ValidationError("Invalid backers field 'b': must be an array of strings".to_string()));
+                }
+
+                // Validate each backer is a non-empty string
+                if let Some(SadValue::Array(backers)) = sad.get("b") {
+                    for (i, backer) in backers.iter().enumerate() {
+                        if let Some(backer_str) = backer.as_str() {
+                            if backer_str.is_empty() {
+                                return Err(KERIError::ValidationError(format!("Empty backer at index {} in 'b'", i)));
+                            }
+                        } else {
+                            return Err(KERIError::ValidationError(format!("Non-string backer at index {} in 'b'", i)));
+                        }
+                    }
+                }
+            }
+            "br" => {
+                // Backer remove field must be an array of strings if present
+                if has_field(sad, "br") && !has_string_array(sad, "br") {
+                    return Err(KERIError::ValidationError("Invalid backer removes field 'br': must be an array of strings".to_string()));
+                }
+
+                // Validate each backer is a non-empty string
+                if let Some(SadValue::Array(backers)) = sad.get("br") {
+                    for (i, backer) in backers.iter().enumerate() {
+                        if let Some(backer_str) = backer.as_str() {
+                            if backer_str.is_empty() {
+                                return Err(KERIError::ValidationError(format!("Empty backer remove at index {} in 'br'", i)));
+                            }
+                        } else {
+                            return Err(KERIError::ValidationError(format!("Non-string backer remove at index {} in 'br'", i)));
+                        }
+                    }
+                }
+            }
+            "ba" => {
+                // Backer add field must be an array if present
+                if has_field(sad, "ba") && !is_array(sad, "ba") {
+                    return Err(KERIError::ValidationError("Invalid backer adds field 'ba': must be an array".to_string()));
+                }
+            }
+            "c" => {
+                // Configuration traits must be array or object if present
+                if has_field(sad, "c") && !is_array(sad, "c") && !is_object(sad, "c") {
+                    return Err(KERIError::ValidationError("Invalid config field 'c': must be an array or object".to_string()));
+                }
+            }
+            "a" => {
+                // Anchors must be array or object if present
+                if has_field(sad, "a") && !is_array(sad, "a") && !is_object(sad, "a") {
+                    return Err(KERIError::ValidationError("Invalid anchors field 'a': must be an array or object".to_string()));
+                }
+            }
+            "di" => {
+                // Delegator identifier is required for delegated events
+                if matches!(ilk, Ilk::Dip | Ilk::Drt) && !has_non_empty_string(sad, "di") {
+                    return Err(KERIError::ValidationError("Missing or empty delegator field 'di'".to_string()));
+                }
+            }
+            "dt" => {
+                // Date-time is required for certain events
+                if matches!(ilk, Ilk::Rpy | Ilk::Qry | Ilk::Exn) && !has_non_empty_string(sad, "dt") {
+                    return Err(KERIError::ValidationError("Missing or empty date-time field 'dt'".to_string()));
+                }
+            }
+            "r" => {
+                // Route is required for query and reply events
+                if matches!(ilk, Ilk::Qry | Ilk::Rpy) && !has_non_empty_string(sad, "r") {
+                    return Err(KERIError::ValidationError("Missing or empty route field 'r'".to_string()));
+                }
+            }
+            "q" => {
+                // Query or payload must be object if present
+                if has_field(sad, "q") && !is_object(sad, "q") {
+                    return Err(KERIError::ValidationError("Invalid query field 'q': must be an object".to_string()));
+                }
+            }
+            "ri" => {
+                // Registry identifier required for issuance and revocation events
+                if matches!(ilk, Ilk::Iss | Ilk::Rev) && !has_non_empty_string(sad, "ri") {
+                    return Err(KERIError::ValidationError("Missing or empty registry identifier 'ri'".to_string()));
+                }
+            }
+            "ii" => {
+                // Issuer identifier required for certain events
+                if matches!(ilk, Ilk::Bis | Ilk::Vcp) && !has_non_empty_string(sad, "ii") {
+                    return Err(KERIError::ValidationError("Missing or empty issuer identifier field 'ii'".to_string()));
+                }
+            }
+            "rules" => {
+                // Rules must be object if present
+                if has_field(sad, "rules") && !is_object(sad, "rules") {
+                    return Err(KERIError::ValidationError("Invalid rules field 'rules': must be an object".to_string()));
+                }
+            }
+            "e" => {
+                // Exchange info must be object if present
+                if has_field(sad, "e") && !is_object(sad, "e") {
+                    return Err(KERIError::ValidationError("Invalid exchange field 'e': must be an object".to_string()));
+                }
+            }
+            // Add more fields here as needed
+            _ => {
+                // Other fields are not validated
+            }
+        }
+    }
+
+    // Add any cross-field validation rules here
+    if let Some(SadValue::Array(keys)) = sad.get("k") {
+        // If kt is present, ensure the threshold is not greater than the number of keys
+        if let Some(SadValue::String(kt)) = sad.get("kt") {
+            if let Ok(kt_val) = kt.parse::<usize>() {
+                if kt_val > keys.len() && kt_val != 0 {
+                    return Err(KERIError::ValidationError(
+                        format!("Invalid key threshold '{}': greater than number of keys {}", kt, keys.len())
+                    ));
+                }
+            }
+        }
+    }
+
+    if let Some(SadValue::Array(nkeys)) = sad.get("n") {
+        // If nt is present, ensure the threshold is not greater than the number of next keys
+        if let Some(SadValue::String(nt)) = sad.get("nt") {
+            if let Ok(nt_val) = nt.parse::<usize>() {
+                if nt_val > nkeys.len() && nt_val != 0 {
+                    return Err(KERIError::ValidationError(
+                        format!("Invalid next key threshold '{}': greater than number of next keys {}", nt, nkeys.len())
+                    ));
+                }
+            }
+        }
+    }
+
+    // All validations passed
+    Ok(())
+}
+
+/// Checks if a field exists in the Sadd map
+fn has_field(sad: &Sadder, field: &str) -> bool {
+    sad.contains_key(field)
+}
+
+/// Checks if a field exists and is a non-empty string
+fn has_non_empty_string(sad: &Sadder, field: &str) -> bool {
+    if let Some(SadValue::String(s)) = sad.get(field) {
+        !s.is_empty()
+    } else {
+        false
+    }
+}
+
+/// Checks if a field exists and is an array of strings
+fn has_string_array(sad: &Sadder, field: &str) -> bool {
+    if let Some(SadValue::Array(arr)) = sad.get(field) {
+        arr.iter().all(|v| v.as_str().is_some())
+    } else {
+        false
+    }
+}
+
+/// Checks if a field exists and is an array
+fn is_array(sad: &Sadder, field: &str) -> bool {
+    if let Some(value) = sad.get(field) {
+        value.is_array()
+    } else {
+        false
+    }
+}
+
+/// Checks if a field exists and is an object
+fn is_object(sad: &Sadder, field: &str) -> bool {
+    if let Some(value) = sad.get(field) {
+        value.is_object()
+    } else {
+        false
+    }
+}
+
+/// Creates a simpler version of the validate method that returns a string error
+/// instead of a KERIError
+pub fn is_valid(sad: &Sadder) -> Result<(), String> {
+    match validate(sad) {
+        Ok(()) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Creates a specific event type from this general structure
+pub fn ilk(sad: &Sadder) -> Result<Ilk, KERIError> {
+    let t = match sad.get("t") {
+        Some(SadValue::String(t)) => {t}
+        _ => {return Err(KERIError::ValidationError("Missing or invalid 't' field".to_string()))}
+    };
+    match t.as_str() {
+        Ilks::ICP => Ok(Ilk::Icp),
+        Ilks::ROT => Ok(Ilk::Rot),
+        Ilks::IXN => Ok(Ilk::Ixn),
+        Ilks::DIP => Ok(Ilk::Dip),
+        Ilks::DRT => Ok(Ilk::Drt),
+        Ilks::RCT => Ok(Ilk::Rct),
+        Ilks::QRY => Ok(Ilk::Qry),
+        Ilks::RPY => Ok(Ilk::Rpy),
+        Ilks::VCP => Ok(Ilk::Vcp),
+        Ilks::VRT => Ok(Ilk::Vrt),
+        Ilks::ISS => Ok(Ilk::Iss),
+        Ilks::REV => Ok(Ilk::Rev),
+        _ => Err(KERIError::FieldError(String::from("Unknown event type"))),
+    }
+}
+
+
+pub fn get_primary_said_label(sad: &Sadder) -> Option<Said> {
+    match ilk(sad) {
+        Ok(ilk) => match ilk {
+            Ilk::Icp => Some(Said::D),
+            Ilk::Rot => Some(Said::D),
+            Ilk::Ixn => Some(Said::D),
+            Ilk::Dip => Some(Said::D),
+            Ilk::Drt => Some(Said::D),
+            Ilk::Qry => Some(Said::D),
+            Ilk::Rpy => Some(Said::D),
+            Ilk::Pro => Some(Said::D),
+            Ilk::Bar => Some(Said::D),
+            Ilk::Exn => Some(Said::D),
+            Ilk::Vcp => Some(Said::D),
+            Ilk::Vrt => Some(Said::D),
+            Ilk::Iss => Some(Said::D),
+            Ilk::Rev => Some(Said::D),
+            Ilk::Bis => Some(Said::D),
+            Ilk::Brv => Some(Said::D),
+            _ => None,
+        },
+        _ => None,
     }
 }
