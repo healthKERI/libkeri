@@ -75,7 +75,6 @@ pub fn sizeify(
 
     // Serialize ked to get raw bytes
     let raw = SadValue::dumps(&ked_mut, &kind)?;
-    let string_val = String::from_utf8(raw.clone()).unwrap();
     let size = raw.len();
 
     let match_opt = REVER.find(&raw);

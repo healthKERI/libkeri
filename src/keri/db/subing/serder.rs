@@ -316,7 +316,7 @@ mod tests {
         assert_eq!(retrieved_serder.raw(), serder.raw());
 
         // Test overwrite with pin
-        let sample_ked2 = r#"{"v":"KERI10JSON000160_","t":"rot","d":"EG22BBFSLnRRZHHxoAlFP2Kc5j9xyg-1sSkMEgGVcRlD","i":"EFa1wAk_coghxxGCID6jEN79Kmvyj0Y1wWN_ndUv3LjW","s":"1","p":"EFa1wAk_coghxxGCID6jEN79Kmvyj0Y1wWN_ndUv3LjW","kt":"1","k":["DAceoFXtYpYjyKGLLfv0Hs4YSGQtqmzKx64zfMI9fBUM"],"nt":"1","n":["EPwseSLvRsbjHDUGeZJSed0HF_Myw8qvZksRTQBC2cjO"],"bt":"0","br":[],"ba":[],"a":[]}"#;
+        let sample_ked2 = r#"{"v":"KERI10JSON000160_","t":"rot","d":"EAg5uUuKVgvaz0vgEC7B-rQdsXHhDCXXbKdO5KRTDQFq","i":"EFa1wAk_coghxxGCID6jEN79Kmvyj0Y1wWN_ndUv3LjW","s":"1","p":"EFa1wAk_coghxxGCID6jEN79Kmvyj0Y1wWN_ndUv3LjW","kt":"1","k":["DAceoFXtYpYjyKGLLfv0Hs4YSGQtqmzKx64zfMI9fBUM"],"nt":"1","n":["EPwseSLvRsbjHDUGeZJSed0HF_Myw8qvZksRTQBC2cjO"],"bt":"0","br":[],"ba":[],"a":[]}"#;
         let serder2 =
             SerderKERI::from_raw(sample_ked2.as_ref(), None).expect("Failed to parse test Serder");
 

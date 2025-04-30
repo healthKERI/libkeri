@@ -172,11 +172,6 @@ impl InceptionEventBuilder {
 
         // Create and validate ntholder
         let ntholder = Tholder::new(None, None, Some(nsith.clone()))?;
-        if let Some(num) = ntholder.num() {
-            if num < 0 {
-                return Err(format!("Invalid nsith = {} less than 0.", num).into());
-            }
-        }
         if ntholder.size() > self.ndigs.len() {
             return Err(format!("Invalid nsith = {:?} for ndigs = {:?}", nsith, self.ndigs).into());
         }
