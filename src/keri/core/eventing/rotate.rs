@@ -565,7 +565,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_rotation_transferable_not_abandoned() -> Result<(), Box<dyn Error>> {
         // Setup inception first to get dig
@@ -585,9 +584,13 @@ mod tests {
         assert_eq!(signer2.verfer().code(), mtr_dex::ED25519);
 
         // Create next key digest
-        let keys2 = vec![
-            Diger::new(Some(&signer2.verfer().qb64b()), Some(mtr_dex::BLAKE3_256), None, None)?.qb64()
-        ];
+        let keys2 = vec![Diger::new(
+            Some(&signer2.verfer().qb64b()),
+            Some(mtr_dex::BLAKE3_256),
+            None,
+            None,
+        )?
+        .qb64()];
 
         let said = "EY2L3ycqK9645aEeQKP941xojSiuiHsw4Y6yTW-DpRXs".to_string();
         // Build the rotation event
@@ -646,9 +649,13 @@ mod tests {
         assert_eq!(signer2.verfer().code(), mtr_dex::ED25519);
 
         // Create next key digest
-        let keys2 = vec![
-            Diger::new(Some(&signer2.verfer().qb64b()), Some(mtr_dex::BLAKE3_256), None, None)?.qb64()
-        ];
+        let keys2 = vec![Diger::new(
+            Some(&signer2.verfer().qb64b()),
+            Some(mtr_dex::BLAKE3_256),
+            None,
+            None,
+        )?
+        .qb64()];
 
         // Build the rotation event with intive=true
         let said = "EY2L3ycqK9645aEeQKP941xojSiuiHsw4Y6yTW-DpRXs".to_string();
@@ -716,9 +723,13 @@ mod tests {
         // Next key digest
         let seed2 = b"\xbe\x96\x02\xa9\x88\xce\xf9O\x1e\x0fo\xc0\xff\x98\xb6\xfa\x1e\xa2y\xf2e\xf9AL\x1aeK\xafj\xa1pB";
         let signer2 = Signer::new(Some(&seed2[..]), Some(mtr_dex::ED25519_SEED), Some(true))?;
-        let keys2 = vec![
-            Diger::new(Some(&signer2.verfer().qb64b()), Some(mtr_dex::BLAKE3_256), None, None)?.qb64()
-        ];
+        let keys2 = vec![Diger::new(
+            Some(&signer2.verfer().qb64b()),
+            Some(mtr_dex::BLAKE3_256),
+            None,
+            None,
+        )?
+        .qb64()];
 
         // Build rotation with witnesses
         let serder = RotateEventBuilder::new(pre.clone(), keys1.clone(), dig.clone())
@@ -741,14 +752,19 @@ mod tests {
         // Check cuts
         let br = ked["br"].as_array().unwrap();
         assert_eq!(br.len(), 1);
-        assert_eq!(br[0].as_str().unwrap(), "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM");
+        assert_eq!(
+            br[0].as_str().unwrap(),
+            "BLskRTInXnMxWaGqcpSyMgo0nYbalW99cGZESrz3zapM"
+        );
 
         // Check adds
         let ba = ked["ba"].as_array().unwrap();
         assert_eq!(ba.len(), 1);
-        assert_eq!(ba[0].as_str().unwrap(), "BMusuVxC3AuXkqXAD-2UN4PWr2Eu_7oX3UXxrtXASh-0");
+        assert_eq!(
+            ba[0].as_str().unwrap(),
+            "BMusuVxC3AuXkqXAD-2UN4PWr2Eu_7oX3UXxrtXASh-0"
+        );
 
         Ok(())
     }
-    
 }
