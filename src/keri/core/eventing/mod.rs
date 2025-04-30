@@ -1,4 +1,5 @@
 mod incept;
+mod rotate;
 
 use crate::Matter;
 use std::error::Error;

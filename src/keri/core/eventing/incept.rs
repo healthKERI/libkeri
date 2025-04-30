@@ -1,13 +1,13 @@
-use std::collections::{HashMap, HashSet};
-use std::error::Error;
-use num_bigint::BigUint;
-use serde_json::Value;
 use crate::cesr::number::Number;
 use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::Versionage;
 use crate::keri::core::eventing::{ample, is_digest_code, is_prefix_code, MAX_INT_THOLD};
 use crate::keri::core::serdering::{SadValue, Sadder, SerderKERI};
 use crate::keri::versify;
+use num_bigint::BigUint;
+use serde_json::Value;
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
 
 /// Builder for creating SerderKERI inception events
 pub struct InceptionEventBuilder {
@@ -378,7 +378,6 @@ impl InceptionEventBuilder {
         Ok(serder)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
