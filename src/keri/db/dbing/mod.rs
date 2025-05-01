@@ -2558,6 +2558,631 @@ impl LMDBer {
 
         Ok(count)
     }
+
+
+    /// Add val bytes as dup at onkey consisting of key + sep + serialized on in db.
+    /// Adds to existing values at key if any.
+    /// Returns true if written else false if dup val already exists.
+    ///
+    /// Duplicates are inserted in lexicographic order not insertion order.
+    /// LMDB does not insert a duplicate unless it is a unique value for that key.
+    ///
+    /// Does inclusion test to detect if duplicate already exists.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: Key within sub db's keyspace
+    /// - `on`: Ordinal number for the key (default: 0)
+    /// - `val`: Value to add at onkey as dup
+    /// - `sep`: Separator character for split (default: b'.')
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if duplicate val added at onkey, false if duplicate val preexists
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn add_on_io_dup_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: Option<u64>,
+        val: &[u8],
+        sep: Option<[u8; 1]>,
+    ) -> Result<bool, DBError> {
+        // Generate the on_key by combining key + sep + serialized on
+        let on_val = on.unwrap_or(0);
+        let onkey = on_key(key, on_val, sep);
+
+        // Use the existing add_io_dup_val method to add the value
+        self.add_io_dup_val(db, &onkey, val)
+    }
+
+    /// Appends val in order after last previous key with same prefix in db where
+    /// full key has key prefix and serialized on suffix attached with sep and
+    /// value has ordinal proem prefixed.
+    ///
+    /// Returns ordinal number (on) of appended entry. Appended on is 1 greater
+    /// than previous latest on at the prefix.
+    ///
+    /// Works with either dupsort==True or False since always creates new full key.
+    ///
+    /// # Parameters
+    /// - `db`: Named sub db in lmdb
+    /// - `key`: Key within sub db's keyspace 
+    /// - `val`: Value to append
+    /// - `sep`: Separator character for split (default: b'.')
+    ///
+    /// # Returns
+    /// - `Ok(u64)`: Ordinal number of newly appended val
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn append_on_io_dup_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        val: &[u8],
+        sep: Option<[u8; 1]>,
+    ) -> Result<u64, DBError> {
+        // Create ordering proem
+        let mut proem = format!("{:032x}.", 0).into_bytes();
+
+        // Create a new value by prepending the ordering proem
+        let mut new_val = Vec::with_capacity(proem.len() + val.len());
+        new_val.append(&mut proem);
+        new_val.extend_from_slice(val);
+
+        // Call the existing appendOnVal method
+        self.append_on_val(db, key, &new_val, sep)
+    }
+
+    /// Deletes all dup iovals at onkey consisting of key + sep + serialized on in db.
+    ///
+    /// Assumes DB opened with dupsort=True
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: Key within sub db's keyspace 
+    /// - `on`: Ordinal number for the key (default: 0)
+    /// - `sep`: Separator character for split (default: b'.')
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if onkey present so all dups at onkey deleted
+    ///                False if onkey not present
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn del_on_io_dup_vals(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+    ) -> Result<bool, DBError> {
+        // Generate the on_key by combining key + sep + serialized on
+        let on_val = on.unwrap_or(0);
+        let onkey = on_key(key, on_val, sep);
+
+        // Use the existing del_io_dup_vals method to delete all duplicates at the onkey
+        self.del_io_dup_vals(db, &onkey)
+    }
+
+    /// Deletes a specific dup ioval at key onkey consisting of key + sep + serialized on in db.
+    ///
+    /// Returns True if deleted else False if dup val not present.
+    /// Assumes DB opened with dupsort=True.
+    ///
+    /// # Parameters
+    /// - `db`: Opened named sub db with dupsort=True
+    /// - `key`: Key within sub db's keyspace
+    /// - `on`: Ordinal number for the key (default: 0)
+    /// - `val`: Value to delete at onkey
+    /// - `sep`: Separator character for split (default: b'.')
+    ///
+    /// # Returns
+    /// - `Ok(bool)`: True if duplicate val found and deleted
+    ///                False if duplicate val does not exist at onkey
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn del_on_io_dup_val(
+        &self,
+        db: &BytesDatabase,
+        key: &[u8],
+        on: Option<u64>,
+        val: &[u8],
+        sep: Option<[u8; 1]>,
+    ) -> Result<bool, DBError> {
+        // Generate the on_key by combining key + sep + serialized on
+        let on_val = on.unwrap_or(0);
+        let onkey = on_key(key, on_val, sep);
+
+        // Use the existing del_io_dup_val method to delete the specific duplicate value
+        self.del_io_dup_val(db, &onkey, val)
+    }
+
+    /// Returns iterator of triples (key, on, val), at each key over all ordinal
+    /// numbered keys with same key + sep + on in db.
+    ///
+    /// Values are sorted by onKey(key, on) where on is ordinal number int and key is 
+    /// prefix without the ordinal suffix. Values duplicates are sorted internally 
+    /// by hidden prefixed insertion order proem ordinal.
+    ///
+    /// Uses callback pattern instead of Python's yield/iterator for each triple of (key, on, val).
+    /// When key is empty then retrieves the whole db.
+    ///
+    /// # Parameters
+    /// - `db`: Named sub db in lmdb
+    /// - `key`: Key within sub db's keyspace - when key is empty (None) then retrieves whole db
+    /// - `on`: Ordinal number at which to initiate retrieval (default: 0)
+    /// - `sep`: Separator character for split (default: b'.')
+    /// - `callback`: Function to call for each (key, on, val) triple found
+    ///
+    /// # Returns
+    /// - `Ok(())`: If iteration completes successfully
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_on_io_dup_item_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>, u64, Vec<u8>) -> Result<bool, DBError>,
+    {
+        // Use the existing get_on_item_iter which returns triples of (key, on, val)
+        self.get_on_item_iter(
+            db,
+            key,
+            on,
+            sep,
+            |k, o, val| {
+                // Skip values that are too short (must be at least 33 bytes for the proem)
+                if val.len() <= 33 {
+                    return Ok(true); // Continue iteration
+                }
+
+                // Strip the 33-byte proem from the value (first 33 bytes)
+                let stripped_val = Vec::from(&val[33..]);
+
+                // Call the callback with the key, ordinal, and stripped value
+                callback(k, o, stripped_val)
+            },
+        )
+    }
+
+    /// Returns iterator over values at each key with same key + sep + on in db.
+    ///
+    /// Values are associated with keys formed by onKey(key, on) where on is 
+    /// an ordinal number int and key is prefix without the ordinal.
+    /// Values duplicates are sorted internally by hidden prefixed insertion order
+    /// proem ordinal.
+    ///
+    /// Uses callback pattern instead of Python's yield/iterator.
+    ///
+    /// # Parameters
+    /// - `db`: Named sub db in lmdb
+    /// - `key`: Key within sub db's keyspace - when key is empty then retrieves whole db
+    /// - `on`: Ordinal number at which to initiate retrieval (default: 0)
+    /// - `sep`: Separator character for split (default: b'.')
+    /// - `callback`: Function to call for each value found
+    ///
+    /// # Returns
+    /// - `Ok(())`: If iteration completes successfully
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_on_io_dup_val_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>) -> Result<bool, DBError>,
+    {
+        // Call get_on_io_dup_item_iter which returns triples of (key, on, val)
+        // and extract only the values
+        self.get_on_io_dup_item_iter(
+            db,
+            key,
+            on,
+            sep,
+            |_key, _on, val| {
+                // For each item, call the callback with just the value
+                callback(val)
+            },
+        )
+    }
+    /// Returns iterator-like access to triples (key, on, val) of last insertion ordered
+    /// duplicate at each key over all ordinal numbered keys with same full key
+    /// of key + sep + on in db. Values are sorted by on_key(key, on) where on is ordinal 
+    /// number int and key is prefix sans on.
+    /// Values duplicates are sorted internally by hidden prefixed insertion order
+    /// proem ordinal
+    /// Callback receives triples of (key, on, val)
+    ///
+    /// When key is empty then retrieves whole db
+    ///
+    /// # Parameters
+    /// * `db` - named sub db in lmdb
+    /// * `key` - key within sub db's keyspace plus trailing part on (when empty, retrieves whole db)
+    /// * `on` - ordinal number at which to initiate retrieval
+    /// * `sep` - separator character for split
+    /// * `callback` - function that processes each (key, on, val) triple, returns bool to continue or stop
+    pub fn get_on_io_dup_last_item_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>, u64, Vec<u8>) -> Result<bool, DBError>,
+    {
+        if !self.opened() {
+            return Err(DBError::DbClosed);
+        }
+
+        let env = self.env.as_ref().ok_or(DBError::DbClosed)?;
+        let txn = env.read_txn()?;
+        let sep_byte = sep.unwrap_or([b'.']);
+
+        if let Some(k) = key {
+            // Original logic for when key is provided
+            if !k.is_empty() {
+                let start_key = keys::on_key(k, on.unwrap_or(0), Some(sep_byte));
+                let mut current_key = start_key;
+
+                loop {
+                    // Use range to get a "cursor" positioned at or after our key
+                    let range = (Bound::Included(&current_key[..]), Bound::Unbounded);
+                    let mut range_iter = db.range(&txn, &range)?;
+
+                    if let Some(Ok((found_key, _))) = range_iter.next() {
+                        let found_key_vec = found_key.to_vec();
+
+                        // Check if we're still within the desired key range
+                        let (base_key, found_on) = keys::split_on_key(&found_key_vec, Some(sep_byte))?;
+
+                        if base_key != k {
+                            // We've moved to a different base key
+                            break;
+                        }
+
+                        // For this key, we need to get the last duplicate value
+                        let mut last_value: Option<Vec<u8>> = None;
+                        let mut prefix_iter = db.prefix_iter(&txn, &found_key_vec)?;
+
+                        while let Some(Ok((_, val))) = prefix_iter.next() {
+                            last_value = Some(val.to_vec());
+                        }
+
+                        if let Some(val) = last_value {
+                            // Process the value
+                            let val_without_proem = if val.len() > 33 {
+                                val[33..].to_vec()
+                            } else {
+                                val
+                            };
+
+                            // Call the callback
+                            let continue_iteration = callback(base_key.clone(), found_on, val_without_proem)?;
+                            if !continue_iteration {
+                                return Ok(());
+                            }
+
+                            // Move to next ordinal number
+                            current_key = keys::on_key(&base_key, found_on + 1, Some(sep_byte));
+                        } else {
+                            // No duplicates found (this shouldn't happen)
+                            // Move to next key just in case
+                            current_key = keys::on_key(&base_key, found_on + 1, Some(sep_byte));
+                        }
+                    } else {
+                        // No more keys in range
+                        break;
+                    }
+                }
+            }
+        } else {
+            // New handling for when key is None - iterate through all unique base keys
+            // Get a range iterator for all keys
+            let range = (Bound::Unbounded, Bound::Unbounded);
+            let mut all_keys = db.range(&txn, &range)?;
+
+            // Keep track of the last seen base key and ordinal
+            let mut last_base: Option<Vec<u8>> = None;
+            let mut last_on: Option<u64> = None;
+
+            while let Some(Ok((found_key, _))) = all_keys.next() {
+                let found_key_vec = found_key.to_vec();
+
+                // Extract base key and ordinal
+                let (base_key, found_on) = keys::split_on_key(&found_key_vec, Some(sep_byte))?;
+
+                // Skip if we've already processed this base+on combination
+                if last_base.as_ref() == Some(&base_key) && last_on == Some(found_on) {
+                    continue;
+                }
+
+                // Get all values for this key to find the last one
+                let mut last_value: Option<Vec<u8>> = None;
+                let mut prefix_iter = db.prefix_iter(&txn, &found_key_vec)?;
+
+                while let Some(Ok((_, val))) = prefix_iter.next() {
+                    last_value = Some(val.to_vec());
+                }
+
+                if let Some(val) = last_value {
+                    // Process the value
+                    let val_without_proem = if val.len() > 33 {
+                        val[33..].to_vec()
+                    } else {
+                        val
+                    };
+
+                    // Call the callback
+                    let continue_iteration = callback(base_key.clone(), found_on, val_without_proem)?;
+                    if !continue_iteration {
+                        return Ok(());
+                    }
+                }
+
+                // Update last seen key and ordinal
+                last_base = Some(base_key);
+                last_on = Some(found_on);
+            }
+        }
+
+        Ok(())
+    }
+
+
+    /// Returns iterator going backwards of triples (key, on, val), of insertion ordered
+    /// item at each key over all ordinal numbered keys with same full key of key + sep + on in db.
+    ///
+    /// Values are sorted by onKey(key, on) where on is ordinal number int and
+    /// key is prefix sans on. Values duplicates are sorted internally by hidden prefixed
+    /// insertion order proem ordinal.
+    ///
+    /// Backwards means decreasing numerical value of duplicate proem, for each on,
+    /// decreasing numerical value on for each key and decreasing lexicographic
+    /// order of each key prefix.
+    ///
+    /// Uses callback pattern instead of Python's yield/iterator for each triple of (key, on, val).
+    /// When key is empty then retrieves the whole db.
+    ///
+    /// # Parameters
+    /// - `db`: Named sub db in lmdb
+    /// - `key`: Key within sub db's keyspace - when key is empty (None) then retrieves whole db
+    /// - `on`: Ordinal number at which to initiate retrieval
+    /// - `sep`: Separator character for split (default: b'.')
+    /// - `callback`: Function to call for each (key, on, val) triple found
+    ///
+    /// # Returns
+    /// - `Ok(())`: If iteration completes successfully
+    /// - `Err(DBError)`: If a database error occurs
+    pub fn get_on_io_dup_item_back_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>, u64, Vec<u8>) -> Result<bool, DBError>,
+    {
+        let env = match self.env() {
+            Some(env) => env,
+            None => return Err(DBError::DbClosed),
+        };
+
+        let txn = env.read_txn().map_err(DBError::from)?;
+        let sep_byte = sep.unwrap_or([b'.']);
+
+        // If no key is provided, we need to iterate over the entire database backwards
+        if key.is_none() {
+            // For full database iteration, we'll need to collect and sort all entries
+            let mut all_entries: Vec<(Vec<u8>, u64, Vec<u8>, Vec<u8>)> = Vec::new();
+
+            // First collect all entries
+            let iter = db.iter(&txn).map_err(DBError::from)?;
+            for result in iter {
+                let (on_key, val) = result.map_err(DBError::from)?;
+
+                if let Ok((ckey, on_val)) = keys::split_on_key(&on_key, Some(sep_byte)) {
+                    // Skip values that are too short
+                    if val.len() <= 33 {
+                        continue;
+                    }
+
+                    // Extract the proem (first 33 bytes) for sorting
+                    let proem = Vec::from(&val[..33]);
+
+                    // Extract the value portion after the header
+                    let stripped_val = Vec::from(&val[33..]);
+
+                    // Store the key, ordinal, proem, and value
+                    all_entries.push((ckey, on_val, proem, stripped_val));
+                }
+            }
+
+            // Sort by key (reverse), then by ordinal (reverse), then by proem (reverse)
+            all_entries.sort_by(|(key1, on1, proem1, _), (key2, on2, proem2, _)| {
+                match key2.cmp(key1) {
+                    std::cmp::Ordering::Equal => {
+                        match on2.cmp(on1) {
+                            std::cmp::Ordering::Equal => proem2.cmp(proem1),
+                            other => other,
+                        }
+                    },
+                    other => other,
+                }
+            });
+
+            // Process the sorted entries
+            for (ckey, on_val, _, stripped_val) in all_entries {
+                let continue_iteration = callback(ckey, on_val, stripped_val)?;
+                if !continue_iteration {
+                    break;
+                }
+            }
+
+            return Ok(());
+        }
+
+        // Get the key and target ordinal
+        let key_bytes = key.unwrap();
+        let max_on = on.unwrap_or(u64::MAX);
+
+        // Create a prefix for our key (key + separator)
+        let mut prefix = Vec::with_capacity(key_bytes.len() + 1);
+        prefix.extend_from_slice(key_bytes);
+        prefix.push(sep_byte[0]);
+
+        // We need to collect all entries for each ordinal to properly sort them
+        let mut entries_by_ordinal: std::collections::HashMap<u64, Vec<(Vec<u8>, Vec<u8>)>> = std::collections::HashMap::new();
+
+        // Format the max ordinal as 32 hex digits with leading zeros
+        let mut upper_key = prefix.clone();
+        let on_str = format!("{:032x}", max_on);
+        upper_key.extend_from_slice(on_str.as_bytes());
+
+        // The key range we want is from prefix (exclusive) to upper_key (inclusive)
+        // For rev_range, we still specify it in ascending order, but iteration will be in reverse
+        let range = (Bound::Excluded(&prefix[..]), Bound::Included(&upper_key[..]));
+
+        // Create iterator for the range
+        let range_iter = db.range(&txn, &range).map_err(DBError::from)?;
+
+        // Collect all entries in the range, grouped by ordinal
+        for result in range_iter {
+            let (on_key, val) = result.map_err(DBError::from)?;
+
+            // Skip values that are too short
+            if val.len() <= 33 {
+                continue;
+            }
+
+            if let Ok((ckey, on_val)) = keys::split_on_key(&on_key, Some(sep_byte)) {
+                // Since we're already filtering by prefix in the range, ckey should equal key_bytes
+                if !ckey.eq(key_bytes) || on_val > max_on {
+                    continue;
+                }
+
+                // Extract the proem for sorting
+                let proem = Vec::from(&val[..33]);
+
+                // Extract the value portion after the header
+                let stripped_val = Vec::from(&val[33..]);
+
+                // Add to the collection for this ordinal
+                entries_by_ordinal.entry(on_val).or_default().push((proem, stripped_val));
+            }
+        }
+
+        // Process ordinals in reverse order
+        let mut ordinals: Vec<u64> = entries_by_ordinal.keys().cloned().collect();
+        ordinals.sort_by(|a, b| b.cmp(a)); // Sort in reverse
+
+        for ordinal in ordinals {
+            let entries = entries_by_ordinal.get_mut(&ordinal).unwrap();
+
+            // Sort entries for this ordinal by proem in reverse order
+            entries.sort_by(|(proem1, _), (proem2, _)| proem2.cmp(proem1));
+
+            // Process each entry
+            for (_, stripped_val) in entries.drain(..) {
+                let continue_iteration = callback(key_bytes.to_vec(), ordinal, stripped_val)?;
+                if !continue_iteration {
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+
+    
+    
+    /// Returns iterator of val of last insertion ordered duplicate at each
+    /// key over all ordinal numbered keys with same full key
+    /// of key + sep + on in db. Values are sorted by onKey(key, on) where on
+    /// is ordinal number int and key is prefix sans on.
+    /// Values duplicates are sorted internally by hidden prefixed insertion order
+    /// proem ordinal
+    ///
+    /// when key is empty then retrieves whole db
+    ///
+    /// # Arguments
+    /// * `db` - named sub db in lmdb
+    /// * `key` - key within sub db's keyspace plus trailing part on
+    ///           when key is empty then retrieves whole db
+    /// * `on` - ordinal number at which to initiate retrieval
+    /// * `sep` - separator character for split
+    ///
+    /// # Returns
+    /// Callback invoked for each last dup val at each onkey
+    pub fn get_on_io_dup_last_val_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>) -> Result<bool, DBError>,
+    {
+        self.get_on_io_dup_last_item_iter(
+            db,
+            key,
+            on,
+            sep,
+            |_key, _on, val| callback(val)
+        )
+    }
+
+    /// Returns iterator going backwards of values,
+    /// of insertion ordered item at each key over all ordinal numbered keys
+    /// with same full key of key + sep + on in db.
+    /// Values are sorted by onKey(key, on) where on is ordinal number int and
+    /// key is prefix sans on.
+    /// Values duplicates are sorted internally by hidden prefixed insertion order
+    /// proem ordinal
+    /// Backwards means decreasing numerical value of duplicate proem, for each on,
+    /// decreasing numerical value on for each key and decreasing lexicographic
+    /// order of each key prefix.
+    ///
+    /// when key is empty then retrieves whole db
+    ///
+    /// # Arguments
+    /// * `db` - named sub db in lmdb
+    /// * `key` - key within sub db's keyspace plus trailing part on
+    ///           when key is empty then retrieves whole db
+    /// * `on` - ordinal number at which to initiate retrieval
+    /// * `sep` - separator character for split
+    ///
+    /// # Returns
+    /// Callback invoked for each val in backwards order
+    pub fn get_on_io_dup_val_back_iter<F>(
+        &self,
+        db: &BytesDatabase,
+        key: Option<&[u8]>,
+        on: Option<u64>,
+        sep: Option<[u8; 1]>,
+        mut callback: F,
+    ) -> Result<(), DBError>
+    where
+        F: FnMut(Vec<u8>) -> Result<bool, DBError>,
+    {
+        self.get_on_io_dup_item_back_iter(
+            db,
+            key,
+            on,
+            sep,
+            |_key, _on, val| callback(val)
+        )
+    }
+
 }
 
 impl Drop for LMDBer {
@@ -3774,6 +4399,602 @@ mod tests {
             result8, None,
             "Should return None after all values are deleted"
         );
+
+        Ok(())
+    }
+    #[test]
+    fn test_on_io_dup_methods() -> Result<(), DBError> {
+        // Create LMDBer instance for testing
+        let mut dber = LMDBer::builder()
+            .name("test_on_io_dup")
+            .temp(true)
+            .build()?;
+
+        // Create database with dupsort enabled
+        let ldb = dber.create_database(Some("log."), Some(true))?;
+
+        // Define test prefixes
+        let pre_a = b"A";
+        let pre_b = b"B";
+
+        // First prefix (preA)
+        let mut sn = 0;
+        let key = keys::sn_key(pre_a, sn);
+        let vals_a0 = vec![b"echo".to_vec(), b"bravo".to_vec()];
+        let items_a0 = vec![
+            (pre_a.to_vec(), sn, vals_a0[0].clone()),
+            (pre_a.to_vec(), sn, vals_a0[1].clone()),
+        ];
+
+        assert_eq!(dber.add_io_dup_val(&ldb, &key, &vals_a0[0])?, true);
+        assert_eq!(dber.add_io_dup_val(&ldb, &key, &vals_a0[1])?, true);
+
+        sn += 1;
+        let key = keys::sn_key(pre_a, sn);
+        let vals_a1 = vec![
+            b"sue".to_vec(),
+            b"bob".to_vec(),
+            b"val".to_vec(),
+            b"zoe".to_vec()
+        ];
+        let items_a1 = vec![
+            (pre_a.to_vec(), sn, vals_a1[0].clone()),
+            (pre_a.to_vec(), sn, vals_a1[1].clone()),
+            (pre_a.to_vec(), sn, vals_a1[2].clone()),
+            (pre_a.to_vec(), sn, vals_a1[3].clone()),
+        ];
+
+        assert_eq!(dber.put_io_dup_vals(&ldb, &key, &vals_a1)?, true);
+
+        sn += 1;
+        let key = keys::sn_key(pre_a, sn);
+        let vals_a2 = vec![
+            b"fish".to_vec(),
+            b"bat".to_vec(),
+            b"snail".to_vec()
+        ];
+        let items_a2 = vec![
+            (pre_a.to_vec(), sn, vals_a2[0].clone()),
+            (pre_a.to_vec(), sn, vals_a2[1].clone()),
+            (pre_a.to_vec(), sn, vals_a2[2].clone()),
+        ];
+
+        assert_eq!(dber.put_io_dup_vals(&ldb, &key, &vals_a2)?, true);
+
+        // Second prefix (preB)
+        sn = 0;
+        let key = keys::sn_key(pre_b, sn);
+        let vals_b0 = vec![b"gamma".to_vec(), b"beta".to_vec()];
+        let items_b0 = vec![
+            (pre_b.to_vec(), sn, vals_b0[0].clone()),
+            (pre_b.to_vec(), sn, vals_b0[1].clone()),
+        ];
+
+        assert_eq!(dber.add_io_dup_val(&ldb, &key, &vals_b0[0])?, true);
+        assert_eq!(dber.add_io_dup_val(&ldb, &key, &vals_b0[1])?, true);
+
+        sn += 1;
+        let key = keys::sn_key(pre_b, sn);
+        let vals_b1 = vec![
+            b"mary".to_vec(),
+            b"peter".to_vec(),
+            b"john".to_vec(),
+            b"paul".to_vec()
+        ];
+        let items_b1 = vec![
+            (pre_b.to_vec(), sn, vals_b1[0].clone()),
+            (pre_b.to_vec(), sn, vals_b1[1].clone()),
+            (pre_b.to_vec(), sn, vals_b1[2].clone()),
+            (pre_b.to_vec(), sn, vals_b1[3].clone()),
+        ];
+
+        assert_eq!(dber.put_io_dup_vals(&ldb, &key, &vals_b1)?, true);
+
+        sn += 1;
+        let key = keys::sn_key(pre_b, sn);
+        let vals_b2 = vec![
+            b"dog".to_vec(),
+            b"cat".to_vec(),
+            b"bird".to_vec()
+        ];
+        let items_b2 = vec![
+            (pre_b.to_vec(), sn, vals_b2[0].clone()),
+            (pre_b.to_vec(), sn, vals_b2[1].clone()),
+            (pre_b.to_vec(), sn, vals_b2[2].clone()),
+        ];
+
+        assert_eq!(dber.put_io_dup_vals(&ldb, &key, &vals_b2)?, true);
+
+        // Test get_on_io_dup_last_item_iter with preA
+        let mut items = Vec::new();
+        dber.get_on_io_dup_last_item_iter(&ldb, Some(pre_a), None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let last_items = vec![
+            (pre_a.to_vec(), 0, vals_a0.last().unwrap().clone()),
+            (pre_a.to_vec(), 1, vals_a1.last().unwrap().clone()),
+            (pre_a.to_vec(), 2, vals_a2.last().unwrap().clone()),
+        ];
+
+        assert_eq!(items, last_items);
+
+        // Test get_on_io_dup_last_item_iter with preA and on=1
+        let mut items = Vec::new();
+        dber.get_on_io_dup_last_item_iter(&ldb, Some(pre_a), Some(1), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let last_items = vec![
+            (pre_a.to_vec(), 1, vals_a1.last().unwrap().clone()),
+            (pre_a.to_vec(), 2, vals_a2.last().unwrap().clone()),
+        ];
+
+        assert_eq!(items, last_items);
+
+        // Test get_on_io_dup_last_val_iter with preA
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_last_val_iter(&ldb, Some(pre_a), None, None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let last_vals = vec![
+            vals_a0.last().unwrap().clone(),
+            vals_a1.last().unwrap().clone(),
+            vals_a2.last().unwrap().clone(),
+        ];
+
+        assert_eq!(vals, last_vals);
+
+        // Test get_on_io_dup_last_val_iter with preA and on=1
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_last_val_iter(&ldb, Some(pre_a), Some(1), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let last_vals = vec![
+            vals_a1.last().unwrap().clone(),
+            vals_a2.last().unwrap().clone(),
+        ];
+
+        assert_eq!(vals, last_vals);
+
+        // Test get_on_io_dup_last_item_iter with preB
+        let mut items = Vec::new();
+        dber.get_on_io_dup_last_item_iter(&ldb, Some(pre_b), None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let last_items = vec![
+            (pre_b.to_vec(), 0, vals_b0.last().unwrap().clone()),
+            (pre_b.to_vec(), 1, vals_b1.last().unwrap().clone()),
+            (pre_b.to_vec(), 2, vals_b2.last().unwrap().clone()),
+        ];
+
+        assert_eq!(items, last_items);
+
+        // Test get_on_io_dup_last_val_iter with preB
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_last_val_iter(&ldb, Some(pre_b), None, None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let last_vals = vec![
+            vals_b0.last().unwrap().clone(),
+            vals_b1.last().unwrap().clone(),
+            vals_b2.last().unwrap().clone(),
+        ];
+
+        assert_eq!(vals, last_vals);
+
+        // Test get_on_io_dup_last_item_iter with all items
+        let mut items = Vec::new();
+        dber.get_on_io_dup_last_item_iter(&ldb, None, None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let last_items = vec![
+            (pre_a.to_vec(), 0, vals_a0.last().unwrap().clone()),
+            (pre_a.to_vec(), 1, vals_a1.last().unwrap().clone()),
+            (pre_a.to_vec(), 2, vals_a2.last().unwrap().clone()),
+            (pre_b.to_vec(), 0, vals_b0.last().unwrap().clone()),
+            (pre_b.to_vec(), 1, vals_b1.last().unwrap().clone()),
+            (pre_b.to_vec(), 2, vals_b2.last().unwrap().clone()),
+        ];
+
+        assert_eq!(items, last_items);
+
+        // Test get_on_io_dup_last_val_iter with all items
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_last_val_iter(&ldb, None, None, None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let last_vals = vec![
+            vals_a0.last().unwrap().clone(),
+            vals_a1.last().unwrap().clone(),
+            vals_a2.last().unwrap().clone(),
+            vals_b0.last().unwrap().clone(),
+            vals_b1.last().unwrap().clone(),
+            vals_b2.last().unwrap().clone(),
+        ];
+
+        assert_eq!(vals, last_vals);
+
+        // Test back iter with preB and on=3
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(pre_b), Some(3), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (pre_b.to_vec(), 2, b"bird".to_vec()),
+            (pre_b.to_vec(), 2, b"cat".to_vec()),
+            (pre_b.to_vec(), 2, b"dog".to_vec()),
+            (pre_b.to_vec(), 1, b"paul".to_vec()),
+            (pre_b.to_vec(), 1, b"john".to_vec()),
+            (pre_b.to_vec(), 1, b"peter".to_vec()),
+            (pre_b.to_vec(), 1, b"mary".to_vec()),
+            (pre_b.to_vec(), 0, b"beta".to_vec()),
+            (pre_b.to_vec(), 0, b"gamma".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test val back iter with preB and on=3
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_back_iter(&ldb, Some(pre_b), Some(3), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"bird".to_vec(),
+            b"cat".to_vec(),
+            b"dog".to_vec(),
+            b"paul".to_vec(),
+            b"john".to_vec(),
+            b"peter".to_vec(),
+            b"mary".to_vec(),
+            b"beta".to_vec(),
+            b"gamma".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test back iter with preB and on=1
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(pre_b), Some(1), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (pre_b.to_vec(), 1, b"paul".to_vec()),
+            (pre_b.to_vec(), 1, b"john".to_vec()),
+            (pre_b.to_vec(), 1, b"peter".to_vec()),
+            (pre_b.to_vec(), 1, b"mary".to_vec()),
+            (pre_b.to_vec(), 0, b"beta".to_vec()),
+            (pre_b.to_vec(), 0, b"gamma".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test val back iter with preB and on=1
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_back_iter(&ldb, Some(pre_b), Some(1), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"paul".to_vec(),
+            b"john".to_vec(),
+            b"peter".to_vec(),
+            b"mary".to_vec(),
+            b"beta".to_vec(),
+            b"gamma".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test back iter with preA and on=5
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(pre_a), Some(5), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (pre_a.to_vec(), 2, b"snail".to_vec()),
+            (pre_a.to_vec(), 2, b"bat".to_vec()),
+            (pre_a.to_vec(), 2, b"fish".to_vec()),
+            (pre_a.to_vec(), 1, b"zoe".to_vec()),
+            (pre_a.to_vec(), 1, b"val".to_vec()),
+            (pre_a.to_vec(), 1, b"bob".to_vec()),
+            (pre_a.to_vec(), 1, b"sue".to_vec()),
+            (pre_a.to_vec(), 0, b"bravo".to_vec()),
+            (pre_a.to_vec(), 0, b"echo".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test val back iter with preA and on=5
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_back_iter(&ldb, Some(pre_a), Some(5), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"snail".to_vec(),
+            b"bat".to_vec(),
+            b"fish".to_vec(),
+            b"zoe".to_vec(),
+            b"val".to_vec(),
+            b"bob".to_vec(),
+            b"sue".to_vec(),
+            b"bravo".to_vec(),
+            b"echo".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test back iter with preA and on=0
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(pre_a), Some(0), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (pre_a.to_vec(), 0, b"bravo".to_vec()),
+            (pre_a.to_vec(), 0, b"echo".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test val back iter with preA and on=0
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_back_iter(&ldb, Some(pre_a), Some(0), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"bravo".to_vec(),
+            b"echo".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // All items from last to first
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, None, None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (pre_b.to_vec(), 2, b"bird".to_vec()),
+            (pre_b.to_vec(), 2, b"cat".to_vec()),
+            (pre_b.to_vec(), 2, b"dog".to_vec()),
+            (pre_b.to_vec(), 1, b"paul".to_vec()),
+            (pre_b.to_vec(), 1, b"john".to_vec()),
+            (pre_b.to_vec(), 1, b"peter".to_vec()),
+            (pre_b.to_vec(), 1, b"mary".to_vec()),
+            (pre_b.to_vec(), 0, b"beta".to_vec()),
+            (pre_b.to_vec(), 0, b"gamma".to_vec()),
+            (pre_a.to_vec(), 2, b"snail".to_vec()),
+            (pre_a.to_vec(), 2, b"bat".to_vec()),
+            (pre_a.to_vec(), 2, b"fish".to_vec()),
+            (pre_a.to_vec(), 1, b"zoe".to_vec()),
+            (pre_a.to_vec(), 1, b"val".to_vec()),
+            (pre_a.to_vec(), 1, b"bob".to_vec()),
+            (pre_a.to_vec(), 1, b"sue".to_vec()),
+            (pre_a.to_vec(), 0, b"bravo".to_vec()),
+            (pre_a.to_vec(), 0, b"echo".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // All values from last to first
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_back_iter(&ldb, None, None, None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"bird".to_vec(),
+            b"cat".to_vec(),
+            b"dog".to_vec(),
+            b"paul".to_vec(),
+            b"john".to_vec(),
+            b"peter".to_vec(),
+            b"mary".to_vec(),
+            b"beta".to_vec(),
+            b"gamma".to_vec(),
+            b"snail".to_vec(),
+            b"bat".to_vec(),
+            b"fish".to_vec(),
+            b"zoe".to_vec(),
+            b"val".to_vec(),
+            b"bob".to_vec(),
+            b"sue".to_vec(),
+            b"bravo".to_vec(),
+            b"echo".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test additional OnIoDup methods
+        let key = b"Z";
+        assert_eq!(dber.append_on_io_dup_val(&ldb, key, b"k", None)?, 0);
+        assert_eq!(dber.append_on_io_dup_val(&ldb, key, b"l", None)?, 1);
+        assert_eq!(dber.append_on_io_dup_val(&ldb, key, b"m", None)?, 2);
+        assert_eq!(dber.append_on_io_dup_val(&ldb, key, b"n", None)?, 3);
+
+        assert_eq!(dber.cnt_on_vals(&ldb, Some(key), None, None)?, 4);
+
+        // Test get_on_io_dup_val_iter
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_iter(&ldb, Some(key), None, None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"k".to_vec(),
+            b"l".to_vec(),
+            b"m".to_vec(),
+            b"n".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test get_on_io_dup_val_iter with on=2
+        let mut vals = Vec::new();
+        dber.get_on_io_dup_val_iter(&ldb, Some(key), Some(2), None, |val| {
+            vals.push(val);
+            Ok(true)
+        })?;
+
+        let expected_vals = vec![
+            b"m".to_vec(),
+            b"n".to_vec(),
+        ];
+
+        assert_eq!(vals, expected_vals);
+
+        // Test get_on_io_dup_item_iter
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_iter(&ldb, Some(key), None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Z".to_vec(), 0, b"k".to_vec()),
+            (b"Z".to_vec(), 1, b"l".to_vec()),
+            (b"Z".to_vec(), 2, b"m".to_vec()),
+            (b"Z".to_vec(), 3, b"n".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test get_on_io_dup_item_iter with on=2
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_iter(&ldb, Some(key), Some(2), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Z".to_vec(), 2, b"m".to_vec()),
+            (b"Z".to_vec(), 3, b"n".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test back iter with key=Z and on=3
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(key), Some(3), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Z".to_vec(), 3, b"n".to_vec()),
+            (b"Z".to_vec(), 2, b"m".to_vec()),
+            (b"Z".to_vec(), 1, b"l".to_vec()),
+            (b"Z".to_vec(), 0, b"k".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test back iter with key=Z and on=4
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(key), Some(4), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Z".to_vec(), 3, b"n".to_vec()),
+            (b"Z".to_vec(), 2, b"m".to_vec()),
+            (b"Z".to_vec(), 1, b"l".to_vec()),
+            (b"Z".to_vec(), 0, b"k".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test back iter with key=Z and on=2
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_back_iter(&ldb, Some(key), Some(2), None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Z".to_vec(), 2, b"m".to_vec()),
+            (b"Z".to_vec(), 1, b"l".to_vec()),
+            (b"Z".to_vec(), 0, b"k".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test with key=Y
+        let key = b"Y";
+        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(0), b"r", None)?, true);
+        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(0), b"s", None)?, true);
+        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(1), b"t", None)?, true);
+        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(1), b"u", None)?, true);
+
+        assert_eq!(dber.cnt_on_vals(&ldb, Some(key), None, None)?, 4);
+
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_iter(&ldb, Some(key), None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Y".to_vec(), 0, b"r".to_vec()),
+            (b"Y".to_vec(), 0, b"s".to_vec()),
+            (b"Y".to_vec(), 1, b"t".to_vec()),
+            (b"Y".to_vec(), 1, b"u".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Test del_on_io_dup_val and del_on_io_dup_vals
+        assert_eq!(dber.del_on_io_dup_val(&ldb, key, Some(0), b"s", None)?, true);
+        assert_eq!(dber.del_on_io_dup_vals(&ldb, key, Some(1), None)?, true);
+
+        let mut items = Vec::new();
+        dber.get_on_io_dup_item_iter(&ldb, Some(key), None, None, |key, on, val| {
+            items.push((key, on, val));
+            Ok(true)
+        })?;
+
+        let expected_items = vec![
+            (b"Y".to_vec(), 0, b"r".to_vec()),
+        ];
+
+        assert_eq!(items, expected_items);
+
+        // Close the database
+        dber.close(true)?;
 
         Ok(())
     }
