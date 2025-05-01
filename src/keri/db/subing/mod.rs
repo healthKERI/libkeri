@@ -4,7 +4,7 @@ pub mod iodup;
 pub mod ioset;
 pub mod serder;
 pub mod signer;
-mod onIodup;
+mod oniodup;
 
 use crate::errors::MatterError;
 use crate::keri::db::dbing::BytesDatabase;
