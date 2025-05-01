@@ -11,8 +11,8 @@ pub struct Seqner {
 
 #[allow(dead_code)]
 impl Seqner {
-    pub fn from_sn(sn: u64) -> Self {
-        let mut bytes = [0u8; 8];
+    pub fn from_sn(sn: u128) -> Self {
+        let mut bytes = [0u8; 16];
         bytes.copy_from_slice(&sn.to_be_bytes());
         let raw = bytes.to_vec();
         let base = BaseMatter::new(Some(&raw), Some(mtr_dex::SALT_128), None, None).unwrap();
@@ -20,7 +20,7 @@ impl Seqner {
     }
 
     pub fn from_snh(snh: &str) -> Result<Self, MatterError> {
-        let sn = u64::from_str_radix(snh, 16).unwrap();
+        let sn = u128::from_str_radix(snh, 16).unwrap();
         let seqner = Seqner::from_sn(sn);
         Ok(seqner)
     }

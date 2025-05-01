@@ -49,8 +49,8 @@ impl Siger {
         Ok(Siger { base, verfer })
     }
 
-    pub fn verfer(&self) -> &Verfer {
-        self.verfer.as_ref().unwrap()
+    pub fn verfer(&self) -> Option<Verfer> {
+        self.verfer.clone()
     }
 }
 
