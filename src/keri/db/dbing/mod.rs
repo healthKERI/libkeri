@@ -2559,7 +2559,6 @@ impl LMDBer {
         Ok(count)
     }
 
-
     /// Add val bytes as dup at onkey consisting of key + sep + serialized on in db.
     /// Adds to existing values at key if any.
     /// Returns true if written else false if dup val already exists.
@@ -2606,7 +2605,7 @@ impl LMDBer {
     ///
     /// # Parameters
     /// - `db`: Named sub db in lmdb
-    /// - `key`: Key within sub db's keyspace 
+    /// - `key`: Key within sub db's keyspace
     /// - `val`: Value to append
     /// - `sep`: Separator character for split (default: b'.')
     ///
@@ -2638,7 +2637,7 @@ impl LMDBer {
     ///
     /// # Parameters
     /// - `db`: Opened named sub db with dupsort=True
-    /// - `key`: Key within sub db's keyspace 
+    /// - `key`: Key within sub db's keyspace
     /// - `on`: Ordinal number for the key (default: 0)
     /// - `sep`: Separator character for split (default: b'.')
     ///
@@ -2696,8 +2695,8 @@ impl LMDBer {
     /// Returns iterator of triples (key, on, val), at each key over all ordinal
     /// numbered keys with same key + sep + on in db.
     ///
-    /// Values are sorted by onKey(key, on) where on is ordinal number int and key is 
-    /// prefix without the ordinal suffix. Values duplicates are sorted internally 
+    /// Values are sorted by onKey(key, on) where on is ordinal number int and key is
+    /// prefix without the ordinal suffix. Values duplicates are sorted internally
     /// by hidden prefixed insertion order proem ordinal.
     ///
     /// Uses callback pattern instead of Python's yield/iterator for each triple of (key, on, val).
@@ -2725,29 +2724,23 @@ impl LMDBer {
         F: FnMut(Vec<u8>, u64, Vec<u8>) -> Result<bool, DBError>,
     {
         // Use the existing get_on_item_iter which returns triples of (key, on, val)
-        self.get_on_item_iter(
-            db,
-            key,
-            on,
-            sep,
-            |k, o, val| {
-                // Skip values that are too short (must be at least 33 bytes for the proem)
-                if val.len() <= 33 {
-                    return Ok(true); // Continue iteration
-                }
+        self.get_on_item_iter(db, key, on, sep, |k, o, val| {
+            // Skip values that are too short (must be at least 33 bytes for the proem)
+            if val.len() <= 33 {
+                return Ok(true); // Continue iteration
+            }
 
-                // Strip the 33-byte proem from the value (first 33 bytes)
-                let stripped_val = Vec::from(&val[33..]);
+            // Strip the 33-byte proem from the value (first 33 bytes)
+            let stripped_val = Vec::from(&val[33..]);
 
-                // Call the callback with the key, ordinal, and stripped value
-                callback(k, o, stripped_val)
-            },
-        )
+            // Call the callback with the key, ordinal, and stripped value
+            callback(k, o, stripped_val)
+        })
     }
 
     /// Returns iterator over values at each key with same key + sep + on in db.
     ///
-    /// Values are associated with keys formed by onKey(key, on) where on is 
+    /// Values are associated with keys formed by onKey(key, on) where on is
     /// an ordinal number int and key is prefix without the ordinal.
     /// Values duplicates are sorted internally by hidden prefixed insertion order
     /// proem ordinal.
@@ -2777,20 +2770,14 @@ impl LMDBer {
     {
         // Call get_on_io_dup_item_iter which returns triples of (key, on, val)
         // and extract only the values
-        self.get_on_io_dup_item_iter(
-            db,
-            key,
-            on,
-            sep,
-            |_key, _on, val| {
-                // For each item, call the callback with just the value
-                callback(val)
-            },
-        )
+        self.get_on_io_dup_item_iter(db, key, on, sep, |_key, _on, val| {
+            // For each item, call the callback with just the value
+            callback(val)
+        })
     }
     /// Returns iterator-like access to triples (key, on, val) of last insertion ordered
     /// duplicate at each key over all ordinal numbered keys with same full key
-    /// of key + sep + on in db. Values are sorted by on_key(key, on) where on is ordinal 
+    /// of key + sep + on in db. Values are sorted by on_key(key, on) where on is ordinal
     /// number int and key is prefix sans on.
     /// Values duplicates are sorted internally by hidden prefixed insertion order
     /// proem ordinal
@@ -2838,7 +2825,8 @@ impl LMDBer {
                         let found_key_vec = found_key.to_vec();
 
                         // Check if we're still within the desired key range
-                        let (base_key, found_on) = keys::split_on_key(&found_key_vec, Some(sep_byte))?;
+                        let (base_key, found_on) =
+                            keys::split_on_key(&found_key_vec, Some(sep_byte))?;
 
                         if base_key != k {
                             // We've moved to a different base key
@@ -2862,7 +2850,8 @@ impl LMDBer {
                             };
 
                             // Call the callback
-                            let continue_iteration = callback(base_key.clone(), found_on, val_without_proem)?;
+                            let continue_iteration =
+                                callback(base_key.clone(), found_on, val_without_proem)?;
                             if !continue_iteration {
                                 return Ok(());
                             }
@@ -2918,7 +2907,8 @@ impl LMDBer {
                     };
 
                     // Call the callback
-                    let continue_iteration = callback(base_key.clone(), found_on, val_without_proem)?;
+                    let continue_iteration =
+                        callback(base_key.clone(), found_on, val_without_proem)?;
                     if !continue_iteration {
                         return Ok(());
                     }
@@ -2932,7 +2922,6 @@ impl LMDBer {
 
         Ok(())
     }
-
 
     /// Returns iterator going backwards of triples (key, on, val), of insertion ordered
     /// item at each key over all ordinal numbered keys with same full key of key + sep + on in db.
@@ -3007,11 +2996,9 @@ impl LMDBer {
             // Sort by key (reverse), then by ordinal (reverse), then by proem (reverse)
             all_entries.sort_by(|(key1, on1, proem1, _), (key2, on2, proem2, _)| {
                 match key2.cmp(key1) {
-                    std::cmp::Ordering::Equal => {
-                        match on2.cmp(on1) {
-                            std::cmp::Ordering::Equal => proem2.cmp(proem1),
-                            other => other,
-                        }
+                    std::cmp::Ordering::Equal => match on2.cmp(on1) {
+                        std::cmp::Ordering::Equal => proem2.cmp(proem1),
+                        other => other,
                     },
                     other => other,
                 }
@@ -3038,7 +3025,8 @@ impl LMDBer {
         prefix.push(sep_byte[0]);
 
         // We need to collect all entries for each ordinal to properly sort them
-        let mut entries_by_ordinal: std::collections::HashMap<u64, Vec<(Vec<u8>, Vec<u8>)>> = std::collections::HashMap::new();
+        let mut entries_by_ordinal: std::collections::HashMap<u64, Vec<(Vec<u8>, Vec<u8>)>> =
+            std::collections::HashMap::new();
 
         // Format the max ordinal as 32 hex digits with leading zeros
         let mut upper_key = prefix.clone();
@@ -3047,7 +3035,10 @@ impl LMDBer {
 
         // The key range we want is from prefix (exclusive) to upper_key (inclusive)
         // For rev_range, we still specify it in ascending order, but iteration will be in reverse
-        let range = (Bound::Excluded(&prefix[..]), Bound::Included(&upper_key[..]));
+        let range = (
+            Bound::Excluded(&prefix[..]),
+            Bound::Included(&upper_key[..]),
+        );
 
         // Create iterator for the range
         let range_iter = db.range(&txn, &range).map_err(DBError::from)?;
@@ -3074,7 +3065,10 @@ impl LMDBer {
                 let stripped_val = Vec::from(&val[33..]);
 
                 // Add to the collection for this ordinal
-                entries_by_ordinal.entry(on_val).or_default().push((proem, stripped_val));
+                entries_by_ordinal
+                    .entry(on_val)
+                    .or_default()
+                    .push((proem, stripped_val));
             }
         }
 
@@ -3100,9 +3094,6 @@ impl LMDBer {
         Ok(())
     }
 
-
-    
-    
     /// Returns iterator of val of last insertion ordered duplicate at each
     /// key over all ordinal numbered keys with same full key
     /// of key + sep + on in db. Values are sorted by onKey(key, on) where on
@@ -3132,13 +3123,7 @@ impl LMDBer {
     where
         F: FnMut(Vec<u8>) -> Result<bool, DBError>,
     {
-        self.get_on_io_dup_last_item_iter(
-            db,
-            key,
-            on,
-            sep,
-            |_key, _on, val| callback(val)
-        )
+        self.get_on_io_dup_last_item_iter(db, key, on, sep, |_key, _on, val| callback(val))
     }
 
     /// Returns iterator going backwards of values,
@@ -3174,15 +3159,8 @@ impl LMDBer {
     where
         F: FnMut(Vec<u8>) -> Result<bool, DBError>,
     {
-        self.get_on_io_dup_item_back_iter(
-            db,
-            key,
-            on,
-            sep,
-            |_key, _on, val| callback(val)
-        )
+        self.get_on_io_dup_item_back_iter(db, key, on, sep, |_key, _on, val| callback(val))
     }
-
 }
 
 impl Drop for LMDBer {
@@ -4435,7 +4413,7 @@ mod tests {
             b"sue".to_vec(),
             b"bob".to_vec(),
             b"val".to_vec(),
-            b"zoe".to_vec()
+            b"zoe".to_vec(),
         ];
         let items_a1 = vec![
             (pre_a.to_vec(), sn, vals_a1[0].clone()),
@@ -4448,11 +4426,7 @@ mod tests {
 
         sn += 1;
         let key = keys::sn_key(pre_a, sn);
-        let vals_a2 = vec![
-            b"fish".to_vec(),
-            b"bat".to_vec(),
-            b"snail".to_vec()
-        ];
+        let vals_a2 = vec![b"fish".to_vec(), b"bat".to_vec(), b"snail".to_vec()];
         let items_a2 = vec![
             (pre_a.to_vec(), sn, vals_a2[0].clone()),
             (pre_a.to_vec(), sn, vals_a2[1].clone()),
@@ -4479,7 +4453,7 @@ mod tests {
             b"mary".to_vec(),
             b"peter".to_vec(),
             b"john".to_vec(),
-            b"paul".to_vec()
+            b"paul".to_vec(),
         ];
         let items_b1 = vec![
             (pre_b.to_vec(), sn, vals_b1[0].clone()),
@@ -4492,11 +4466,7 @@ mod tests {
 
         sn += 1;
         let key = keys::sn_key(pre_b, sn);
-        let vals_b2 = vec![
-            b"dog".to_vec(),
-            b"cat".to_vec(),
-            b"bird".to_vec()
-        ];
+        let vals_b2 = vec![b"dog".to_vec(), b"cat".to_vec(), b"bird".to_vec()];
         let items_b2 = vec![
             (pre_b.to_vec(), sn, vals_b2[0].clone()),
             (pre_b.to_vec(), sn, vals_b2[1].clone()),
@@ -4770,10 +4740,7 @@ mod tests {
             Ok(true)
         })?;
 
-        let expected_vals = vec![
-            b"bravo".to_vec(),
-            b"echo".to_vec(),
-        ];
+        let expected_vals = vec![b"bravo".to_vec(), b"echo".to_vec()];
 
         assert_eq!(vals, expected_vals);
 
@@ -4853,12 +4820,7 @@ mod tests {
             Ok(true)
         })?;
 
-        let expected_vals = vec![
-            b"k".to_vec(),
-            b"l".to_vec(),
-            b"m".to_vec(),
-            b"n".to_vec(),
-        ];
+        let expected_vals = vec![b"k".to_vec(), b"l".to_vec(), b"m".to_vec(), b"n".to_vec()];
 
         assert_eq!(vals, expected_vals);
 
@@ -4869,10 +4831,7 @@ mod tests {
             Ok(true)
         })?;
 
-        let expected_vals = vec![
-            b"m".to_vec(),
-            b"n".to_vec(),
-        ];
+        let expected_vals = vec![b"m".to_vec(), b"n".to_vec()];
 
         assert_eq!(vals, expected_vals);
 
@@ -4955,10 +4914,22 @@ mod tests {
 
         // Test with key=Y
         let key = b"Y";
-        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(0), b"r", None)?, true);
-        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(0), b"s", None)?, true);
-        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(1), b"t", None)?, true);
-        assert_eq!(dber.add_on_io_dup_val(&ldb, key, Some(1), b"u", None)?, true);
+        assert_eq!(
+            dber.add_on_io_dup_val(&ldb, key, Some(0), b"r", None)?,
+            true
+        );
+        assert_eq!(
+            dber.add_on_io_dup_val(&ldb, key, Some(0), b"s", None)?,
+            true
+        );
+        assert_eq!(
+            dber.add_on_io_dup_val(&ldb, key, Some(1), b"t", None)?,
+            true
+        );
+        assert_eq!(
+            dber.add_on_io_dup_val(&ldb, key, Some(1), b"u", None)?,
+            true
+        );
 
         assert_eq!(dber.cnt_on_vals(&ldb, Some(key), None, None)?, 4);
 
@@ -4978,7 +4949,10 @@ mod tests {
         assert_eq!(items, expected_items);
 
         // Test del_on_io_dup_val and del_on_io_dup_vals
-        assert_eq!(dber.del_on_io_dup_val(&ldb, key, Some(0), b"s", None)?, true);
+        assert_eq!(
+            dber.del_on_io_dup_val(&ldb, key, Some(0), b"s", None)?,
+            true
+        );
         assert_eq!(dber.del_on_io_dup_vals(&ldb, key, Some(1), None)?, true);
 
         let mut items = Vec::new();
@@ -4987,9 +4961,7 @@ mod tests {
             Ok(true)
         })?;
 
-        let expected_items = vec![
-            (b"Y".to_vec(), 0, b"r".to_vec()),
-        ];
+        let expected_items = vec![(b"Y".to_vec(), 0, b"r".to_vec())];
 
         assert_eq!(items, expected_items);
 

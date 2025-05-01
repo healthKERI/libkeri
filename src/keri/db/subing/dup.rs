@@ -23,7 +23,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
     pub fn is_dupsort(&self) -> bool {
         self.base.is_dupsort()
     }
-    
+
     pub fn put<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
         &self,
         keys: &[K],
@@ -46,7 +46,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
             .put_vals(&self.base.sdb, &key, &val_slices)
             .map_err(SuberError::DBError)
     }
-    
+
     pub fn add<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
         &self,
         keys: &[K],
@@ -60,7 +60,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
             .add_val(&self.base.sdb, &key, &sval)
             .map_err(SuberError::DBError)
     }
-    
+
     pub fn pin<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
         &self,
         keys: &[K],
@@ -115,7 +115,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
             .map(|raw_val| self.base.des(raw_val))
             .collect() // Collects into Result<Vec<R>, SuberError>
     }
-    
+
     pub fn get_last<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(
         &self,
         keys: &[K],
@@ -166,7 +166,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
     ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         Ok(self.base.get_item_iter(keys, topive)?)
     }
-    
+
     pub fn cnt<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<usize, SuberError> {
         let key = self.base.to_key(keys, false);
         self.base
@@ -174,7 +174,7 @@ impl<'db, C: ValueCodec> DupSuber<'db, C> {
             .cnt_vals(&self.base.sdb, &key)
             .map_err(SuberError::DBError)
     }
-    
+
     pub fn rem<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
         &self,
         keys: &[K],
