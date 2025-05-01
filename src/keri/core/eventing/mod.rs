@@ -241,7 +241,11 @@ mod tests {
     use crate::cesr::signing::{Salter, Sigmat};
     use crate::cesr::{mtr_dex, Matter};
     use crate::keri::app::keeping::{Keeper, Manager};
+    use crate::keri::core::eventing::interact::InteractEventBuilder;
+    use crate::keri::core::eventing::rotate::RotateEventBuilder;
+    use crate::keri::core::serdering::SadValue;
     use crate::keri::db::dbing::LMDBer;
+    use indexmap::IndexMap;
     use std::error::Error;
     use std::sync::Arc;
 
@@ -617,6 +621,285 @@ mod tests {
                 r#"oVas-6Bzvj0xtOfbsh31jjtshcEa0rUVX2xsyyH1US2fBWe7FNpn6xko5EVwg_TwF"#
             )
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_full_kel() -> Result<(), Box<dyn Error>> {
+        // Create deterministic salter for testing
+        let raw = b"abcdef0123456789";
+        let salter = Salter::new(Some(raw), None, None)?;
+        assert_eq!(salter.qb64(), "0ABhYmNkZWYwMTIzNDU2Nzg5");
+
+        let lmdber = LMDBer::builder()
+            .name("manager_ks")
+            .reopen(true)
+            .build()
+            .expect("Failed to open manager database: {}");
+        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let mut manager = Manager::new(keeper, None, None, None, None, Some(salter.qb64b()), None)?;
+        // Test salty algorithm incept
+        let (verfers, digers) = manager.incept(
+            None,
+            Some(1),
+            None,
+            None,
+            Some(1),
+            None,
+            None,
+            None,
+            None,
+            Some("C"),
+            None,
+            None,
+            Some(true),
+            None,
+        )?;
+        assert_eq!(verfers.len(), 1);
+        assert_eq!(digers.len(), 1);
+        assert_eq!(
+            verfers[0].qb64(),
+            "DCjMCQ638m293JGMIjU7ch0bqmaU6-v4AK_wBf6jl4OX"
+        );
+        assert_eq!(
+            digers[0].qb64(),
+            "EEyU3aS2N1JrMq5kDQ4tZ_5PBTRD8ISUx3WUsuj0rU3-"
+        );
+
+        // Create inception event
+        let serder = InceptionEventBuilder::new(vec![verfers[0].qb64()])
+            .with_code(mtr_dex::BLAKE3_256.to_string())
+            .with_ndigs(vec![digers[0].qb64()])
+            .build()?;
+
+        let oldspre = verfers[0].qb64b();
+        let spre = serder.preb().unwrap();
+        manager.move_prefix(&oldspre, &spre)?;
+
+        // Sign the serialized event
+        let sigers: Vec<Siger> = manager
+            .sign(
+                serder.raw(),
+                None,
+                Some(verfers),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )?
+            .iter()
+            .map(|sigmat| match sigmat {
+                Sigmat::Indexed(siger) => siger.clone(),
+                Sigmat::NonIndexed(_) => {
+                    panic!("Unexpected non-indexed signature");
+                }
+            })
+            .collect();
+
+        // Lets collect the full KEL
+        let mut kel = String::new();
+
+        // Test basic messagize with sigers
+        let msg = messagize(&serder, Some(&sigers), None, None, None, false)?;
+        kel.push_str(&String::from_utf8(msg.clone())?);
+
+        assert_eq!(
+            String::from_utf8(msg)?,
+            concat!(
+                r#"{"v":"KERI10JSON00012b_","t":"icp","d":"EPXgQxGLRPBzBR84e6hZ_SY1l5-WJU8b_n8ibASNDfKM","#,
+                r#""i":"EPXgQxGLRPBzBR84e6hZ_SY1l5-WJU8b_n8ibASNDfKM","s":"0","kt":"1","k":["#,
+                r#""DCjMCQ638m293JGMIjU7ch0bqmaU6-v4AK_wBf6jl4OX"],"nt":"1","n":["EEyU3aS2N1JrMq5k"#,
+                r#"DQ4tZ_5PBTRD8ISUx3WUsuj0rU3-"],"bt":"0","b":[],"c":[],"a":[]}-AABAABGkiiW6C8_"#,
+                r#"TTeT0XuWuxjrQ4Fp7hkurrP2oqYFBKMTYcoZDa5_ekzjQDOMX6cCZVeUBbbFnB0D7EX36vz385sM"#
+            )
+        );
+
+        let (verfers, digers) = manager.rotate(
+            &serder.preb().unwrap(),
+            None,
+            Some(1),
+            None,
+            None,
+            Some(true),
+            Some(false),
+            Some(false),
+        )?;
+        assert_eq!(verfers.len(), 1);
+        assert_eq!(digers.len(), 1);
+        assert_eq!(
+            verfers[0].qb64(),
+            "DDxkQL-tXDKwAKPnVpmKgmeIP5GAa4nSI6pWFbuYc8Ye"
+        );
+        assert_eq!(
+            digers[0].qb64(),
+            "EBIjhA2t-Sfm29atirPEG-VD9ouVzy7i7PrFslG6D7tm"
+        );
+
+        let rserder = RotateEventBuilder::new(
+            serder.pre().unwrap(),
+            vec![verfers[0].qb64()],
+            serder.said().unwrap().to_string(),
+        )
+        .with_ndigs(vec![digers[0].qb64()])
+        .build()?;
+
+        // Sign the serialized event
+        let rsigers: Vec<Siger> = manager
+            .sign(
+                rserder.raw(),
+                None,
+                Some(verfers.clone()),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )?
+            .iter()
+            .map(|sigmat| match sigmat {
+                Sigmat::Indexed(siger) => siger.clone(),
+                Sigmat::NonIndexed(_) => {
+                    panic!("Unexpected non-indexed signature");
+                }
+            })
+            .collect();
+
+        // Test rotation with messagize with sigers
+        let msg = messagize(&rserder, Some(&rsigers), None, None, None, false)?;
+        kel.push_str(&String::from_utf8(msg.clone())?);
+        assert_eq!(
+            String::from_utf8(msg)?,
+            concat!(
+                r#"{"v":"KERI10JSON000160_","t":"rot","d":"EFFvfdKjytGurVS52KzF5NefoQkVJp9w3vDb5is9mEzP","#,
+                r#""i":"EPXgQxGLRPBzBR84e6hZ_SY1l5-WJU8b_n8ibASNDfKM","s":"1","p":"EPXgQxGLRPBzBR84e6hZ_"#,
+                r#"SY1l5-WJU8b_n8ibASNDfKM","kt":"1","k":["DDxkQL-tXDKwAKPnVpmKgmeIP5GAa4nSI6pWFbuYc8Ye"],"#,
+                r#""nt":"1","n":["EBIjhA2t-Sfm29atirPEG-VD9ouVzy7i7PrFslG6D7tm"],"bt":"0","br":[],"ba":[],"#,
+                r#""a":[]}-AABAADKqAHzC9bQ6VZy9HP5uG7-YhFDJsPGvCYj8BkX3z8GWIpcNdeXE4t7XRXxddn6r19uTxsBs-"#,
+                r#"zN_-41rgzMM68M"#
+            )
+        );
+
+        // Create data attachments
+        let mut data_map1 = IndexMap::new();
+        data_map1.insert(
+            "i".to_string(),
+            SadValue::String("EbAwspDmOlHDUjGZ8m9JGQ4r7Knt5gu4KBNt0JSL2ZoI".to_string()),
+        );
+        data_map1.insert("s".to_string(), SadValue::String("3".to_string()));
+        data_map1.insert(
+            "d".to_string(),
+            SadValue::String("EY2L3ycqK9645aEeQKP941xojSiuiHsw4Y6yTW-DpRXs".to_string()),
+        );
+        let data = vec![SadValue::from(SadValue::Object(data_map1))];
+
+        let xserder =
+            InteractEventBuilder::new(serder.pre().unwrap(), rserder.said().unwrap().to_string())
+                .with_sn(2)
+                .with_data_list(data)
+                .build()?;
+
+        // Sign the serialized event
+        let xsigers: Vec<Siger> = manager
+            .sign(
+                xserder.raw(),
+                None,
+                Some(verfers),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )?
+            .iter()
+            .map(|sigmat| match sigmat {
+                Sigmat::Indexed(siger) => siger.clone(),
+                Sigmat::NonIndexed(_) => {
+                    panic!("Unexpected non-indexed signature");
+                }
+            })
+            .collect();
+        let msg = messagize(&xserder, Some(&xsigers), None, None, None, false)?;
+        kel.push_str(&String::from_utf8(msg.clone())?);
+        assert_eq!(
+            String::from_utf8(msg)?,
+            concat!(
+                r#"{"v":"KERI10JSON00013a_","t":"ixn","d":"EMljYBNn3JU_oD8O0_JmQ1Q7w3yFnCON9lauFHnDmNju","#,
+                r#""i":"EPXgQxGLRPBzBR84e6hZ_SY1l5-WJU8b_n8ibASNDfKM","s":"2","p":"EFFvfdKjytGurVS52KzF5"#,
+                r#"NefoQkVJp9w3vDb5is9mEzP","a":[{"i":"EbAwspDmOlHDUjGZ8m9JGQ4r7Knt5gu4KBNt0JSL2ZoI","s":"#,
+                r#""3","d":"EY2L3ycqK9645aEeQKP941xojSiuiHsw4Y6yTW-DpRXs"}]}-AABAAAg0JyLoHFC2vezhTm6jz_"#,
+                r#"BxbmSbSsvqxzeM8sP9fPekAFCKnlH-tsL_0SYmhA5HDXLcmQ4yWa0oWo4w4sYe0sP"#
+            )
+        );
+
+        let (verfers, digers) = manager.rotate(
+            &serder.preb().unwrap(),
+            None,
+            Some(1),
+            None,
+            None,
+            Some(true),
+            Some(false),
+            Some(false),
+        )?;
+        assert_eq!(verfers.len(), 1);
+        assert_eq!(digers.len(), 1);
+        assert_eq!(
+            verfers[0].qb64(),
+            "DNFcsn7EiJemcWD_6bMOdeYUU1j2dC98WCCGjN7PxCIp"
+        );
+        assert_eq!(
+            digers[0].qb64(),
+            "EAu_UWkr40QDQWScisiLnv5rCJc5unxnAhu33V1RzzpA"
+        );
+
+        let rserder = RotateEventBuilder::new(
+            serder.pre().unwrap(),
+            vec![verfers[0].qb64()],
+            xserder.said().unwrap().to_string(),
+        )
+        .with_sn(3)
+        .with_ndigs(vec![digers[0].qb64()])
+        .build()?;
+
+        // Sign the serialized event
+        let rsigers: Vec<Siger> = manager
+            .sign(
+                rserder.raw(),
+                None,
+                Some(verfers),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )?
+            .iter()
+            .map(|sigmat| match sigmat {
+                Sigmat::Indexed(siger) => siger.clone(),
+                Sigmat::NonIndexed(_) => {
+                    panic!("Unexpected non-indexed signature");
+                }
+            })
+            .collect();
+
+        // Test rotation with messagize with sigers
+        let msg = messagize(&rserder, Some(&rsigers), None, None, None, false)?;
+        kel.push_str(&String::from_utf8(msg.clone())?);
+        assert_eq!(
+            String::from_utf8(msg)?,
+            concat!(
+                r#"{"v":"KERI10JSON000160_","t":"rot","d":"EGC9ReDqCudaBI65eEmn2M52rr3YLb0j1j3PR0SAvSz9","#,
+                r#""i":"EPXgQxGLRPBzBR84e6hZ_SY1l5-WJU8b_n8ibASNDfKM","s":"3","p":"EMljYBNn3JU_oD8O0_JmQ1Q7"#,
+                r#"w3yFnCON9lauFHnDmNju","kt":"1","k":["DNFcsn7EiJemcWD_6bMOdeYUU1j2dC98WCCGjN7PxCIp"],"#,
+                r#""nt":"1","n":["EAu_UWkr40QDQWScisiLnv5rCJc5unxnAhu33V1RzzpA"],"bt":"0","br":[],"ba":[],"#,
+                r#""a":[]}-AABAACe5_Be6a0cYFts3p5clD7X2RCjkWGQVmKvLjr8ONN9azBqPRQGMj6B7eRwHFQ-AdC98PNA"#,
+                r#"niDuFv4BGK8GsvoE"#
+            )
+        );
+
+        println!("{}", kel);
 
         Ok(())
     }
