@@ -7,7 +7,6 @@ use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::str::FromStr;
 use std::{fmt, str};
 
 pub mod bexter;

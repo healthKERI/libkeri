@@ -12,6 +12,7 @@ mod query;
 mod receipt;
 mod reply;
 mod rotate;
+mod kever;
 
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
 use crate::cesr::indexing::siger::Siger;
