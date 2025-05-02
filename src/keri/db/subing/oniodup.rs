@@ -1,7 +1,7 @@
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::subing::iodup::IoDupSuber;
-use crate::keri::db::subing::OnSuberBase;
+use crate::keri::db::subing::on::OnSuberBase;
 use crate::keri::db::subing::{SuberError, Utf8Codec, ValueCodec};
 use std::sync::Arc;
 

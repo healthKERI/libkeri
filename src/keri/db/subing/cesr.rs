@@ -34,7 +34,7 @@ impl<T: Matter> ValueCodec for CesrCodec<T> {
 
 // The actual CesrSuberBase implementation
 pub struct CesrSuberBase<'db, M: Matter> {
-    base: SuberBase<'db, CesrCodec<M>>,
+    pub base: SuberBase<'db, CesrCodec<M>>,
     _matter_type: PhantomData<M>,
 }
 

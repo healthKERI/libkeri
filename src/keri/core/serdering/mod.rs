@@ -1,4 +1,4 @@
-mod sad;
+pub mod sad;
 
 pub use sad::SadValue;
 pub use sad::Sadder;

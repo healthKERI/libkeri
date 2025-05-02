@@ -1,7 +1,295 @@
 use crate::keri::db::dbing::LMDBer;
-use crate::keri::db::subing::{OnSuberBase, Suber};
+use crate::keri::db::subing::{Suber, SuberBase};
 use crate::keri::db::subing::{SuberError, Utf8Codec, ValueCodec};
 use std::sync::Arc;
+
+pub struct OnSuberBase<'db, C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<'db, C>,
+}
+
+impl<'db, C: ValueCodec> crate::keri::db::subing::on::OnSuberBase<'db, C> {
+    /// Creates a new `OnSuberBase`.
+    ///
+    /// # Parameters
+    /// * `db` - The base database (LMDBer)
+    /// * `subkey` - LMDB sub database key
+    /// * `sep` - Separator to convert keys iterator to key bytes for db key. Default '.'
+    /// * `verify` - Whether to reverify when ._des from db when applicable. Default false
+    /// * `dupsort` - Whether to enable duplicates at each key. Default false
+    pub fn new(
+        db: Arc<&'db LMDBer>,
+        subkey: &str,
+        sep: Option<u8>,
+        verify: bool,
+        dupsort: Option<bool>,
+    ) -> Result<Self, SuberError> {
+        let base = SuberBase::new(db, subkey, sep, verify, dupsort)?;
+
+        Ok(Self { base })
+    }
+
+    /// Returns whether duplicates are enabled at each key
+    pub fn is_dupsort(&self) -> bool {
+        self.base.is_dupsort()
+    }
+
+    /// Converts a collection of keys to a single key byte vector
+    pub fn _tokey<K: AsRef<[u8]>>(&self, keys: &[K]) -> Vec<u8> {
+        self.base.to_key(keys, false)
+    }
+
+    /// Converts a key byte vector to a collection of keys
+    pub fn _tokeys(&self, key: &[u8]) -> Vec<Vec<u8>> {
+        self.base.to_keys(key)
+    }
+
+    /// Serializes a value
+    pub fn _ser<T: ?Sized + Clone + Into<Vec<u8>>>(&self, val: &T) -> Result<Vec<u8>, SuberError> {
+        self.base.ser(val)
+    }
+
+    /// Deserializes a value
+    pub fn _des<T: TryFrom<Vec<u8>>>(&self, val: &[u8]) -> Result<T, SuberError> {
+        self.base.des(val)
+    }
+
+    /// Puts a value at a key with an ordinal number
+    ///
+    /// # Returns
+    /// * `true` if the onkey made from key+sep+serialized on is not found in database so value is written idempotently
+    /// * `false` otherwise
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form onkey
+    /// * `on` - Ordinal number used to form key
+    /// * `val` - Serialization
+    pub fn put_on<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
+        &self,
+        keys: &[K],
+        on: u32,
+        val: &V,
+    ) -> Result<bool, SuberError> {
+        let key = self._tokey(keys);
+        let sval = self._ser(val)?;
+
+        self.base
+            .db
+            .put_on_val(&self.base.sdb, &key, on, &sval, Some([self.base.sep]))
+            .map_err(SuberError::DBError)
+    }
+
+    /// Sets or overwrites a value at a key with an ordinal number
+    ///
+    /// # Returns
+    /// * `true` if value is written or overwritten at onkey
+    /// * `false` otherwise
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form onkey
+    /// * `on` - Ordinal number used to form key
+    /// * `val` - Serialization
+    pub fn pin_on<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
+        &self,
+        keys: &[K],
+        on: u32,
+        val: &V,
+    ) -> Result<bool, SuberError> {
+        let key = self._tokey(keys);
+        let sval = self._ser(val)?;
+
+        self.base
+            .db
+            .set_on_val(
+                &self.base.sdb,
+                &key,
+                Some(on as u64),
+                &sval,
+                Some([self.base.sep]),
+            )
+            .map_err(SuberError::DBError)
+    }
+
+    /// Appends a value with an automatically assigned ordinal number
+    ///
+    /// # Returns
+    /// * Ordinal number of newly appended value
+    ///
+    /// # Parameters
+    /// * `keys` - Top keys as prefix to be combined with serialized on suffix and sep to form key
+    /// * `val` - Serialization
+    pub fn append_on<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
+        &self,
+        keys: &[K],
+        val: &V,
+    ) -> Result<u64, SuberError> {
+        let key = self._tokey(keys);
+        let sval = self._ser(val)?;
+
+        self.base
+            .db
+            .append_on_val(&self.base.sdb, &key, &sval, Some([self.base.sep]))
+            .map_err(SuberError::DBError)
+    }
+
+    /// Gets a value at a key with an ordinal number
+    ///
+    /// # Returns
+    /// * Serialization at onkey if any
+    /// * None if no entry at onkey
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form onkey
+    /// * `on` - Ordinal number used to form key
+    pub fn get_on<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(
+        &self,
+        keys: &[K],
+        on: u32,
+    ) -> Result<Option<R>, SuberError>
+    where
+        <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
+    {
+        let key = self._tokey(keys);
+
+        match self
+            .base
+            .db
+            .get_on_val(&self.base.sdb, &key, on, Some([self.base.sep]))
+            .map_err(SuberError::DBError)?
+        {
+            Some(val) => Ok(Some(self._des(&val)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Removes a value at a key with an ordinal number
+    ///
+    /// # Returns
+    /// * `true` if onkey made from key+sep+serialized on is found in database so value is removed
+    /// * `false` otherwise
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form onkey
+    /// * `on` - Ordinal number used to form key
+    pub fn rem_on<K: AsRef<[u8]>>(&self, keys: &[K], on: u32) -> Result<bool, SuberError> {
+        let key = self._tokey(keys);
+
+        self.base
+            .db
+            .del_on_val(&self.base.sdb, &key, on, Some([self.base.sep]))
+            .map_err(SuberError::DBError)
+    }
+
+    /// Counts the number of values with ordinal number suffix
+    ///
+    /// # Returns
+    /// * Count of all ordinal suffix keyed vals with same key prefix but different on in onkey
+    ///
+    /// # Parameters
+    /// * `keys` - Top keys as prefix to be combined with serialized on suffix and sep to form top key
+    /// * `on` - Ordinal number used to form key
+    pub fn cnt_on<K: AsRef<[u8]>>(&self, keys: &[K], on: u32) -> Result<usize, SuberError> {
+        let key = self._tokey(keys);
+
+        self.base
+            .db
+            .cnt_on_vals(
+                &self.base.sdb,
+                Some(&key),
+                Some(on as u64),
+                Some([self.base.sep]),
+            )
+            .map_err(SuberError::DBError)
+    }
+
+    /// Gets an iterator over values with ordinal number suffix >= on
+    ///
+    /// # Returns
+    /// * Iterator over values with same key but increments of on >= on
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form actual key
+    /// * `on` - Ordinal number used to form key at which to initiate retrieval
+    pub fn get_on_iter<K: AsRef<[u8]>, R: TryFrom<Vec<u8>> + 'static>(
+        &self,
+        keys: &[K],
+        on: u32,
+    ) -> Result<Vec<R>, SuberError>
+    where
+        <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
+    {
+        let key = self._tokey(keys);
+        let mut raw_results: Vec<Vec<u8>> = Vec::new(); // First collect raw bytes
+
+        self.base
+            .db
+            .get_on_val_iter(
+                &self.base.sdb,
+                Some(&key),
+                Some(on as u64),
+                Some([self.base.sep]),
+                |val| {
+                    // Store the value to process after the callback
+                    raw_results.push(val.to_vec());
+                    Ok(true)
+                },
+            )
+            .map_err(SuberError::DBError)?;
+
+        // Process the values after the callback is done
+        let mut results = Vec::new(); // This will hold the final deserialized values
+        for val in raw_results {
+            results.push(self._des(&val)?);
+        }
+
+        Ok(results)
+    }
+
+    /// Gets an iterator over (key, on, val) triples with ordinal number suffix >= on
+    ///
+    /// # Returns
+    /// * Iterator over (key, on, val) triples with same key but increments of on >= on
+    ///
+    /// # Parameters
+    /// * `keys` - Keys as prefix to be combined with serialized on suffix and sep to form actual key
+    /// * `on` - Ordinal number used to form key at which to initiate retrieval
+    pub fn get_on_item_iter<K: AsRef<[u8]>, R: TryFrom<Vec<u8>> + 'static>(
+        &self,
+        keys: &[K],
+        on: u32,
+    ) -> Result<Vec<(Vec<Vec<u8>>, u64, R)>, SuberError>
+    where
+        <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
+    {
+        let key = self._tokey(keys);
+        let mut raw_results: Vec<(Vec<u8>, u64, Vec<u8>)> = Vec::new();
+
+        self.base
+            .db
+            .get_on_item_iter(
+                &self.base.sdb,
+                Some(&key),
+                Some(on as u64),
+                Some([self.base.sep]),
+                |k, o, val| {
+                    // Store the data to process after the callback
+                    let k_copy = k.to_vec();
+                    let val_copy = val.to_vec();
+                    raw_results.push((k_copy, o, val_copy));
+                    Ok(true)
+                },
+            )
+            .map_err(SuberError::DBError)?;
+
+        // Process the data after the callback is done
+        let mut results = Vec::new();
+        for (k, o, val) in raw_results {
+            let deserialized = self._des(&val)?;
+            results.push((self._tokeys(&k), o, deserialized));
+        }
+
+        Ok(results)
+    }
+}
 
 pub struct OnSuber<'db, C: ValueCodec = Utf8Codec> {
     pub base: Suber<'db, C>,

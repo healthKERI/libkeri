@@ -6,7 +6,7 @@ use std::sync::Arc;
 /// Represents an Insertion Ordered Set Suber.
 
 pub struct IoSetSuber<'db, C: ValueCodec = Utf8Codec> {
-    base: SuberBase<'db, C>,
+    pub base: SuberBase<'db, C>,
 }
 
 impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
@@ -363,15 +363,33 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
 
     /// Removes all entries at keys that are in top branch with key prefix matching
     /// keys where keys may be truncation of full branch.
-    ///
-    /// # Arguments
-    /// * `keys` - Slice of key parts, potentially a partial key
-    /// * `topive` - If true, treat as partial key tuple ending with separator
-    ///
-    /// # Returns
-    /// * `Result<bool, SuberError>` - True if successful
     pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
         self.base.trim(keys, topive)
+    }
+
+    /// Converts a collection of keys to a single key byte vector
+    pub fn _tokey<K: AsRef<[u8]>>(&self, keys: &[K]) -> Vec<u8> {
+        self.base.to_key(keys, false)
+    }
+
+    /// Converts a key to a vector of key parts
+    pub fn _tokeys(&self, key: &[u8]) -> Vec<Vec<u8>> {
+        self.base.to_keys(key)
+    }
+
+    /// Serialize a value to bytes
+    pub fn _ser<T: ?Sized + Clone + Into<Vec<u8>>>(&self, val: &T) -> Result<Vec<u8>, SuberError> {
+        self.base.ser(val)
+    }
+
+    /// Deserialize bytes to a value
+    pub fn _des<T: TryFrom<Vec<u8>>>(&self, val: &[u8]) -> Result<T, SuberError> {
+        self.base.des(val)
+    }
+
+    /// Count all items in the database
+    pub fn cntAll(&self) -> Result<usize, SuberError> {
+        self.base.cnt_all()
     }
 }
 
