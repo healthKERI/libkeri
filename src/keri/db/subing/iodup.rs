@@ -318,6 +318,45 @@ impl<'db, C: ValueCodec> IoDupSuber<'db, C> {
 
         Ok(result)
     }
+
+    /// Returns an iterator over all the items including dup items for all keys
+    /// in top branch defined by keys where keys may be truncation of full branch.
+    /// Returns full raw values with ordinal proems.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts, potentially a partial key
+    /// * `topive` - If true, treat as partial key tuple ending with separator
+    ///
+    /// # Returns
+    /// * `Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError>` - Vector of key-value pairs with raw values
+    pub fn get_full_item_iter<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        topive: bool,
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
+        self.base.base.get_full_item_iter(keys, topive)
+    }
+
+    /// Removes all entries at keys that are in top branch with key prefix matching
+    /// keys where keys may be truncation of full branch.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts, potentially a partial key
+    /// * `topive` - If true, treat as partial key tuple ending with separator
+    ///
+    /// # Returns
+    /// * `Result<bool, SuberError>` - True if successful
+    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
+        self.base.base.trim(keys, topive)
+    }
+
+    /// Returns whether this SuberBase is configured to support duplicate values for keys.
+    ///
+    /// # Returns
+    /// * `bool` - True if duplicates are allowed
+    pub fn is_dupsort(&self) -> bool {
+        self.base.is_dupsort()
+    }
 }
 
 #[cfg(test)]
@@ -353,7 +392,7 @@ mod tests {
         // Create IoDupSuber
         let ioduber: IoDupSuber<Utf8Codec> =
             IoDupSuber::new(Arc::new(&lmdber), "bags.", None, false)?;
-        assert!(ioduber.base.is_dupsort());
+        assert!(ioduber.is_dupsort());
 
         // Test data
         let sue = "Hello sailer!";
@@ -480,7 +519,7 @@ mod tests {
         );
 
         // Test getFullItemIter - equivalent to Python's getFullItemIter
-        let items = ioduber.base.base.get_full_item_iter(empty_key, false)?;
+        let items = ioduber.get_full_item_iter(empty_key, false)?;
         let string_items = items_to_string_tuples(&items);
 
         // Check full items with proem
@@ -599,7 +638,7 @@ mod tests {
         );
 
         // Test IoItems (getFullItemIter with keys)
-        let items = ioduber.base.base.get_full_item_iter(topkeys, false)?;
+        let items = ioduber.get_full_item_iter(topkeys, false)?;
         let string_items = items_to_string_tuples(&items);
 
         assert_eq!(
@@ -662,7 +701,7 @@ mod tests {
         );
 
         // Test trim with specific keys
-        assert!(ioduber.base.base.trim(topkeys, false)?);
+        assert!(ioduber.trim(topkeys, false)?);
 
         // Sequence of state validation after trim operation
         let items = ioduber.get_item_iter(empty_key, false)?;
@@ -740,7 +779,7 @@ mod tests {
         assert_eq!(actuals, vec![bil.to_string(), bob.to_string()]);
 
         // Test trim of entire database
-        assert!(ioduber.base.base.trim(&[] as &[&str], false)?); // default trims whole database
+        assert!(ioduber.trim(&[] as &[&str], false)?); // default trims whole database
         assert!(ioduber.put(keys1, &[&bob, &bil])?);
         let bytes: Vec<Vec<u8>> = ioduber.get(keys1)?;
         let actuals: Vec<String> = bytes

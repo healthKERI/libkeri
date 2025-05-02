@@ -401,6 +401,58 @@ impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
 
         Ok(Box::new(iter))
     }
+
+    /// Counts the number of values with ordinal number suffix
+    ///
+    /// # Returns
+    /// * Count of all ordinal suffix keyed vals with same key prefix but different on in onkey
+    ///
+    /// # Parameters
+    /// * `keys` - Top keys as prefix to be combined with serialized on suffix and sep to form top key
+    /// * `on` - Ordinal number used to form key
+    pub fn cnt_on<K: AsRef<[u8]>>(&self, keys: &[K], on: u32) -> Result<usize, SuberError> {
+        self.on_base.cnt_on(keys, on)
+    }
+
+    /// Returns an iterator over all the items (keys, value) whose effective key starts with
+    /// the prefix derived from keys.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts, potentially a partial key
+    /// * `topive` - If true, treat as partial key tuple ending with separator
+    ///
+    /// # Returns
+    /// * `Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError>` - Vector of key-value pairs
+    pub fn get_item_iter<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        topive: bool,
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
+        self.io_dup_suber.get_item_iter(keys, topive)
+    }
+
+    /// Add val idempotently at key made from keys in insertion order using hidden
+    /// ordinal proem. Idempotently means do not add val that is already in
+    /// dup vals at key. Does not overwrite.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts to be combined to form the key
+    /// * `val` - Value to be stored
+    ///
+    /// # Returns
+    /// * `Result<bool, SuberError>` - True means unique value added among duplications,
+    ///   False means duplicate of same value already exists.
+    pub fn add<K: AsRef<[u8]>, V: ?Sized + Clone + Into<Vec<u8>>>(
+        &self,
+        keys: &[K],
+        val: &V,
+    ) -> Result<bool, SuberError> {
+        self.io_dup_suber.add(keys, val)
+    }
+
+    pub fn is_dupsort(&self) -> bool {
+        self.on_base.base.is_dupsort()
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -430,7 +482,7 @@ mod tests {
         // Create OnIoDupSuber
         let db_ref = Arc::new(&db);
         let onsuber = OnIoDupSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
-        assert!(onsuber.on_base.base.is_dupsort());
+        assert!(onsuber.is_dupsort());
 
         let w = "Blue dog";
         let x = "Green tree";
@@ -470,7 +522,7 @@ mod tests {
             .collect();
         assert_eq!(vals, vec![y.to_string(), z.to_string()]);
 
-        assert_eq!(onsuber.on_base.cnt_on(&["z"], 0)?, 4);
+        assert_eq!(onsuber.cnt_on(&["z"], 0)?, 4);
 
         // Test getOnItemIter - collect items similar to Python test
         let mut items = Vec::new();
@@ -518,7 +570,7 @@ mod tests {
         );
 
         assert!(onsuber.rem_on(&["z"], 0, Some(&x))?);
-        assert_eq!(onsuber.on_base.cnt_on(&["z"], 0)?, 0);
+        assert_eq!(onsuber.cnt_on(&["z"], 0)?, 0);
 
         // Test appendOn
         assert_eq!(onsuber.append_on(&["a"], &w)?, 0);
@@ -526,12 +578,12 @@ mod tests {
         assert_eq!(onsuber.append_on(&["a"], &y)?, 2);
         assert_eq!(onsuber.append_on(&["a"], &z)?, 3);
 
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 0)?, 4);
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 2)?, 2);
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 4)?, 0);
+        assert_eq!(onsuber.cnt_on(&["a"], 2)?, 2);
+        assert_eq!(onsuber.cnt_on(&["a"], 4)?, 0);
+        assert_eq!(onsuber.cnt_on(&["a"], 0)?, 4);
 
         // Test getItemIter
-        let raw_items = onsuber.io_dup_suber.get_item_iter(
+        let raw_items = onsuber.get_item_iter(
             &["a"] as &[&str],
             false, // Use a simple key prefix instead of on_key
         )?;
@@ -632,29 +684,18 @@ mod tests {
         );
 
         // Test add with duplicates using direct add method
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("b".as_bytes(), 0, None)], &w)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("b".as_bytes(), 1, None)], &x)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("bc".as_bytes(), 0, None)], &y)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("ac".as_bytes(), 0, None)], &z)?);
+        assert!(onsuber.add(&[on_key("b".as_bytes(), 0, None)], &w)?);
+        assert!(onsuber.add(&[on_key("b".as_bytes(), 1, None)], &x)?);
+        assert!(onsuber.add(&[on_key("bc".as_bytes(), 0, None)], &y)?);
+        assert!(onsuber.add(&[on_key("ac".as_bytes(), 0, None)], &z)?);
 
-        assert_eq!(onsuber.on_base.cnt_on(&["b"], 0)?, 2);
-        assert_eq!(onsuber.on_base.cnt_on(&["ac"], 2)?, 0);
-        assert_eq!(onsuber.on_base.cnt_on(&[""], 0)?, 8);
+        assert_eq!(onsuber.cnt_on(&["b"], 0)?, 2);
+        assert_eq!(onsuber.cnt_on(&["ac"], 2)?, 0);
+        assert_eq!(onsuber.cnt_on(&[""], 0)?, 8);
 
         // Test getItemIter for all items
         let mut items = Vec::new();
-        for item_result in onsuber
-            .io_dup_suber
-            .get_item_iter::<Vec<u8>>(&[] as &[Vec<u8>], false)?
-        {
+        for item_result in onsuber.get_item_iter::<Vec<u8>>(&[] as &[Vec<u8>], false)? {
             // Manually convert Vec<u8> to String
             let (keys, raw_bytes) = item_result;
             let keys_vec = keys
@@ -792,22 +833,14 @@ mod tests {
         assert_eq!(vals.len(), 8);
 
         // Test with duplicates
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("a".as_bytes(), 0, None)], &z)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("a".as_bytes(), 1, None)], &y)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("a".as_bytes(), 2, None)], &x)?);
-        assert!(onsuber
-            .io_dup_suber
-            .add(&[on_key("a".as_bytes(), 3, None)], &w)?);
+        assert!(onsuber.add(&[on_key("a".as_bytes(), 0, None)], &z)?);
+        assert!(onsuber.add(&[on_key("a".as_bytes(), 1, None)], &y)?);
+        assert!(onsuber.add(&[on_key("a".as_bytes(), 2, None)], &x)?);
+        assert!(onsuber.add(&[on_key("a".as_bytes(), 3, None)], &w)?);
 
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 0)?, 8);
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 2)?, 4);
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 4)?, 0);
+        assert_eq!(onsuber.cnt_on(&["a"], 0)?, 8);
+        assert_eq!(onsuber.cnt_on(&["a"], 2)?, 4);
+        assert_eq!(onsuber.cnt_on(&["a"], 4)?, 0);
 
         // Test getOnItemIter and getOnIter with duplicates
         let mut items = Vec::new();
@@ -891,7 +924,7 @@ mod tests {
 
         // Test append with duplicates
         assert_eq!(onsuber.append_on(&["a"], &x)?, 4);
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 0)?, 9);
+        assert_eq!(onsuber.cnt_on(&["a"], 0)?, 9);
 
         // Test removal
         assert!(onsuber.rem_on(&["a"], 1, None::<&String>)?);
@@ -899,7 +932,7 @@ mod tests {
         assert!(onsuber.rem_on(&["a"], 3, None::<&String>)?);
         assert!(!onsuber.rem_on(&["a"], 3, None::<&String>)?);
 
-        assert_eq!(onsuber.on_base.cnt_on(&["a"], 0)?, 5);
+        assert_eq!(onsuber.cnt_on(&["a"], 0)?, 5);
 
         // Check remaining items
         let mut items = Vec::new();

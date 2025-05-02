@@ -342,6 +342,37 @@ impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
 
         Ok(results)
     }
+
+    /// Returns an iterator over all the items including all raw items for all keys
+    /// in top branch defined by keys where keys may be truncation of full branch.
+    /// Returns full raw values with ordinal suffixes.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts, potentially a partial key
+    /// * `topive` - If true, treat as partial key tuple ending with separator
+    ///
+    /// # Returns
+    /// * `Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError>` - Vector of key-value pairs with raw values
+    pub fn get_full_item_iter<K: AsRef<[u8]>>(
+        &self,
+        keys: &[K],
+        topive: bool,
+    ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
+        self.base.get_full_item_iter(keys, topive)
+    }
+
+    /// Removes all entries at keys that are in top branch with key prefix matching
+    /// keys where keys may be truncation of full branch.
+    ///
+    /// # Arguments
+    /// * `keys` - Slice of key parts, potentially a partial key
+    /// * `topive` - If true, treat as partial key tuple ending with separator
+    ///
+    /// # Returns
+    /// * `Result<bool, SuberError>` - True if successful
+    pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
+        self.base.trim(keys, topive)
+    }
 }
 
 mod tests {
@@ -483,7 +514,7 @@ mod tests {
         assert!(found_sam_at_keys1);
 
         // Test getFullItemIter
-        let full_items = iosuber.base.get_full_item_iter(&[] as &[&str], false)?;
+        let full_items = iosuber.get_full_item_iter(&[] as &[&str], false)?;
         assert_eq!(full_items.len(), 5);
 
         // Verify structure of first item
@@ -595,7 +626,7 @@ mod tests {
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), sam);
 
         // Test trim
-        assert!(iosuber.base.trim(&["test", ""], true)?);
+        assert!(iosuber.trim(&["test", ""], true)?);
 
         // Verify test entries are gone
         let items: Vec<(Vec<Vec<u8>>, Vec<u8>)> = iosuber.get_item_iter(&["test"], true)?;
@@ -633,7 +664,7 @@ mod tests {
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), bob);
 
         // Test trim and append
-        assert!(iosuber.base.trim(&[] as &[&str], false)?);
+        assert!(iosuber.trim(&[] as &[&str], false)?);
         assert!(iosuber.put(keys1, &[&bob, &bil])?);
         let bytes: Vec<Vec<u8>> = iosuber.get(keys1)?;
         assert_eq!(bytes.len(), 2);
