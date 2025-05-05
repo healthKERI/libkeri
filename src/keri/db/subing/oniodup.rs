@@ -449,7 +449,7 @@ impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
     ) -> Result<bool, SuberError> {
         self.io_dup_suber.add(keys, val)
     }
-    
+
     /// Gets the last value inserted at the given keys.
     ///
     /// # Arguments
