@@ -13,6 +13,7 @@ mod receipt;
 mod reply;
 mod rotate;
 mod kever;
+mod state;
 
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
 use crate::cesr::indexing::siger::Siger;

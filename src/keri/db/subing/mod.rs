@@ -4,7 +4,7 @@ mod cesrioset;
 pub mod dup;
 pub mod iodup;
 pub mod ioset;
-mod on;
+pub mod on;
 pub mod oniodup;
 pub mod serder;
 pub mod signer;

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
+use crate::keri::core::serdering::SadValue;
 
 /// Represents a weight specification for weighted thresholds
 #[derive(Debug, Clone, PartialEq)]
@@ -62,6 +63,80 @@ pub enum TholderSith {
     /// Single clause of fractional weights
     Weights(Vec<WeightedSithElement>),
 }
+
+impl TholderSith {
+    pub fn from_sad_value(val: SadValue) -> Result<Self, MatterError> {
+        match val {
+            SadValue::Number(num) => Ok(TholderSith::Integer(num.as_u64().unwrap() as usize)),
+            SadValue::String(s) => {
+                if s.contains("[") {
+                    Ok(TholderSith::Json(s))
+                } else {
+                    Ok(TholderSith::HexString(s))
+                }
+            }
+            _ => Err(MatterError::ValueError(format!("invalid sith value: {:?}", val)))
+        }
+    }
+
+    /// Converts the TholderSith to a string representation
+    ///
+    /// Returns a string that represents the threshold in a format appropriate
+    /// for its variant:
+    /// - Integer: string representation of the number
+    /// - HexString: the hex string itself
+    /// - Json: the JSON string itself
+    /// - Weights: a JSON string representation of the weights structure
+    pub fn to_string(&self) -> String {
+        match self {
+            TholderSith::Integer(n) => n.to_string(),
+            TholderSith::HexString(s) => s.clone(),
+            TholderSith::Json(s) => s.clone(),
+            TholderSith::Weights(w) => {
+                // Format the weights as a JSON string
+                serde_json::to_string(w).unwrap_or_else(|_| "<invalid weights>".to_string())
+            }
+        }
+    }
+}
+
+
+impl fmt::Display for TholderSith {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TholderSith::Integer(n) => write!(f, "{}", n),
+            TholderSith::HexString(s) => write!(f, "{}", s),
+            TholderSith::Json(s) => write!(f, "{}", s),
+            TholderSith::Weights(w) => {
+                // Format the weights as a JSON string
+                match serde_json::to_string(w) {
+                    Ok(json) => write!(f, "{}", json),
+                    Err(_) => write!(f, "<invalid weights>"),
+                }
+            }
+        }
+    }
+}
+
+// Also implement for the WeightedSithElement for completeness
+impl fmt::Display for WeightedSithElement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match serde_json::to_string(self) {
+            Ok(json) => write!(f, "{}", json),
+            Err(_) => write!(f, "<invalid weight element>"),
+        }
+    }
+}
+
+impl WeightedSithElement {
+    /// Converts the WeightedSithElement to a string representation
+    ///
+    /// Returns a JSON string representation of the weight element
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "<invalid weight element>".to_string())
+    }
+}
+
 
 /// Represents the different elements that can appear in a weight clause
 #[derive(Debug, Clone, Serialize, Deserialize)]

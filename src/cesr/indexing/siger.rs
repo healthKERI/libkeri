@@ -52,6 +52,10 @@ impl Siger {
     pub fn verfer(&self) -> Option<Verfer> {
         self.verfer.clone()
     }
+    
+    pub fn set_verfer(&mut self, verfer: Verfer) {
+        self.verfer = Some(verfer);
+    }
 }
 
 impl Parsable for Siger {

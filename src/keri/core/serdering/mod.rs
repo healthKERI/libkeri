@@ -6,7 +6,7 @@ pub use sad::Sadder;
 use crate::cesr::counting::gen_dex;
 use crate::cesr::diger::Diger;
 use crate::cesr::number::Number;
-use crate::cesr::tholder::Tholder;
+use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Versionage, VRSN_1_0};
 use crate::keri::core::serdering::sad::{
@@ -21,6 +21,7 @@ use serde_json::{self};
 use std::any::Any;
 use std::collections::HashMap;
 use tracing::error;
+use crate::errors::MatterError;
 
 /// Get the span length for a given version and serialization format
 fn get_version_span(vrsn: &Versionage, kind: &Kinds) -> Result<usize, KERIError> {
@@ -857,6 +858,30 @@ impl Rawifiable for SerderKERI {
 }
 
 impl SerderKERI {
+    pub fn new(
+        raw: Option<&[u8]>,
+        sad: Option<&Sadder>,
+        makify: Option<bool>,
+        smellage: Option<Smellage>,
+        proto: Option<String>,
+        vrsn: Option<Versionage>,
+        kind: Option<Kinds>,
+        ilk: Option<Ilk>,
+        saids: Option<HashMap<&str, String>>,
+    ) -> Result<Self, KERIError> {
+        let base = BaseSerder::from_init(
+            raw,
+            sad,
+            makify,
+            smellage,
+            proto,
+            vrsn,
+            kind,
+            ilk,
+            saids,
+        )?;
+        Ok(Self { base })
+    }
     /// Creates a new `SerderKERI` by constructing its `BaseSerder` from a sad.
     pub fn from_sad(sad: &Sadder) -> Result<Self, KERIError> {
         let base = BaseSerder::from_sad(sad)?;
@@ -972,15 +997,21 @@ impl SerderKERI {
 
     /// Tholder instance as converted from .sad['kt']
     pub fn tholder(&self) -> Option<Tholder> {
-        match self.base.sad.get("kt").and_then(|v| v.as_str()) {
+        match self.base.sad.get("kt") {
             Some(kt) => {
-                let thold = Tholder::new(None, Some(kt.as_bytes().to_vec()), None);
-                match thold {
-                    Ok(thold) => Some(thold),
-                    Err(e) => {
-                        error!("Error parsing threshold: {}", e);
-                        None
+                let sith = TholderSith::from_sad_value(kt.clone());
+                match sith {
+                    Ok(sith) => {
+                        let thold = Tholder::new(None, None, Some(sith));
+                        match thold {
+                            Ok(thold) => Some(thold),
+                            Err(e) => {
+                                error!("Error parsing threshold: {}", e);
+                                None
+                            }
+                        }
                     }
+                    Err(_) => {None}
                 }
             }
             None => None,
@@ -1588,9 +1619,10 @@ fn is_iterable(value: &SadValue) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::keri::core::serdering::sad::validate;
     use crate::keri::core::serdering::{SadValue, Sadder};
-    use indexmap::IndexMap;
+    use indexmap::{indexmap, IndexMap};
 
     #[test]
     fn test_valid_icp_event() {
@@ -1650,123 +1682,123 @@ mod tests {
         assert!(validate(&icp_event).is_ok());
     }
 
-    // #[test]
-    // fn test_invalid_icp_event() {
-    //     // Missing k field which is required for icp events
-    //     let invalid_icp = Sadder {
-    //         v: "KERI10JSON00011c_".to_string(),
-    //         t: "icp".to_string(),
-    //         d: "EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ".to_string(),
-    //         i: Some("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ".to_string()),
-    //         s: Some("0".to_string()),
-    //         kt: Some("1".to_string()),
-    //         // k field is missing
-    //         nt: Some("1".to_string()),
-    //         n: Some(vec![
-    //             "EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y".to_string()
-    //         ]),
-    //         bt: Some("0".to_string()),
-    //         b: Some(vec![]),
-    //         c: Some(AttribField::StringList(vec![])),
-    //         ..Default::default()
-    //     };
-    //
-    //     assert!(invalid_icp.validate().is_err());
-    // }
-    //
-    // #[test]
-    // fn test_serder_initialization_and_verification() {
-    //     // Test creating a Serder with makify=true and icp ilk
-    //     let serder =
-    //         BaseSerder::from_init(None, None, Some(true), None, None, None, None, None, None)
-    //             .unwrap();
-    //
-    //     // Check the generated SAD structure
-    //     let sad = serder.sad();
-    //     assert_eq!(sad.t, "icp");
-    //     assert_eq!(sad.s.as_ref().unwrap(), "0");
-    //     assert_eq!(sad.kt.as_ref().unwrap(), "0");
-    //     assert_eq!(sad.nt.as_ref().unwrap(), "0");
-    //     assert_eq!(sad.bt.as_ref().unwrap(), "0");
-    //     assert!(sad.k.as_ref().unwrap().is_empty());
-    //     assert!(sad.n.as_ref().unwrap().is_empty());
-    //     assert!(sad.b.as_ref().unwrap().is_empty());
-    //     assert!(sad.c.as_ref().unwrap().is_empty());
-    //
-    //     // In Python there's an assert for 'a' field, assuming it exists in Rust as well
-    //     match &sad.a {
-    //         Some(AttribField::StringList(list)) => assert!(list.is_empty()),
-    //         Some(AttribField::StringMap(map)) => assert!(map.is_empty()),
-    //         None => panic!("Expected 'a' field to exist but be empty"),
-    //     }
-    //
-    //     // Verify the SAID is consistent
-    //     assert_eq!(sad.d, sad.i.clone().unwrap());
-    //
-    //     // Get raw bytes and verify they match the expected pattern
-    //     let raw = serder.raw();
-    //     assert!(raw.starts_with(b"{\"v\":\"KERI10JSON"));
-    //     // assert!(raw.contains(b"\"t\":\"icp\""));
-    //
-    //     // Verify other properties
-    //     // assert!(serder.verify().is_ok());
-    //     assert_eq!(serder.ilk().unwrap(), "icp");
-    //
-    //     // Store values for reconstruction tests
-    //     let sad_clone = serder.sad().clone();
-    //     let raw_clone = serder.raw();
-    //     let said = serder.said().clone();
-    //     let size = serder.size();
-    //
-    //     // Test reconstruction from SAD
-    //     let serder_from_sad = SerderKERI::from_sad(&sad_clone).unwrap();
-    //     assert_eq!(serder_from_sad.raw(), raw_clone);
-    //     assert_eq!(serder_from_sad.sad().d, sad.d);
-    //     assert_eq!(serder_from_sad.proto(), "KERI");
-    //     assert_eq!(serder_from_sad.vrsn(), &VRSN_1_0);
-    //     assert_eq!(serder_from_sad.size(), size);
-    //     assert_eq!(serder_from_sad.kind(), &Kinds::Json);
-    //     assert_eq!(serder_from_sad.said(), said);
-    //     assert_eq!(serder_from_sad.ilk().unwrap(), Ilk::Icp);
-    //
-    //     // Test reconstruction from raw bytes
-    //     let serder_from_raw = SerderKERI::from_raw(&raw_clone, None).unwrap();
-    //     assert_eq!(serder_from_raw.raw(), raw_clone);
-    //
-    //     // Check that SAD matches between original and reconstructed from raw
-    //     let regenerated_sad = serder_from_raw.sad();
-    //     assert_eq!(regenerated_sad.v, sad.v);
-    //     assert_eq!(regenerated_sad.t, sad.t);
-    //     assert_eq!(regenerated_sad.d, sad.d);
-    //     assert_eq!(regenerated_sad.i, sad.i);
-    //
-    //     // Additional verification
-    //     assert_eq!(serder_from_raw.proto(), "KERI");
-    //     assert_eq!(serder_from_raw.vrsn(), &VRSN_1_0);
-    //     assert_eq!(serder_from_raw.size(), size);
-    //     assert_eq!(serder_from_raw.kind(), &Kinds::Json);
-    //     assert_eq!(serder_from_raw.said(), said);
-    //     assert_eq!(serder_from_raw.ilk().unwrap(), Ilk::Icp);
-    //
-    //     // Test creating a Serder with makify=true and icp ilk
-    //     let mut sad = Sadder::default();
-    //     sad.i = Some("DKxy2sgzfplyr-tgwIxS19f2OchFHtLwPWD3v4oYimBx".to_string());
-    //     let serder = BaseSerder::from_init(
-    //         None,
-    //         Some(&sad),
-    //         Some(true),
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //     )
-    //     .unwrap();
-    //     assert_eq!(serder.sad().i, sad.i);
-    //     assert_eq!(
-    //         serder.sad().d,
-    //         "EIXK39EgyxshefoCdSpKCkG5FR9s405YI4FAHDvAqO_R"
-    //     );
-    // }
+    #[test]
+    fn test_invalid_icp_event() {
+        // Missing k field which is required for icp events
+        let invalid_icp = indexmap! {
+            "v".to_string() => SadValue::from_string("KERI10JSON00011c_"),
+            "t".to_string() => SadValue::from_string("icp"),
+            "d".to_string() => SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"),
+            "i".to_string() => SadValue::from_string("EL1L56LyoKrIofnn0q7_eKmLBELDT-8rS-7wjTuELmzQ"),
+            "s".to_string() => SadValue::from_string("0".to_string()),
+            "k".to_string() => SadValue::from_string("1".to_string()),
+            // k field is missin
+            "n".to_string() => SadValue::from_string("1".to_string()),
+            "n".to_string() => SadValue::from_array(vec![SadValue::from_string("EsgNZjFXMI8szR6N5eG8OsHqXxyKWrYCkP9mGkYAjS3Y")]),
+            "b".to_string() => SadValue::from_string("0".to_string()),
+            "b".to_string() => SadValue::from_array(vec![]),
+            "c".to_string() => SadValue::from_array(vec![]),
+        };
+
+        assert!(validate(&invalid_icp).is_err());
+    }
+
+    #[test]
+    fn test_serder_initialization_and_verification() {
+        // Test creating a Serder with makify=true and icp ilk
+        let serder =
+            BaseSerder::from_init(None, None, Some(true), None, None, None, None, None, None)
+                .unwrap();
+
+        // Check the generated SAD structure
+        let sad = serder.sad();
+        assert_eq!(sad["t"].as_str().unwrap(), "icp");
+        assert_eq!(sad["s"].as_str().unwrap(), "0");
+        assert_eq!(sad["kt"].as_str().unwrap(), "0");
+        assert_eq!(sad["nt"].as_str().unwrap(), "0");
+        assert_eq!(sad["bt"].as_str().unwrap(), "0");
+        assert!(sad["k"].as_str().is_none());
+        assert!(sad["n"].as_str().is_none());
+        assert!(sad["b"].as_str().is_none());
+        assert!(sad["c"].as_str().is_none());
+
+        // In Python there's an assert for 'a' field, assuming it exists in Rust as well
+        match &sad["a"] {
+            SadValue::Array(list) => assert!(list.is_empty()),
+            SadValue::Object(map) => assert!(map.is_empty()),
+            _ => panic!("Expected 'a' field to exist but be empty"),
+        }
+
+        // Verify the SAID is consistent
+        assert_eq!(sad["d"], sad["i"].clone());
+
+        // Get raw bytes and verify they match the expected pattern
+        let raw = serder.raw();
+        assert!(raw.starts_with(b"{\"v\":\"KERI10JSON"));
+        // assert!(raw.contains(b"\"t\":\"icp\""));
+
+        // Verify other properties
+        // assert!(serder.verify().is_ok());
+        assert_eq!(serder.ilk().unwrap(), "icp");
+
+        // Store values for reconstruction tests
+        let sad_clone = serder.sad().clone();
+        let raw_clone = serder.raw();
+        let said = serder.said().clone();
+        let size = serder.size();
+
+        // Test reconstruction from SAD
+        let serder_from_sad = SerderKERI::from_sad(&sad_clone).unwrap();
+        assert_eq!(serder_from_sad.raw(), raw_clone);
+        assert_eq!(serder_from_sad.sad()["d"], sad["d"]);
+        assert_eq!(serder_from_sad.proto(), "KERI");
+        assert_eq!(serder_from_sad.vrsn(), &VRSN_1_0);
+        assert_eq!(serder_from_sad.size(), size);
+        assert_eq!(serder_from_sad.kind(), &Kinds::Json);
+        assert_eq!(serder_from_sad.said(), said);
+        assert_eq!(serder_from_sad.ilk().unwrap(), Ilk::Icp);
+
+        // Test reconstruction from raw bytes
+        let serder_from_raw = SerderKERI::from_raw(&raw_clone, None).unwrap();
+        assert_eq!(serder_from_raw.raw(), raw_clone);
+
+        // Check that SAD matches between original and reconstructed from raw
+        let regenerated_sad = serder_from_raw.sad();
+        assert_eq!(regenerated_sad["v"], sad["v"]);
+        assert_eq!(regenerated_sad["t"], sad["t"]);
+        assert_eq!(regenerated_sad["d"], sad["d"]);
+        assert_eq!(regenerated_sad["i"], sad["i"]);
+
+        // Additional verification
+        assert_eq!(serder_from_raw.proto(), "KERI");
+        assert_eq!(serder_from_raw.vrsn(), &VRSN_1_0);
+        assert_eq!(serder_from_raw.size(), size);
+        assert_eq!(serder_from_raw.kind(), &Kinds::Json);
+        assert_eq!(serder_from_raw.said(), said);
+        assert_eq!(serder_from_raw.ilk().unwrap(), Ilk::Icp);
+
+        // Test creating a Serder with makify=true and icp ilk
+        let mut sad = Sadder::default();
+        sad.insert(
+            "i".to_string(),
+            SadValue::String("DKxy2sgzfplyr-tgwIxS19f2OchFHtLwPWD3v4oYimBx".to_string()),
+        );
+        let serder = BaseSerder::from_init(
+            None,
+            Some(&sad),
+            Some(true),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(serder.sad()["i"], sad["i"]);
+        assert_eq!(
+            serder.sad()["d"].as_str().unwrap(),
+            "EIXK39EgyxshefoCdSpKCkG5FR9s405YI4FAHDvAqO_R"
+        );
+    }
 }

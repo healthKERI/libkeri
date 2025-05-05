@@ -1,6 +1,9 @@
+mod key_state_record;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use crate::cesr::number::Number;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
@@ -10,13 +13,10 @@ use crate::keri::db::koming::{Komer, SerialKind};
 use crate::keri::db::subing::cesr::CesrSuber;
 use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
+use crate::keri::db::subing::on::OnSuber;
 use crate::keri::db::subing::Suber;
-
-// Placeholder structs to match the Python implementation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct KeyStateRecord {
-    // Fields for key state
-}
+pub use key_state_record::KeyStateRecord;
+pub use key_state_record::StateEERecord;
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -71,6 +71,9 @@ impl IntoIterator for EventSourceRecord {
 pub struct Baser<'db> {
     /// Base database
     lmdber: Arc<&'db LMDBer>, // The base LMDB database
+    
+    pub prefixes: IndexSet<String>,
+    pub groups: IndexSet<String>,
 
     /// .evts is named sub DB whose values are serialized key events
     ///     dgKey
@@ -90,7 +93,7 @@ pub struct Baser<'db> {
     ///    Value is digest of serialized event used to lookup event in .evts sub DB
     ///    Only one value per DB key is allowed.
     ///    Provides append only ordering of accepted first seen events.
-    pub fels: Suber<'db>,
+    pub fels: OnSuber<'db>,
     
     /// .kels is named sub DB of key event logs as indices that map sequence numbers
     ///     to serialized key event digests.
@@ -201,13 +204,15 @@ impl<'db> Baser<'db> {
         // Create the keeper instance
         let baser = Baser {
             lmdber: lmdber.clone(),
+            prefixes: IndexSet::new(),
+            groups: IndexSet::new(),
 
             // Initialize the evts sub database
             evts: Suber::new(lmdber.clone(), "evts.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the fels sub database
-            fels: Suber::new(lmdber.clone(), "fels.", None, false)
+            fels: OnSuber::new(lmdber.clone(), "fels.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the kels sub database
