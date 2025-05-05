@@ -449,6 +449,27 @@ impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
     ) -> Result<bool, SuberError> {
         self.io_dup_suber.add(keys, val)
     }
+    
+    /// Gets the last value inserted at the given keys.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys`: An array slice of key parts.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(R))` containing the deserialized last value if found.
+    /// `Ok(None)` if the key does not exist or has no values.
+    /// `Err(SuberError)` on key processing or database/deserialization errors.
+    pub fn get_last<K: AsRef<[u8]>, R: TryFrom<Vec<u8>>>(
+        &self,
+        keys: &[K],
+    ) -> Result<Option<R>, SuberError>
+    where
+        <R as TryFrom<Vec<u8>>>::Error: std::fmt::Debug,
+    {
+        self.io_dup_suber.get_last(keys)
+    }
 
     pub fn is_dupsort(&self) -> bool {
         self.on_base.base.is_dupsort()
