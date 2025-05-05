@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::cesr::dater::Dater;
 use crate::cesr::diger::Diger;
 use crate::cesr::indexing::siger::Siger;
@@ -6,16 +7,16 @@ use crate::cesr::number::Number;
 use crate::cesr::prefixer::Prefixer;
 use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
-use crate::cesr::tholder::Tholder;
+use crate::cesr::tholder::{Tholder, TholderSith};
+use crate::cesr::trait_dex;
 use crate::cesr::verfer::Verfer;
-use crate::keri::core::serdering::{Serder, SerderKERI};
+use crate::keri::core::eventing::state::StateEventBuilder;
+use crate::keri::core::serdering::{SadValue, Serder, SerderKERI, Rawifiable};
 use crate::keri::db::basing::{Baser, EventSourceRecord, KeyStateRecord, StateEERecord};
-use crate::keri::db::dbing::keys::sn_key;
+use crate::keri::db::dbing::keys::{dg_key, sn_key};
 use crate::keri::{Ilk, KERIError};
 use crate::Matter;
 use num_bigint::BigUint;
-use crate::cesr::trait_dex;
-use crate::keri::core::eventing::state::StateEventBuilder;
 
 /// Represents the location of the last establishment event
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +55,7 @@ pub struct Kever<'db> {
     est_only: Option<bool>,
     do_not_delegate: Option<bool>,
 }
+
 
 impl<'db> Kever<'db> {
     /// Create a new Kever instance for an inception event
@@ -107,7 +109,7 @@ impl<'db> Kever<'db> {
 
         if let Some(state) = state {
             // Preload from state
-            return Self::reload(state);
+            return Self::reload(db, state);
         }
 
         // Unwrap serder since we know it exists at this point
@@ -191,7 +193,7 @@ impl<'db> Kever<'db> {
         if let Some(fn_num) = fn_num {
             kever.fner = Some(Number::from_num(&BigUint::from(fn_num))?);
             kever.dater = Some(Dater::from_dt(dts));
-            kever
+            let _ = kever
                 .db
                 .states
                 .pin(&[kever.prefixer().unwrap().qb64()], &kever.state()?);
@@ -200,10 +202,126 @@ impl<'db> Kever<'db> {
         Ok(kever)
     }
 
-    // Stub methods required by the initializer
+    /// Reload Kever attributes (aka its state) from state (KeyStateRecord)
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Instance of KeyStateRecord containing key state information
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self, KERIError>` - New Kever instance initialized from state or error
+    pub fn reload(db: Baser<'db>, state: KeyStateRecord) -> Result<Self, KERIError> {
+        // Create a Prefixer from the identifier prefix
+        let prefixer = Prefixer::from_qb64(&state.i)
+            .map_err(|e| KERIError::ValueError(format!("Invalid identifier prefix: {}", e)))?;
 
-    fn reload(state: KeyStateRecord) -> Result<Self, KERIError> {
-        todo!("Implement reload from state")
+        // Create sequence number from hexadecimal string
+        let sner = Number::from_numh(&state.s)
+            .map_err(|e| KERIError::ValueError(format!("Invalid sequence number: {}", e)))?;
+
+        // Create first seen ordinal number from hexadecimal string
+        let fner = Number::from_numh(&state.f)
+            .map_err(|e| KERIError::ValueError(format!("Invalid first seen number: {}", e)))?;
+
+        // Create datetime stamp
+        let dater = Dater::from_dt((&state.dt).parse().unwrap());
+
+        // Get event type (ilk)
+        let ilk = match Ilk::from_str(&state.et) {
+            Some(i) => i,
+            None => return Err(KERIError::ValueError(format!("Invalid event type: {}", state.et))),
+        };
+
+        // Create signing threshold holder
+        let tholder = Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(state.kt))?))?;
+
+        // Create next threshold holder
+        let ntholder = Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(state.nt))?))?;
+
+        // Create verifiers from signing keys
+        let verfers = state.k.iter()
+            .map(|key| Verfer::from_qb64(key))
+            .collect::<Result<Vec<Verfer>, _>>()
+            .map_err(|e| KERIError::ValueError(format!("Invalid signing key: {}", e)))?;
+
+        // Create digers from next keys
+        let ndigers = state.n.iter()
+            .map(|dig| Diger::from_qb64(dig))
+            .collect::<Result<Vec<Diger>, _>>()
+            .map_err(|e| KERIError::ValueError(format!("Invalid next signing key digest: {}", e)))?;
+
+        // Create witness threshold
+        let toader = Number::from_numh(&state.bt)
+            .map_err(|e| KERIError::ValueError(format!("Invalid witness threshold: {}", e)))?;
+
+        // Get witnesses
+        let wits = state.b.clone();
+
+        // Get cuts and adds from establishment event record
+        let cuts = state.ee.br.clone().unwrap_or_default();
+        let adds = state.ee.ba.clone().unwrap_or_default();
+
+        // Create configuration traits
+        let est_only = state.c.contains(&"EstOnly".to_string());
+        let do_not_delegate = state.c.contains(&"DoNotDelegate".to_string());
+
+        // Create last establishment event location
+        let last_est_sn = u64::from_str_radix(&state.ee.s, 16)
+            .map_err(|e| KERIError::ValueError(format!("Invalid last establishment sequence number: {}", e)))?;
+
+        let last_est = LastEstLoc {
+            s: last_est_sn,
+            d: state.ee.d.clone(),
+        };
+
+        // Get delegator prefix if any
+        let delpre = if state.di.is_empty() { None } else { Some(state.di.clone()) };
+        let delegated = delpre.is_some();
+
+        // In a complete implementation, the code below would retrieve the event from the database
+        // and create the serder, then construct and return the Kever
+        
+        // Get the corresponding event from the database
+        let key = dg_key(prefixer.qb64(), state.d.clone());
+        
+        let raw = match db.evts.get::<_, Vec<u8>>(&[key]) {
+            Ok(Some(data)) => data,
+            _ => return Err(KERIError::DatabaseError(format!(
+                "Corresponding event not found for state={:?}", prefixer.qb64()
+            ))),
+        };
+
+        // Create SerderKERI from raw bytes
+        let serder = SerderKERI::from_raw(&raw, None)
+            .map_err(|e| KERIError::ValueError(format!("Invalid event serder: {}", e)))?;
+        
+        // Create and return Kever instance with all components
+        Ok(Kever {
+            db,
+            version: format!("{}.{}", state.vn[0], state.vn[1]), // Convert version numbers to string
+            ilk,
+            delpre,
+            delegated,
+            fner: Some(fner),
+            dater: Some(dater),
+            sner: Some(sner),
+            verfers: Some(verfers),
+            tholder: Some(tholder),
+            prefixer: Some(prefixer),
+            serder: Some(serder),
+            ndigs: Some(state.n.clone()),
+            ndigers: Some(ndigers),
+            ntholder: Some(ntholder),
+            cuts: Some(cuts),
+            adds: Some(adds),
+            wits: Some(wits),
+            toader: Some(toader),
+            last_est: Some(last_est),
+            est_only: Some(est_only),
+            do_not_delegate: Some(do_not_delegate),
+        })
+
     }
 
     /// Verify inception key event message from serder
@@ -286,7 +404,7 @@ impl<'db> Kever<'db> {
         }
 
         // Check for duplicate witnesses
-        let mut unique_wits = std::collections::HashSet::new();
+        let mut unique_wits = HashSet::new();
         for wit in &wits {
             if !unique_wits.insert(wit) {
                 return Err(KERIError::ValidationError(format!(
@@ -473,7 +591,7 @@ impl<'db> Kever<'db> {
         }
 
         // Filter sigers for locally membered signatures when not local
-        if !local && self.locally_membered() {
+        if !local && self.locally_membered(None) {
             if let Some(indices) = self.locally_contributed_indices(&verfers) {
                 sigers = sigers
                     .into_iter()
@@ -517,7 +635,7 @@ impl<'db> Kever<'db> {
         // Misfit escrow checks
         if !local
             && (self.locally_owned(None)
-                || self.locally_witnessed(&wits)
+                || self.locally_witnessed(Some(&wits), None)
                 || self.locally_delegated(delpre.as_deref()))
         {
             self.escrow_mf_event(
@@ -532,7 +650,7 @@ impl<'db> Kever<'db> {
             return Err(KERIError::ValidationError(format!(
                 "Nonlocal source for locally owned or locally witnessed or locally delegated event={:?}, local aids={:?}, wits={:?}, delegator={:?}",
                 serder.ked(),
-                self.prefixes(),
+                self.db.prefixes,
                 wits,
                 delpre
             )));
@@ -579,7 +697,7 @@ impl<'db> Kever<'db> {
         // Check if fully signed vs prior next rotation threshold for rotations
         if matches!(serder.ilk(), Some(Ilk::Rot) | Some(Ilk::Drt)) {
             let ondices = self.exposeds(&sigers)?;
-            if let Some(ntholder) = self.ntholder() {
+            if let Some(ntholder) = self.ntholder.clone() {
                 if !ntholder.satisfy(&ondices) {
                     // Escrow partially signed event
                     self.escrow_ps_event(
@@ -614,7 +732,10 @@ impl<'db> Kever<'db> {
             }
         } else {
             // Verify toad if not locally owned, membered, or witnessed
-            if !(self.locally_owned(None) || self.locally_membered() || self.locally_witnessed(&wits)) {
+            if !(self.locally_owned(None)
+                || self.locally_membered(None)
+                || self.locally_witnessed(Some(&wits), None))
+            {
                 if !wits.is_empty() {
                     if toader.num() < 1 || toader.num() as usize > wits.len() {
                         return Err(KERIError::ValidationError(format!(
@@ -686,15 +807,6 @@ impl<'db> Kever<'db> {
         Ok((sigers, wigers, delpre, delseqner, delsaider))
     }
 
-    // Stub methods needed by val_sigs_wigs_del
-
-    fn locally_membered(&self) -> bool {
-        todo!("Implement check if this kever's prefix is a local group member")
-    }
-
-    fn locally_contributed_indices(&self, verfers: &[Verfer]) -> Option<Vec<u32>> {
-        todo!("Implement getting indices of locally contributed signatures")
-    }
 
     /// Verifies signatures against verifiers and returns verified signatures and their indices
     ///
@@ -728,7 +840,7 @@ impl<'db> Kever<'db> {
 
         // Create a set of unique signatures to avoid duplicates
         // In Rust, we'll use a HashSet to collect unique sigers based on their qb64
-        let mut unique_signatures = std::collections::HashSet::new();
+        let mut unique_signatures = HashSet::new();
         let mut unique_sigers = Vec::new();
 
         for siger in sigers {
@@ -794,117 +906,721 @@ impl<'db> Kever<'db> {
 
     fn locally_owned(&self, pre: Option<&str>) -> bool {
         match pre {
-            Some(pre) => {
-                self.db.prefixes.contains(pre)
-                    && !self.db.groups.contains(pre)
-            }
+            Some(pre) => self.db.prefixes.contains(pre) && !self.db.groups.contains(pre),
+            None => match self.prefixer() {
+                Some(prefixer) => {
+                    self.db.prefixes.contains(&prefixer.qb64())
+                        && !self.db.groups.contains(&prefixer.qb64())
+                }
+                None => false,
+            },
+        }
+    }
+
+    fn locally_delegated(&self, delpre: Option<&str>) -> bool {
+        match delpre {
+            Some(delpre) => self.locally_owned(Some(delpre)),
+            None => false,
+        }
+    }
+
+    fn locally_membered(&self, pre: Option<&str>) -> bool {
+        match pre {
+            Some(_) => { self.db.groups.contains(pre.unwrap())}
             None => {
                 match self.prefixer() {
-                    Some(prefixer) => {
-                        self.db.prefixes.contains(&prefixer.qb64())
-                            && !self.db.groups.contains(&prefixer.qb64())
-                    }
+                    Some(prefixer) => self.db.groups.contains(&prefixer.qb64()),
                     None => false,
                 }
             }
         }
     }
 
-    fn locally_witnessed(&self, wits: &[String]) -> bool {
-        todo!("Implement check if this kever has local witnesses")
+    
+    fn locally_contributed_indices(&self, _verfers: &[Verfer]) -> Option<Vec<u32>> {
+        todo!("Implement getting indices of locally contributed signatures")
     }
 
-    fn locally_delegated(&self, delpre: Option<&str>) -> bool {
-        match delpre {
-            Some(delpre) => {
-                self.locally_owned(Some(delpre))
+
+    /// Returns true if a local controller is a witness of this Kever's KEL or the provided witness list
+    ///
+    /// # Arguments
+    /// * `wits` - Optional list of qb64 witness prefixes. If None, uses the current witnesses for this Kever
+    /// * `serder` - Optional SerderKERI instance. If provided, derives witnesses from it instead of current state
+    ///
+    /// # Returns
+    /// `true` if any of the prefixes in self.prefixes is also in the witness list; `false` otherwise
+    pub fn locally_witnessed(&self, wits: Option<&[String]>, serder: Option<&SerderKERI>) -> bool {
+        // Determine which witness list to use
+        let witnesses = match (wits, serder) {
+            // If both wits and serder are None, use this Kever's witnesses
+            (None, None) => self.wits(),
+
+            // If wits is provided, use it directly
+            (Some(w), _) => w.to_vec(),
+
+            // If serder is provided but no wits, derive witnesses from serder
+            (None, Some(s)) => {
+                // Check if serder is for the same KEL as this Kever
+                let prefixer = match self.prefixer() {
+                    Some(p) => p,
+                    None => return false, // No prefixer available
+                };
+
+                if s.pre() != Some(prefixer.qb64()) {
+                    return false; // Not the same KEL as self
+                }
+
+                // In Rust implementation, we need to call a method to derive witnesses from the serder
+                match self.derive_backs(s) {
+                    Ok((derived_wits, _, _)) => derived_wits,
+                    Err(_) => return false, // Error deriving witnesses, return false
+                }
             }
-            None => false,
+        };
+
+        // Check if any local prefixes are in the witness list
+        let local_prefix_set: HashSet<_> = self.db.prefixes.iter().collect();
+        let witness_set: HashSet<_> = witnesses.iter().collect();
+
+        // Return true if the intersection is not empty
+        !local_prefix_set.is_disjoint(&witness_set)
+    }
+
+    /// Derives and returns tuple of (wits, cuts, adds) for backers given current set 
+    /// and any changes provided by serder.
+    ///
+    /// # Arguments
+    /// * `serder` - Instance of current event
+    ///
+    /// # Returns
+    /// A tuple containing:
+    /// * `wits` - List of witness prefixes (full list of backers)
+    /// * `cuts` - List of witnesses removed in latest establishment event
+    /// * `adds` - List of witnesses added in latest establishment event
+    ///
+    /// # Errors
+    /// Returns ValidationError if there are invalid combinations of witnesses, cuts, or adds
+    pub fn derive_backs(&self, serder: &SerderKERI) -> Result<(Vec<String>, Vec<String>, Vec<String>), KERIError> {
+        // Get current ilk from serder
+        let ilk = serder.ilk().unwrap();
+        let sn = serder.sn().unwrap();
+
+        // If not a rotation or delegation rotation event, or sequence number is not greater, 
+        // return current values with no changes
+        if (ilk != Ilk::Icp && ilk != Ilk::Drt) || self.sner.as_ref().map_or(0, |n| n.num()) >= sn as u128 {
+            // Return current values with empty cuts and adds lists
+            return Ok((
+                self.wits(),
+                self.cuts.as_ref().map_or_else(Vec::new, |c| c.clone()),
+                self.adds.as_ref().map_or_else(Vec::new, |a| a.clone())
+            ));
         }
+
+        // Get the current witnesses and convert to HashSet for set operations
+        let wits = self.wits();
+        let wit_set: HashSet<String> = HashSet::from_iter(wits.iter().cloned());
+
+        // Extract cuts from serder
+        let cuts = serder.cuts().unwrap_or_else(|| Vec::new());
+
+        // Validate cuts: check for duplicates
+        let cut_set: HashSet<String> = HashSet::from_iter(cuts.iter().cloned());
+        if cut_set.len() != cuts.len() {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid cuts = {:?}, has duplicates for evt = {:?}",
+                cuts, serder.ked()
+            )));
+        }
+
+        // Validate that all cuts are in current witness set
+        if !cut_set.is_subset(&wit_set) {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid cuts = {:?}, not all members in wits for evt = {:?}",
+                cuts, serder.ked()
+            )));
+        }
+
+        // Extract adds from serder
+        let adds = serder.adds().unwrap_or_else(|| Vec::new());
+
+        // Validate adds: check for duplicates
+        let add_set: HashSet<String> = HashSet::from_iter(adds.iter().cloned());
+        if add_set.len() != adds.len() {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid adds = {:?}, has duplicates for evt = {:?}",
+                adds, serder.ked()
+            )));
+        }
+
+        // Check that cuts and adds don't intersect
+        if !cut_set.is_disjoint(&add_set) {
+            return Err(KERIError::ValidationError(format!(
+                "Intersecting cuts = {:?} and adds = {:?} for evt = {:?}",
+                cuts, adds, serder.ked()
+            )));
+        }
+
+        // Check that current witnesses and adds don't intersect
+        if !wit_set.is_disjoint(&add_set) {
+            return Err(KERIError::ValidationError(format!(
+                "Intersecting wits = {:?} and adds = {:?} for evt = {:?}",
+                wits, adds, serder.ked()
+            )));
+        }
+
+        // Calculate new witness list: remove cuts, add adds
+        // First remove cuts from wit_set
+        let wit_set_after_cuts: HashSet<String> = wit_set.difference(&cut_set).cloned().collect();
+
+        // Then add adds to the set after cuts
+        let new_wit_set: HashSet<String> = wit_set_after_cuts.union(&add_set).cloned().collect();
+
+        // Convert back to a vector
+        let new_wits = new_wit_set.into_iter().collect::<Vec<String>>();
+
+        // Validate that the final witness count is correct
+        if new_wits.len() != (wits.len() - cuts.len() + adds.len()) {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid member combination among wits = {:?}, cuts = {:?}, and adds = {:?} for evt = {:?}",
+                wits, cuts, adds, serder.ked()
+            )));
+        }
+
+        Ok((new_wits, cuts, adds))
     }
     
+
     pub fn verfers(&self) -> Option<Vec<Verfer>> {
         self.verfers.clone()
     }
 
     fn escrow_mf_event(
         &self,
-        serder: &SerderKERI,
-        sigers: Vec<Siger>,
-        wigers: Option<Vec<Siger>>,
-        seqner: Option<&Seqner>,
-        saider: Option<&Saider>,
-        local: bool,
+        _serder: &SerderKERI,
+        _sigers: Vec<Siger>,
+        _wigers: Option<Vec<Siger>>,
+        _seqner: Option<&Seqner>,
+        _saider: Option<&Saider>,
+        _local: bool,
     ) -> Result<(), KERIError> {
         todo!("Implement escrow for misfit events")
     }
 
     fn escrow_ps_event(
         &self,
-        serder: &SerderKERI,
-        sigers: Vec<Siger>,
-        wigers: Option<Vec<Siger>>,
-        seqner: Option<&Seqner>,
-        saider: Option<&Saider>,
-        local: bool,
+        _serder: &SerderKERI,
+        _sigers: Vec<Siger>,
+        _wigers: Option<Vec<Siger>>,
+        _seqner: Option<&Seqner>,
+        _saider: Option<&Saider>,
+        _local: bool,
     ) -> Result<(), KERIError> {
         todo!("Implement escrow for partially signed events")
     }
 
     fn escrow_pw_event(
         &self,
-        serder: &SerderKERI,
-        wigers: Option<Vec<Siger>>,
-        sigers: Vec<Siger>,
-        seqner: Option<&Seqner>,
-        saider: Option<&Saider>,
-        local: bool,
+        _serder: &SerderKERI,
+        _wigers: Option<Vec<Siger>>,
+        _sigers: Vec<Siger>,
+        _seqner: Option<&Seqner>,
+        _saider: Option<&Saider>,
+        _local: bool,
     ) -> Result<bool, KERIError> {
         todo!("Implement escrow for partially witnessed events")
     }
 
     fn escrow_delegable_event(
         &self,
-        serder: &SerderKERI,
-        sigers: &[Siger],
-        wigers: Option<Vec<Siger>>,
-        local: bool,
+        _serder: &SerderKERI,
+        _sigers: &[Siger],
+        _wigers: Option<Vec<Siger>>,
+        _local: bool,
     ) -> Result<(), KERIError> {
         todo!("Implement escrow for delegable events")
     }
 
+    /// Returns a list of indices (ondices) suitable for Tholder.satisfy
+    /// from self.ndigers (prior next key digests) as exposed by event sigers.
+    /// Uses dual index feature of siger. Assumes that each siger.verfer is
+    /// from the correct key given by siger.index and the signature has been verified.
+    ///
+    /// A key given by siger.verfer (at siger.index in the current key list)
+    /// may expose a prior next key hidden by the diger at siger.ondex in .digers.
+    ///
+    /// Each returned ondex must be properly exposed by a siger in sigers
+    /// such that the siger's indexed key given by siger.verfer matches the
+    /// siger's ondexed digest from digers.
+    ///
+    /// The ondexed digest's code is used to compute the digest of the corresponding
+    /// indexed key verfer to verify that they match. This supports crypto agility
+    /// for different digest codes, i.e., all digests in .digers may use a different
+    /// algorithm.
+    ///
+    /// Only ondices from properly matching key and digest are returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `sigers` - Vector of Siger instances of indexed signatures with .verfer
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Vec<usize>, KERIError>` - Vector of ondices that are properly exposed
     fn exposeds(&self, sigers: &[Siger]) -> Result<Vec<usize>, KERIError> {
-        todo!("Implement extraction of exposed signature indices")
-    }
+        let mut odxs = Vec::new();
 
-    fn ntholder(&self) -> Option<Tholder> {
-        todo!("Implement getting next threshold holder")
+        // Get ndigers or return empty vector if not available
+        let ndigers = match &self.ndigers {
+            Some(digers) => digers,
+            None => return Ok(odxs), // Return empty vector if no ndigers
+        };
+
+        for siger in sigers {
+            // Get the ondex from the siger
+            let ondex = match siger.ondex() {
+                Some(ondex) => ondex as usize,
+                None => continue, // Skip if ondex is None
+            };
+
+            // Try to get the corresponding diger
+            if ondex >= ndigers.len() {
+                continue; // Skip if ondex is out of bounds
+            }
+            let diger = &ndigers[ondex];
+
+            // Get the verfer from the siger
+            let verfer = match siger.verfer() {
+                Some(vrf) => vrf,
+                None => continue, // Skip if verfer is None
+            };
+
+            // Create a digest of the verfer using the same code as the diger
+            let kdig = match Diger::new(Some(verfer.raw()), Some(diger.code()), None, None) {
+                Ok(d) => d.qb64(),
+                Err(_) => continue, // Skip if there's an error creating the digest
+            };
+
+            // If the digests match, add the ondex to the list
+            if kdig == diger.qb64() {
+                odxs.push(ondex);
+            }
+        }
+
+        Ok(odxs)
     }
 
     fn validate_delegation(
         &self,
-        serder: &SerderKERI,
-        sigers: &[Siger],
-        wigers: Option<Vec<Siger>>,
-        wits: &[String],
+        _serder: &SerderKERI,
+        _sigers: &[Siger],
+        _wigers: Option<Vec<Siger>>,
+        _wits: &[String],
         delpre: Option<&str>,
-        delseqner: Option<&Seqner>,
-        delsaider: Option<&Saider>,
-        eager: bool,
-        local: bool,
+        _delseqner: Option<&Seqner>,
+        _delsaider: Option<&Saider>,
+        _eager: bool,
+        _local: bool,
     ) -> Result<(Option<Seqner>, Option<Saider>), KERIError> {
         if delpre.is_none() {
             return Ok((None, None));
         }
 
-        Err(KERIError::ValidationError(format!(
-            "Delegation not yet implemented for this kever"
-        )))
+        Err(KERIError::ValidationError("Delegation not yet implemented for this kever".to_string()))
     }
 
-    fn prefixes(&self) -> Vec<String> {
-        todo!("Implement getting prefixes for this kever")
+    /// Not an inception event. Verify event serder and indexed signatures
+    /// in sigers and update state
+    ///
+    /// # Arguments
+    ///
+    /// * `serder` - Instance of event
+    /// * `sigers` - List of SigMat instances of indexed signatures of controller
+    ///             signatures of event. Index is offset into keys list from latest
+    ///             est event and when provided index is offset into key digest list
+    ///             from prior next est event to latest est event.
+    /// * `wigers` - Optional list of Siger instances of indexed witness signatures of
+    ///             event. Index is offset into wits list from latest est event
+    /// * `delseqner` - Optional instance of delegating event sequence number.
+    ///                If this event is not delegated then seqner is ignored
+    /// * `delsaider` - Optional instance of delegating event said.
+    ///                If this event is not delegated then diger is ignored
+    /// * `firner` - Optional Seqner instance of cloned first seen ordinal
+    ///             If cloned mode then firner maybe provided (not None)
+    ///             When firner provided then compare fn of dater and database and
+    ///             first seen if not match then log and add cue notify problem
+    /// * `dater` - Optional Dater instance of cloned replay datetime
+    ///            If cloned mode then dater maybe provided (not None)
+    ///            When dater provided then use dater for first seen datetime
+    /// * `eager` - If true, try harder to find validate events by walking KELs.
+    ///            Enables only being eager in escrow processing not initial parsing.
+    ///            If false, only use pre-existing information if any.
+    /// * `local` - Event source for validation logic.
+    ///            True means event source is local (protected).
+    ///            False means event source is remote (unprotected).
+    /// * `check` - If true, do not update the database in any non-idempotent way.
+    ///            Useful for reinitializing the Kevers from a persisted KEL without
+    ///            updating non-idempotent first seen .fels and timestamps.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), KERIError>` - Ok if successful, Error otherwise
+    pub fn update(
+        &mut self,
+        serder: SerderKERI,
+        sigers: Vec<Siger>,
+        wigers: Option<Vec<Siger>>,
+        delseqner: Option<Seqner>,
+        delsaider: Option<Saider>,
+        firner: Option<Seqner>,
+        dater: Option<Dater>,
+        eager: bool,
+        local: bool,
+        check: bool,
+    ) -> Result<(), KERIError> {
+        let ked = &serder.ked();
+
+        // Check if identifier is transferable
+        if let Some(prefixer) = &self.prefixer {
+            if !prefixer.transferable() {
+                return Err(KERIError::ValidationError(format!(
+                    "Unexpected event = {:?} is nontransferable or abandoned state", ked
+                )));
+            }
+        } else {
+            return Err(KERIError::ValidationError("Missing prefixer in Kever state".to_string()));
+        }
+
+        // Check if event prefix matches kever prefixer
+        if serder.pre() != Some(self.prefixer.clone().unwrap().qb64()) {
+            return Err(KERIError::ValidationError(format!(
+                "Mismatch event aid prefix = {} expecting = {} for evt = {:?}",
+                serder.pre().unwrap(), self.prefixer.as_ref().unwrap().qb64(), ked
+            )));
+        }
+
+        let local = local; // No conversion needed, bool is already bool
+
+        let sner = serder.sn().unwrap_or_default(); // Get sequence number from serder
+        let ilk = serder.ilk().unwrap();
+
+        // Handle rotation or delegated rotation event
+        if ilk == Ilk::Rot || ilk == Ilk::Drt {
+            // Check if trying to do non-delegated rotation on delegated prefix
+            if self.delegated && ilk != Ilk::Drt {
+                return Err(KERIError::ValidationError(format!(
+                    "Attempted non delegated rotation on delegated pre = {} with evt = {:?}",
+                    serder.pre().unwrap(), ked
+                )));
+            }
+
+            // Validate rotation
+            let (tholder, toader, wits, cuts, adds) = self.rotate(&serder)?;
+
+            // Validate signatures, delegation if any, and witnessing when applicable
+            let (sigers_verified, wigers_verified, _, delseqner_updated, delsaider_updated) =
+                self.val_sigs_wigs_del(
+                    serder.clone(),
+                    sigers,
+                    serder.verfers(),
+                    tholder.clone(),
+                    wigers,
+                    Some(toader.clone()),
+                    wits.clone(),
+                    delseqner,
+                    delsaider,
+                    eager,
+                    local,
+                )?;
+
+            // Log event to KEL and FEL if not in check mode
+            let (fn_val, dts) = self.log_event(
+                serder.clone(),
+                sigers_verified,
+                wigers_verified,
+                Some(wits.clone()),
+                !check, // first
+                delseqner_updated,
+                delsaider_updated,
+                firner,
+                dater,
+                local,
+            )?;
+
+            // Update state
+            self.sner = Some(Number::from_num(&BigUint::from(sner))?);
+            self.serder = Some(serder.clone());
+            self.ilk = ilk; // Default to Rot if unknown
+            self.tholder = Some(tholder);
+            self.verfers = serder.verfers();
+            self.ndigers = serder.ndigers();
+            self.ntholder = serder.ntholder();
+            self.toader = Some(toader);
+            self.wits = Some(wits);
+            self.cuts = Some(cuts);
+            self.adds = Some(adds);
+
+            // Last establishment event location needed to recognize recovery events
+            self.last_est = Some(LastEstLoc {
+                s: sner,
+                d: serder.said().unwrap().to_string(),
+            });
+
+            // Update first seen number and date if not in check mode
+            if let Some(fn_num) = fn_val {
+                self.fner = Some(Number::from_num(&BigUint::from(fn_num))?);
+                self.dater = Some(Dater::from_dt(dts));
+                // Update state in database
+                if let Some(prefixer) = &self.prefixer {
+                    self.db.states.pin(&[&prefixer.qb64()], &self.state()?)?;
+                }
+            }
+        }
+        // Handle interaction event
+        else if ilk == Ilk::Ixn {
+            // Check if est_only is true
+            if self.est_only.unwrap_or(false) {
+                return Err(KERIError::ValidationError(format!(
+                    "Unexpected non-establishment event = {:?}", serder.ked()
+                )));
+            }
+
+            // Check sequence number
+            let self_sn = self.sner.as_ref().map(|n| n.num()).unwrap_or(0);
+            if sner != (self_sn + 1) as u64 {
+                return Err(KERIError::ValidationError(format!(
+                    "Invalid sn = {} expecting = {} for evt = {:?}",
+                    sner, self_sn + 1, ked
+                )));
+            }
+
+            // Check prior event digest
+            let self_said = self.serder.as_ref().map(|s| s.said()).unwrap_or_default();
+            if ked["p"] != SadValue::String(self_said.unwrap_or_default().to_string()) {
+                return Err(KERIError::ValidationError(format!(
+                    "Mismatch event dig = {} with state dig = {} for evt = {:?}",
+                    ked["p"].as_str().unwrap(), self_said.unwrap(), ked
+                )));
+            }
+
+            // Use keys, sith, toad, and wits from pre-existing Kever state
+            let verfers = self.verfers.clone().ok_or_else(||
+                KERIError::ValidationError("Missing verfers in Kever state".to_string())
+            )?;
+
+            let tholder = self.tholder.clone().ok_or_else(||
+                KERIError::ValidationError("Missing tholder in Kever state".to_string())
+            )?;
+
+            let toader = self.toader.clone().ok_or_else(||
+                KERIError::ValidationError("Missing toader in Kever state".to_string())
+            )?;
+
+            let wits = self.wits.clone().unwrap_or_default();
+
+            // Validate signatures, delegation, and witnessing
+            let (sigers_verified, wigers_verified, _, _, _) =
+                self.val_sigs_wigs_del(
+                    serder.clone(),
+                    sigers,
+                    Some(verfers),
+                    tholder,
+                    wigers,
+                    Some(toader),
+                    wits,
+                    None, // No delegation for ixn events
+                    None, // No delegation for ixn events
+                    eager,
+                    local,
+                )?;
+
+            // Log event to KEL and FEL if not in check mode
+            let (fn_val, dts) = self.log_event(
+                serder.clone(),
+                sigers_verified,
+                wigers_verified,
+                None, // No wits param for ixn
+                !check, // first
+                None,  // No delegation for ixn
+                None,  // No delegation for ixn
+                None,  // No firner for standard ixn
+                None,  // No dater for standard ixn
+                local,
+            )?;
+
+            // Update state
+            self.sner = Some(Number::from_num(&BigUint::from(sner))?);
+            self.serder = Some(serder);
+            self.ilk = ilk;
+
+            // Update first seen number and date if not in check mode
+            if let Some(fn_num) = fn_val {
+                self.fner = Some(Number::from_num(&BigUint::from(fn_num))?);
+                self.dater = Some(Dater::from_dt(dts));
+                // Update state in database
+                if let Some(prefixer) = &self.prefixer {
+                    self.db.states.pin(&[&prefixer.qb64()], &self.state()?)?;
+                }
+            }
+        }
+        // Handle unsupported event type
+        else {
+            return Err(KERIError::ValidationError(format!(
+                "Unsupported ilk = {} for evt = {:?}", ilk, ked
+            )));
+        }
+
+        Ok(())
     }
+
+    /// Generic Rotate Operation Validation Processing
+    /// Validates provisional rotation
+    /// Same logic for both 'rot' and 'drt' (plain and delegated rotation)
+    ///
+    /// # Arguments
+    ///
+    /// * `serder` - Instance of rotation ('rot' or 'drt') event.
+    ///
+    /// # Returns
+    ///
+    /// A tuple (tholder, toader, wits, cuts, adds) of provisional results
+    /// of rotation subject to additional validation
+    ///
+    /// # Errors
+    ///
+    /// * `ValidationError` - if the rotation event is invalid
+    /// * `ValueError` - if the toad value is invalid
+    pub fn rotate(&self, serder: &SerderKERI) -> Result<(Tholder, Number, Vec<String>, Vec<String>, Vec<String>), KERIError> {
+        let ked = &serder.ked();
+        let sn = serder.sn().unwrap_or_default();
+        let pre = serder.pre().unwrap();
+        let prior = serder.prior().unwrap();
+        let ilk = serder.ilk().unwrap();
+
+        // Get current sequence number from self
+        let self_sn = self.sner.as_ref().map(|n| n.num()).unwrap_or(0);
+
+        // Check if the event i3s out of order
+        if sn > (self_sn + 1) as u64 {
+            return Err(KERIError::ValidationError(format!(
+                "Out of order event sn = {} expecting = {} for evt = {:?}",
+                sn, self_sn + 1, ked
+            )));
+        } else if sn <= self_sn as u64 {
+            // Event is stale or recovery
+            let last_est_sn = self.last_est.as_ref().map(|l| l.s).unwrap_or(0);
+
+            if (ilk == Ilk::Rot && sn <= last_est_sn) || (ilk == Ilk::Drt && sn < last_est_sn) {
+                // Stale event
+                return Err(KERIError::ValidationError(format!(
+                    "Stale event sn = {} expecting = {} for evt = {:?}",
+                    sn, self_sn + 1, ked
+                )));
+            } else {
+                // Recovery event
+                if ilk == Ilk::Rot && self.ilk != Ilk::Ixn {
+                    // Recovery may only override ixn state
+                    return Err(KERIError::ValidationError(format!(
+                        "Invalid recovery attempt: Recovery at ilk = {} not ilk = {} for evt = {:?}",
+                        self.ilk, Ilk::Ixn, ked
+                    )));
+                }
+
+                // Use sn of prior event to fetch prior event
+                let psn = sn - 1;
+
+                // Fetch raw serialization of last inserted event at psn
+                let key = sn_key(pre, psn);
+                let pdig = match self.db.kels.get_last(&[&key])? {
+                    Some(dig) => match String::from_utf8(dig) {
+                        Ok(d) => d,
+                        Err(_) => return Err(KERIError::ValueError("Invalid digest".to_string())),
+                    },
+                    None => return Err(KERIError::ValidationError(format!(
+                        "Invalid recovery attempt: Bad sn = {} for event = {:?}",
+                        psn, ked
+                    ))),
+                };
+
+                // Get the event from database
+                let dig_key = format!("{}.{}", pre, pdig);
+                let praw = match self.db.evts.get::<_, Vec<u8>>(&[&dig_key])? {
+                    Some(raw) => raw,
+                    None => return Err(KERIError::ValidationError(format!(
+                        "Invalid recovery attempt: Bad dig = {}", pdig
+                    ))),
+                };
+
+                // Deserialize prior event
+                let pserder = SerderKERI::from_raw(&praw, None)
+                    .map_err(|e| KERIError::ValueError(format!("Invalid prior event: {}", e)))?;
+
+                // Compare prior said with retrieved event said
+                if prior != pserder.said().unwrap_or_default() {
+                    return Err(KERIError::ValidationError(format!(
+                        "Invalid recovery attempt: Mismatch recovery event prior dig = {} with dig = {:?} of event sn = {} evt = {:?}",
+                        prior, pserder.said(), psn, ked
+                    )));
+                }
+            }
+        } else {
+            // New non-recovery event (sn == self_sn + 1)
+            // Check if prior event dig matches current event said
+            let self_said = self.serder.as_ref().map(|s| s.said()).unwrap_or_default();
+            if prior != self_said.unwrap_or_default() {
+                return Err(KERIError::ValidationError(format!(
+                    "Mismatch event dig = {} with state dig = {:?} for evt = {:?}",
+                    prior, self_said, ked
+                )));
+            }
+        }
+
+        // Check if rotation is allowed (non-transferable check)
+        if self.ndigers.is_none() || self.ndigers.as_ref().map_or(true, |d| d.is_empty()) {
+            return Err(KERIError::ValidationError(format!(
+                "Attempted rotation for nontransferable prefix = {} for evt = {:?}",
+                self.prefixer.as_ref().map(|p| p.qb64()).unwrap_or_default(), ked
+            )));
+        }
+
+        // Parse threshold and keys
+        let tholder = serder.tholder().unwrap_or_default();
+        let keys = serder.keys().unwrap_or_default();
+
+        // Check if keys are sufficient for threshold
+        if keys.len() < tholder.size() {
+            return Err(KERIError::ValidationError(format!(
+                "Invalid sith = {} for keys = {:?} for evt = {:?}",
+                tholder.sith(), keys, ked
+            )));
+        }
+
+        // Compute witnesses from existing wits with new cuts and adds from event
+        let (wits, cuts, adds) = self.derive_backs(serder)?;
+
+        // Get witness threshold from event
+        let toader = serder.bner().unwrap_or_default();
+
+        // Validate witness threshold
+        if !wits.is_empty() {
+            if toader.num() < 1 || toader.num() > wits.len() as u128 {
+                return Err(KERIError::ValueError(format!(
+                    "Invalid toad = {} for backers (wits)={:?} for event={:?}",
+                    toader.num(), wits, ked
+                )));
+            }
+        } else {
+            if toader.num() != 0 {
+                return Err(KERIError::ValueError(format!(
+                    "Invalid toad = {} for backers (wits)={:?} for event={:?}",
+                    toader.num(), wits, ked
+                )));
+            }
+        }
+
+        Ok((tholder, toader, wits, cuts, adds))
+    }
+    
 
     fn log_event(
         &self,
@@ -915,7 +1631,7 @@ impl<'db> Kever<'db> {
         first: bool,
         seqner: Option<Seqner>,
         saider: Option<Saider>,
-        firner: Option<Seqner>,
+        _firner: Option<Seqner>,
         dater: Option<Dater>,
         local: bool,
     ) -> Result<(Option<u64>, chrono::DateTime<chrono::Utc>), KERIError> {
@@ -969,7 +1685,7 @@ impl<'db> Kever<'db> {
         if self.delpre.is_some()
             && serder.ilk() != Some(Ilk::Ixn)
             && !self.locally_owned(None)
-            && !self.locally_witnessed(wits.as_deref().unwrap_or(&[]))
+            && !self.locally_witnessed(Some(wits.as_deref().unwrap_or(&[])), None)
             && seqner.is_some()
             && saider.is_some()
         {
@@ -981,7 +1697,7 @@ impl<'db> Kever<'db> {
         }
 
         // Update event source record
-        let esr = match self.db.esrs.get(&dg_keys) {
+        let _esr = match self.db.esrs.get(&dg_keys) {
             Ok(Some(mut esr)) => {
                 // If local and existing record is remote, update to local
                 if local && !esr.local {
@@ -1042,32 +1758,47 @@ impl<'db> Kever<'db> {
     /// Returns KeyStateRecord instance of current key state
     pub fn state(&self) -> Result<KeyStateRecord, KERIError> {
         // Ensure required fields are available
-        let prefixer = self.prefixer().ok_or_else(||
-            KERIError::ValueError("Missing prefixer in Kever state".to_string()))?;
+        let prefixer = self
+            .prefixer()
+            .ok_or_else(|| KERIError::ValueError("Missing prefixer in Kever state".to_string()))?;
 
-        let tholder = self.tholder().ok_or_else(||
-            KERIError::ValueError("Missing tholder in Kever state".to_string()))?;
+        let tholder = self
+            .tholder()
+            .ok_or_else(|| KERIError::ValueError("Missing tholder in Kever state".to_string()))?;
 
-        let serder = self.serder.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing serder in Kever state".to_string()))?;
+        let serder = self
+            .serder
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing serder in Kever state".to_string()))?;
 
-        let sner = self.sner.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing sner in Kever state".to_string()))?;
+        let sner = self
+            .sner
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing sner in Kever state".to_string()))?;
 
-        let fner = self.fner.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing fner in Kever state".to_string()))?;
+        let fner = self
+            .fner
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing fner in Kever state".to_string()))?;
 
-        let dater = self.dater.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing dater in Kever state".to_string()))?;
+        let dater = self
+            .dater
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing dater in Kever state".to_string()))?;
 
-        let verfers = self.verfers.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing verfers in Kever state".to_string()))?;
+        let verfers = self
+            .verfers
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing verfers in Kever state".to_string()))?;
 
-        let toader = self.toader().ok_or_else(||
-            KERIError::ValueError("Missing toader in Kever state".to_string()))?;
+        let toader = self
+            .toader()
+            .ok_or_else(|| KERIError::ValueError("Missing toader in Kever state".to_string()))?;
 
-        let last_est = self.last_est.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing last_est in Kever state".to_string()))?;
+        let last_est = self
+            .last_est
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing last_est in Kever state".to_string()))?;
 
         // Create StateEstEvent
         let eevt = StateEERecord {
@@ -1103,21 +1834,21 @@ impl<'db> Kever<'db> {
 
         // Use StateEventBuilder to create the state record
         let state_builder = StateEventBuilder::new(
-            prefixer.qb64(),          // pre
-            sner.num() as u64, // sn
-            pig,                      // pig
-            serder.said().unwrap().to_string(),      // dig
-            fner.num() as u64, // fn_
-            self.ilk.to_string(),     // eilk
-            keys,                     // keys
-            eevt,                     // eevt
+            prefixer.qb64(),                    // pre
+            sner.num() as u64,                  // sn
+            pig,                                // pig
+            serder.said().unwrap().to_string(), // dig
+            fner.num() as u64,                  // fn_
+            self.ilk.to_string(),               // eilk
+            keys,                               // keys
+            eevt,                               // eevt
         )
-            .with_stamp(dater.dts())      // stamp
-            .with_sith(tholder.sith())    // sith
-            .with_ndigs(ndigs)            // ndigs
-            .with_toad(toader.num() as usize)  // toad
-            .with_wits(wits)              // wits
-            .with_cnfg(cnfg);             // cnfg
+        .with_stamp(dater.dts()) // stamp
+        .with_sith(tholder.sith()) // sith
+        .with_ndigs(ndigs) // ndigs
+        .with_toad(toader.num() as usize) // toad
+        .with_wits(wits) // wits
+        .with_cnfg(cnfg); // cnfg
 
         // Add next threshold if available
         let state_builder = match &self.ntholder {
@@ -1132,7 +1863,9 @@ impl<'db> Kever<'db> {
         };
 
         // Build the state record
-        let state_record = state_builder.build().map_err(|e| KERIError::ValueError(e.to_string()))?;
+        let state_record = state_builder
+            .build()
+            .map_err(|e| KERIError::ValueError(e.to_string()))?;
 
         Ok(state_record)
     }
@@ -1152,6 +1885,82 @@ impl<'db> Kever<'db> {
     fn prefixer(&self) -> Option<Prefixer> {
         self.prefixer.clone()
     }
+
+    /// Returns either the most recent prior list of digers before .last_est or None
+    ///
+    /// Starts searching at sn or if sn is None at sn = .last_est.s - 1
+    ///
+    /// Returns list of Digers instances at the most recent prior est event relative
+    /// to the given sequence number (sn) otherwise returns None.
+    /// Walks backwards to the more recent prior establishment event before the
+    /// .sn if any.
+    /// If sn represents an interaction event (ixn) then the result will be the
+    /// current valid list of digers. If sn represents an establishment event then
+    /// the result will be the list of digers immediately prior to the current list.
+    ///
+    /// # Arguments
+    ///
+    /// * `sn` - Optional sequence number to start searching. If None then start at .last_est.s - 1
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Option<Vec<Diger>>, KERIError>` - Vector of Diger instances or None if no prior est evt
+    ///    to current .last_est
+    pub fn fetch_prior_digers(&self, sn: Option<u64>) -> Result<Option<Vec<Diger>>, KERIError> {
+        // Get the prefix from the prefixer
+        let pre = match &self.prefixer {
+            Some(prefixer) => prefixer.qb64(),
+            None => return Err(KERIError::ValidationError("Missing prefixer".to_string())),
+        };
+
+        // Determine the starting sequence number
+        let start_sn = match sn {
+            Some(s) => s,
+            None => match &self.last_est {
+                Some(last_est) => {
+                    if last_est.s > 0 {
+                        last_est.s - 1
+                    } else {
+                        return Ok(None);
+                    }
+                }
+                None => return Ok(None),
+            },
+        };
+
+        // Don't go below 0
+        if start_sn  < 0 {
+            return Ok(None);
+        }
+
+        // Iterate backwards through the KEL from the starting sequence number
+        let kel_back_iter = self.db.kels.get_on_back_iter::<_, Vec<u8>>(&[&pre], start_sn as u32)?;
+
+        for digb in kel_back_iter {
+            // Create the digest key for the event
+            let dgkey = dg_key(&pre, &digb?);
+
+            // Get the event data
+            let raw = match self.db.evts.get::<_, Vec<u8>>(&[dgkey]) {
+                Ok(evt) => evt,
+                Err(_) => {return Ok(None)},
+            };
+
+            // Parse the event
+            let serder = SerderKERI::from_raw(&Vec::from(raw.unwrap()), None)?;
+
+            // Check if this is an establishment event
+            if serder.estive() {
+                // Return the next digests from this event
+                return Ok(serder.ndigers());
+            }
+        }
+
+        // No prior establishment event found
+        Ok(None)
+    }
+    
+    
 }
 
 /// KeverBuilder provides a builder pattern for constructing a Kever instance
@@ -1295,6 +2104,8 @@ mod tests {
     use crate::keri::KERIError;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use crate::cesr::tholder::TholderThold;
+    use crate::keri::core::eventing::InceptionEventBuilder;
 
     #[test]
     fn test_kever() -> Result<(), KERIError> {
@@ -1450,20 +2261,33 @@ mod tests {
         // These assertions would need proper implementation
         assert_eq!(kever.sner.clone().unwrap().num(), 0);
         assert_eq!(
-            kever.verfers.clone().unwrap().iter().map(|v| v.qb64()).collect::<Vec<_>>(),
+            kever
+                .verfers
+                .clone()
+                .unwrap()
+                .iter()
+                .map(|v| v.qb64())
+                .collect::<Vec<_>>(),
             vec![skp0.verfer().qb64()]
         );
         assert_eq!(kever.ndigs.clone().unwrap(), nxt);
-        let prefixer = kever.prefixer().ok_or_else(||
-            KERIError::ValueError("Missing prefixer in Kever".to_string()))?;
+        let prefixer = kever
+            .prefixer()
+            .ok_or_else(|| KERIError::ValueError("Missing prefixer in Kever".to_string()))?;
 
         // Test getting state from the database
-        let state: KeyStateRecord = kever.db.states.get(&[&prefixer.qb64()])
-            .expect("State not found").unwrap();
+        let state: KeyStateRecord = kever
+            .db
+            .states
+            .get(&[&prefixer.qb64()])
+            .expect("State not found")
+            .unwrap();
 
         // Get the sequence number from kever
-        let sner = kever.sner.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing sner in Kever".to_string()))?;
+        let sner = kever
+            .sner
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing sner in Kever".to_string()))?;
 
         // Format sner.num as hex string for comparison
         let sner_hex = format!("{:x}", sner.num());
@@ -1473,12 +2297,18 @@ mod tests {
         assert_eq!(state.s, "0"); // Assert sequence is 0
 
         // Get the serder from kever
-        let serder = kever.serder.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing serder in Kever".to_string()))?;
+        let serder = kever
+            .serder
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing serder in Kever".to_string()))?;
 
         // Test getting feqner (first seen ordinal) from db
-        let feqner: Number = kever.db.fons.get(&[&prefixer.qb64(), &serder.said().unwrap().to_string()])?.unwrap();
-            
+        let feqner: Number = kever
+            .db
+            .fons
+            .get(&[&prefixer.qb64(), &serder.said().unwrap().to_string()])?
+            .unwrap();
+
         // Compare feqner's sequence number with kever's
         assert_eq!(feqner.num(), kever.sner.as_ref().unwrap().num());
 
@@ -1495,16 +2325,16 @@ mod tests {
         assert_eq!(ksr.s, sner_hex);
 
         // Get verfers from kever
-        let verfers = kever.verfers.as_ref().ok_or_else(||
-            KERIError::ValueError("Missing verfers in Kever".to_string()))?;
+        let verfers = kever
+            .verfers
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Missing verfers in Kever".to_string()))?;
 
         // Extract keys from state record
         let state_keys = ksr.k;
 
         // Extract qb64 keys from verfers
-        let verfer_keys: Vec<String> = verfers.iter()
-            .map(|verfer| verfer.qb64())
-            .collect();
+        let verfer_keys: Vec<String> = verfers.iter().map(|verfer| verfer.qb64()).collect();
 
         // Compare keys from state with keys from verfers
         assert_eq!(state_keys, verfer_keys);
@@ -1535,4 +2365,120 @@ mod tests {
             )),
         }
     }
+
+    #[test]
+    fn test_keyeventsequence_0() -> Result<(), KERIError> {
+        // Test generation of a sequence of key events
+
+        // Create salt and signers
+        let salt = b"g\x15\x89\x1a@\xa4\xa47\x07\xb9Q\xb8\x18\xcdJW";
+        let salter = Salter::new(Some(salt), None, None)?;
+        let signers = salter.signers(8, 0, "", None, None, None, false)?;
+
+        // Extract public keys
+        let pubkeys: Vec<String> = signers.iter().map(|s| s.verfer().qb64()).collect();
+
+        // Assert public keys match expected values
+        assert_eq!(pubkeys, vec![
+            "DErocgXD2RGSyvn3MObcx59jeOsEQhv2TqHirVkzrp0Q".to_string(),
+            "DFXLiTjiRdSBPLL6hLa0rskIxk3dh4XwJLfctkJFLRSS".to_string(),
+            "DE9YgIQVgpLwocTVrG8tidKScsQSMWwLWywNC48fhq4f".to_string(),
+            "DCjxOXniUc5EUzDqERlXdptfKPHy6jNo_ZGsS4Vd8fAE".to_string(),
+            "DNZHARO4dCJlluv0qezEMRmErIWWc-lzOzolBOQ15tHV".to_string(),
+            "DOCQ4KN1jUlKbfjRteDYt9fxgpq1NK9_MqO5IA7shpED".to_string(),
+            "DFY1nGjV9oApBzo5Oq5JqjwQsZEQqsCCftzo3WJjMMX-".to_string(),
+            "DE9ZxA3qXegkgDAhOzWP45S3Ruv5ilJSkv5lvthyWNYY".to_string(),
+        ]);
+
+        let lmdber = LMDBer::builder()
+            .name("temp")
+            .reopen(true)
+            .build()
+            .expect("Failed to open Baser database: {}");
+        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+
+        // List to store event digests
+        let mut event_digs = Vec::new();
+
+        // Event 0 - Inception Transferable (nxt digest not empty)
+        let keys0 = vec![signers[0].verfer().qb64()];
+
+        // Compute nxt digest from keys1
+        let keys1 = vec![signers[1].verfer().qb64()];
+        let ndiger1 = Diger::from_ser(&signers[1].verfer().qb64b(), None)?;
+        let nxt1 = vec![ndiger1.qb64()];
+
+        // Verify next digest matches expected value
+        assert_eq!(nxt1, vec!["EIQsSW4KMrLzY1HQI9H_XxY6MyzhaFFXhG6fdBb5Wxta".to_string()]);
+
+        // Create inception event
+        
+        let serder0 = InceptionEventBuilder::new(keys0.clone()).with_ndigs(nxt1.clone()).build()?;
+        let pre = serder0.pre().unwrap();
+        event_digs.push(serder0.said().unwrap().to_string());
+
+        // Verify event properties
+        assert_eq!(serder0.pre().unwrap(), signers[0].verfer().qb64());
+        assert_eq!(serder0.ked()["s"].as_str(), Some("0"));
+        assert_eq!(serder0.ked()["kt"].as_str(), Some("1"));
+        assert_eq!(
+            serder0.ked()["k"].as_array(),
+            Some(&keys0.iter()
+                .map(|k| SadValue::String(k.to_string()))
+                .collect::<Vec<SadValue>>())
+        );
+        assert_eq!(
+            serder0.ked()["n"].as_array(),
+            Some(&nxt1.iter()
+                .map(|n| SadValue::String(n.to_string()))
+                .collect::<Vec<SadValue>>())
+        );
+        assert_eq!(serder0.said().unwrap(), "ECLgCt_5bprUe0SF1XCR94Zo5ShSEZO8cLf0dH3pwZxU");
+
+        // Sign the serialization
+        let sig0 = match signers[0].sign(serder0.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+
+        // Verify signature
+        assert!(signers[0].verfer().verify(sig0.raw(), serder0.raw())?);
+
+        // Create Kever with the event
+        let kever = KeverBuilder::new(db)
+            .with_serder(serder0)
+            .with_sigers(vec![sig0])
+            .build()?;
+
+        // Verify Kever state
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 0u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[0]);
+        assert_eq!(kever.ilk, Ilk::Icp);
+        assert_eq!(kever.tholder.clone().unwrap().thold(), &TholderThold::Integer(1));
+
+        // Verify verfers in Kever match keys0
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys0);
+
+        // Verify ndigs in Kever
+        assert_eq!(kever.ndigs.as_ref().unwrap(), &nxt1);
+
+        // Verify transferable and estOnly flags
+        assert_eq!(kever.est_only, Some(false));
+        assert!(kever.prefixer.as_ref().unwrap().transferable());
+
+        // TODO: Add test for fetchPriorDigers when that method is implemented
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_none());
+
+        Ok(())
+    }
+
 }

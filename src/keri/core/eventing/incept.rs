@@ -3,7 +3,7 @@ use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::Versionage;
 use crate::keri::core::eventing::{ample, is_digest_code, is_prefix_code, MAX_INT_THOLD};
 use crate::keri::core::serdering::{SadValue, Sadder, SerderKERI};
-use crate::keri::versify;
+use crate::keri::{versify, KERIError};
 use num_bigint::BigUint;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -122,7 +122,7 @@ impl InceptionEventBuilder {
     }
 
     /// Builds the SerderKERI inception event
-    pub fn build(self) -> Result<SerderKERI, Box<dyn Error>> {
+    pub fn build(self) -> Result<SerderKERI, KERIError> {
         // Version string
         let vs = versify("KERI", &Versionage::from(self.version), &self.kind, 0)?;
 
@@ -147,11 +147,11 @@ impl InceptionEventBuilder {
         let tholder = Tholder::new(None, None, Some(isith.clone()))?;
         if let Some(num) = tholder.num() {
             if num < 1 {
-                return Err(format!("Invalid sith = {} less than 1.", num).into());
+                return Err(KERIError::ValueError(format!("Invalid sith = {} less than 1.", num)));
             }
         }
         if tholder.size() > self.keys.len() {
-            return Err(format!("Invalid sith = {:?} for keys = {:?}", isith, self.keys).into());
+            return Err(KERIError::ValueError(format!("Invalid sith = {:?} for keys = {:?}", isith, self.keys)));
         }
 
         // Process nsith
@@ -168,7 +168,7 @@ impl InceptionEventBuilder {
         // Create and validate ntholder
         let ntholder = Tholder::new(None, None, Some(nsith.clone()))?;
         if ntholder.size() > self.ndigs.len() {
-            return Err(format!("Invalid nsith = {:?} for ndigs = {:?}", nsith, self.ndigs).into());
+            return Err(KERIError::ValueError(format!("Invalid nsith = {:?} for ndigs = {:?}", nsith, self.ndigs)));
         }
 
         // Process witnesses
@@ -177,7 +177,7 @@ impl InceptionEventBuilder {
         // Check for duplicates in wits
         let wits_set: HashSet<_> = wits.iter().cloned().collect();
         if wits_set.len() != wits.len() {
-            return Err(format!("Invalid wits = {:?}, has duplicates.", wits).into());
+            return Err(KERIError::ValueError(format!("Invalid wits = {:?}, has duplicates.", wits)));
         }
 
         // Process toad
@@ -200,11 +200,11 @@ impl InceptionEventBuilder {
         if !wits.is_empty() {
             if toader.num() < 1 || toader.num() > wits.len() as u128 {
                 return Err(
-                    format!("Invalid toad = {} for wits = {:?}", toader.num(), wits).into(),
+                    KERIError::ValueError(format!("Invalid toad = {} for wits = {:?}", toader.num(), wits)),
                 );
             }
         } else if toader.num() != 0 {
-            return Err(format!("Invalid toad = {} for wits = {:?}", toader.num(), wits).into());
+            return Err(KERIError::ValueError(format!("Invalid toad = {} for wits = {:?}", toader.num(), wits)));
         }
 
         let kt =
@@ -214,8 +214,8 @@ impl InceptionEventBuilder {
                 match &tholder.sith() {
                     TholderSith::Integer(n) => Value::Number(serde_json::Number::from(*n as u64)),
                     TholderSith::HexString(s) => Value::String(s.clone()),
-                    TholderSith::Json(s) => serde_json::from_str(s)?,
-                    TholderSith::Weights(w) => serde_json::to_value(w)?,
+                    TholderSith::Json(s) => serde_json::from_str(s).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {} for keys = {:?}", s, self.keys))})?,
+                    TholderSith::Weights(w) => serde_json::to_value(w).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {:?} for keys = {:?}", w, self.keys))})?,
                 }
             };
 
@@ -228,8 +228,8 @@ impl InceptionEventBuilder {
             match &ntholder.sith() {
                 TholderSith::Integer(n) => Value::Number(serde_json::Number::from(*n as u64)),
                 TholderSith::HexString(s) => Value::String(s.clone()),
-                TholderSith::Json(s) => serde_json::from_str(s)?,
-                TholderSith::Weights(w) => serde_json::to_value(w)?,
+                TholderSith::Json(s) => serde_json::from_str(s).map_err(|e| { KERIError::ValueError(format!("Invalid ntholder = {} for keys = {:?}", s, self.keys))})?,
+                TholderSith::Weights(w) => serde_json::to_value(w).map_err(|e| { KERIError::ValueError(format!("Invalid ntholder = {:?} for keys = {:?}", w, self.keys))})?,
             }
         };
 
@@ -392,7 +392,7 @@ mod tests {
     use std::error::Error;
 
     #[test]
-    fn test_inception_event_builder_non_transferable() -> Result<(), Box<dyn Error>> {
+    fn test_inception_event_builder_non_transferable() -> Result<(), KERIError> {
         // Setup a fixed seed similar to the Python test
         let seed = b"\x9f{\xa8\xa7\xa8C9\x96&\xfa\xb1\x99\xeb\xaa \xc4\x1bG\x11\xc4\xaeSAR\
              \xc9\xbd\x04\x9d\x85)~\x93";

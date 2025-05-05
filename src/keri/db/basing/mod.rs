@@ -17,6 +17,7 @@ use crate::keri::db::subing::on::OnSuber;
 use crate::keri::db::subing::Suber;
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
+use crate::keri::db::subing::oniodup::OnIoDupSuber;
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -103,7 +104,7 @@ pub struct Baser<'db> {
     ///     Values are digests used to lookup event in .evts sub DB
     ///     DB is keyed by identifier prefix plus sequence number of key event
     ///     More than one value per DB key is allowed
-    pub kels: DupSuber<'db>,
+    pub kels: OnIoDupSuber<'db>,
     
     /// .fons is named subDB CesrSuber
     ///     Uses digest
@@ -216,7 +217,7 @@ impl<'db> Baser<'db> {
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the kels sub database
-            kels: DupSuber::new(lmdber.clone(), "kels.", None, false)
+            kels: OnIoDupSuber::new(lmdber.clone(), "kels.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the fons sub database

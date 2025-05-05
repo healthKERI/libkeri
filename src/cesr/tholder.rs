@@ -154,6 +154,7 @@ pub enum WeightedSithElement {
 
 /// Represents the parsed threshold for calculating satisfaction
 #[derive(Debug, Clone)]
+#[derive(PartialEq)]
 pub enum TholderThold {
     /// Simple integer threshold
     Integer(usize),
