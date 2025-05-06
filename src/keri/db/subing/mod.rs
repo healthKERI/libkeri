@@ -1,3 +1,4 @@
+pub mod catcesr;
 pub mod cesr;
 mod cesrioset;
 pub mod dup;

@@ -33,7 +33,7 @@ impl Seqner {
 
     pub fn from_qb64(qb64: &str) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb64(qb64)?;
-        if !non_trans_dex::TUPLE.contains(&(base.code())) {
+        if base.code() != mtr_dex::SALT_128 {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
@@ -56,7 +56,7 @@ impl Seqner {
 impl Parsable for Seqner {
     fn from_qb64b(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb64b(data, strip)?;
-        if !non_trans_dex::TUPLE.contains(&(base.code())) {
+        if base.code() != mtr_dex::SALT_128 {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
@@ -65,7 +65,7 @@ impl Parsable for Seqner {
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb2(data, strip)?;
-        if !non_trans_dex::TUPLE.contains(&(base.code())) {
+        if base.code() != mtr_dex::SALT_128 {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
 
