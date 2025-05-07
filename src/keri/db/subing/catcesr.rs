@@ -9,7 +9,6 @@ use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::subing::cesr::CesrSuberBase;
 use crate::keri::db::subing::{Suber, SuberError};
 use crate::Matter;
-use std::any::Any;
 use std::sync::Arc;
 
 pub struct CatCesrSuberBase<'db, M: Matter> {
@@ -73,6 +72,16 @@ impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
                 self.ser_from_seqner_saider(val[0], val[1])
             }
 
+            // Handle seqner diger format
+            [a, b] if a == "seqner" && b == "diger" => {
+                if val.len() != 2 {
+                    return Err(SuberError::ValueConversionError(
+                        "Expected 2 values for seqner diger format".to_string(),
+                    ));
+                }
+                self.ser_from_seqner_diger(val[0], val[1])
+            }
+
             // Handle dater, seqner, diger format
             [a, b, c] if a == "dater" && b == "seqner" && c == "diger" => {
                 // Validate we have exactly 3 values
@@ -114,6 +123,9 @@ impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
 
             // Handle seqner saider format
             [a, b] if a == "seqner" && b == "saider" => self.des_to_seqner_saider(val),
+
+            // Handle seqner diger format
+            [a, b] if a == "seqner" && b == "diger" => self.des_to_seqner_diger(val),
 
             // Handle dater, seqner, diger format
             [a, b, c] if a == "dater" && b == "seqner" && c == "diger" => {
@@ -189,6 +201,40 @@ impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
         })?;
 
         let result: Vec<Box<dyn Matter>> = vec![Box::new(seqner), Box::new(saider)];
+
+        Ok(result)
+    }
+
+    /// Serializes from a tuple of (Seqner, Diger) to bytes
+    pub fn ser_from_seqner_diger(
+        &self,
+        seqner: &dyn Matter,
+        diger: &dyn Matter,
+    ) -> Result<Vec<u8>, SuberError> {
+        // Concatenate the qb64b of each instance
+        let mut result = Vec::new();
+        result.extend_from_slice(&seqner.qb64b());
+        result.extend_from_slice(&diger.qb64b());
+
+        Ok(result)
+    }
+
+    /// Deserializes from bytes to a tuple of (Seqner, Diger)
+    pub fn des_to_seqner_diger(&self, val: &[u8]) -> Result<Vec<Box<dyn Matter>>, SuberError> {
+        // Convert val to a mutable vector so we can use from_qb64b
+        let mut data = val.to_vec();
+
+        // Parse the Seqner
+        let seqner = Seqner::from_qb64b(&mut data, Some(true)).map_err(|e| {
+            SuberError::DeserializationError(format!("Failed to parse Seqner: {}", e))
+        })?;
+
+        // Parse the Diger
+        let diger = Diger::from_qb64b(&mut data, Some(true)).map_err(|e| {
+            SuberError::DeserializationError(format!("Failed to parse Diger: {}", e))
+        })?;
+
+        let result: Vec<Box<dyn Matter>> = vec![Box::new(seqner), Box::new(diger)];
 
         Ok(result)
     }
@@ -417,13 +463,13 @@ mod tests {
     use crate::cesr::dater::Dater;
     use crate::cesr::diger::Diger;
     use crate::cesr::indexing::siger::Siger;
+    use crate::cesr::prefixer::Prefixer;
+    use crate::cesr::saider::Saider;
     use crate::cesr::seqner::Seqner;
     use crate::cesr::{BaseMatter, Matter, Parsable};
     use crate::keri::db::dbing::LMDBerBuilder;
     use crate::keri::db::subing::catcesr::CatCesrSuber;
     use crate::keri::db::subing::SuberError;
-    use crate::cesr::prefixer::Prefixer;
-    use crate::cesr::saider::Saider;
 
     use std::sync::Arc;
 
@@ -445,10 +491,7 @@ mod tests {
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "ssdb.",
-                vec![
-                    "seqner".to_string(),
-                    "saider".to_string(),
-                ],
+                vec!["seqner".to_string(), "saider".to_string()],
                 None,
                 false,
             )?;
@@ -482,10 +525,7 @@ mod tests {
             assert_eq!(des_saider.qb64b(), saider.qb64b());
 
             // Verify concat of all qb64b equals original serialized value
-            let combined = [
-                &des_seqner.qb64b()[..],
-                &des_saider.qb64b()[..],
-            ].concat();
+            let combined = [&des_seqner.qb64b()[..], &des_saider.qb64b()[..]].concat();
             assert_eq!(combined, valb);
 
             // Test database operations
@@ -527,7 +567,8 @@ mod tests {
             )?;
 
             // Create test data
-            let prefixer = Prefixer::from_qb64("BDzwEHHzq7K0gzQPYGGwTmuupUhPx5_yZ-Wk1x4ejhcc").unwrap();
+            let prefixer =
+                Prefixer::from_qb64("BDzwEHHzq7K0gzQPYGGwTmuupUhPx5_yZ-Wk1x4ejhcc").unwrap();
             let preb = prefixer.qb64b();
 
             let seqner = Seqner::from_sn(99);
@@ -564,7 +605,8 @@ mod tests {
                 &des_prefixer.qb64b()[..],
                 &des_seqner.qb64b()[..],
                 &des_saider.qb64b()[..],
-            ].concat();
+            ]
+            .concat();
             assert_eq!(combined, valb);
 
             // Test database operations
@@ -587,9 +629,11 @@ mod tests {
             assert_eq!(retrieved_saider.qb64b(), saider.qb64b());
 
             // Test pin (overwrite) operation
-            let new_prefixer = Prefixer::from_qb64("BHHzqZWzwE-Wk7K0gzQPYGGwTmuupUhPx5_y1x4ejhcc").unwrap();
+            let new_prefixer =
+                Prefixer::from_qb64("BHHzqZWzwE-Wk7K0gzQPYGGwTmuupUhPx5_y1x4ejhcc").unwrap();
             let new_seqner = Seqner::from_sn(100);
-            let new_saider = Saider::from_qb64("EBJPik4FxfCl-FFsSyGhHpO1VdRQTqIFr11JrYJBSBVk").unwrap();
+            let new_saider =
+                Saider::from_qb64("EBJPik4FxfCl-FFsSyGhHpO1VdRQTqIFr11JrYJBSBVk").unwrap();
 
             let new_vals: Vec<&dyn Matter> = vec![&new_prefixer, &new_seqner, &new_saider];
 

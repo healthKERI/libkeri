@@ -1,13 +1,8 @@
-<<<<<<< Updated upstream
 use crate::cesr::dater::Dater;
 use crate::cesr::{mtr_dex, non_trans_dex, pre_dex, BaseMatter, Parsable};
-=======
-use crate::cesr::{dig_dex, pre_dex, BaseMatter, Parsable};
->>>>>>> Stashed changes
 use crate::errors::MatterError;
 use crate::Matter;
 use std::any::Any;
-use crate::cesr::saider::Saider;
 
 ///  Prefixer is Matter subclass for autonomic identifier AID prefix
 #[derive(Debug, Clone)]
@@ -84,20 +79,6 @@ impl Parsable for Prefixer {
 
     fn from_qb2(data: &mut Vec<u8>, strip: Option<bool>) -> Result<Self, MatterError> {
         let base = BaseMatter::from_qb2(data, strip)?;
-        if !pre_dex::TUPLE.contains(&(base.code())) {
-            return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
-        }
-
-        Ok(Prefixer { base })
-    }
-}
-
-impl Prefixer {
-    /// The placeholder character used to fill digest fields before calculation
-    pub const DUMMY: char = '#';
-
-    pub fn from_qb64(qb64: &str) -> Result<Self, MatterError> {
-        let base = BaseMatter::from_qb64(qb64)?;
         if !pre_dex::TUPLE.contains(&(base.code())) {
             return Err(MatterError::UnsupportedCodeError(String::from(base.code())));
         }
