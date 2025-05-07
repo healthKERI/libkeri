@@ -82,25 +82,6 @@ impl TholderSith {
         }
     }
 
-    /// Converts the TholderSith to a string representation
-    ///
-    /// Returns a string that represents the threshold in a format appropriate
-    /// for its variant:
-    /// - Integer: string representation of the number
-    /// - HexString: the hex string itself
-    /// - Json: the JSON string itself
-    /// - Weights: a JSON string representation of the weights structure
-    pub fn to_string(&self) -> String {
-        match self {
-            TholderSith::Integer(n) => n.to_string(),
-            TholderSith::HexString(s) => s.clone(),
-            TholderSith::Json(s) => s.clone(),
-            TholderSith::Weights(w) => {
-                // Format the weights as a JSON string
-                serde_json::to_string(w).unwrap_or_else(|_| "<invalid weights>".to_string())
-            }
-        }
-    }
 }
 
 impl fmt::Display for TholderSith {
@@ -127,15 +108,6 @@ impl fmt::Display for WeightedSithElement {
             Ok(json) => write!(f, "{}", json),
             Err(_) => write!(f, "<invalid weight element>"),
         }
-    }
-}
-
-impl WeightedSithElement {
-    /// Converts the WeightedSithElement to a string representation
-    ///
-    /// Returns a JSON string representation of the weight element
-    pub fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "<invalid weight element>".to_string())
     }
 }
 

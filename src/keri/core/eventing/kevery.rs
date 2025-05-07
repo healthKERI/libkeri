@@ -564,9 +564,6 @@ impl<'db> Kevery<'db> {
                     }
 
                     sn = serder.sn().unwrap() - 1;
-                    if sn < 0 {
-                        return None;
-                    }
                 }
                 Err(_) => return None,
             }

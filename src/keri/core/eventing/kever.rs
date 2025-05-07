@@ -1906,11 +1906,6 @@ impl<'db> Kever<'db> {
             },
         };
 
-        // Don't go below 0
-        if start_sn < 0 {
-            return Ok(None);
-        }
-
         // Iterate backwards through the KEL from the starting sequence number
         let kel_back_iter = self
             .db

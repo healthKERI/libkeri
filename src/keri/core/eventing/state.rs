@@ -204,14 +204,6 @@ impl StateEventBuilder {
         };
 
         // Validate nsith
-        if let Some(num) = ntholder.num() {
-            if num < 0 {
-                return Err(Box::new(KERIError::ValueError(format!(
-                    "Invalid nsith = {} less than 0.",
-                    num
-                ))));
-            }
-        }
         if ntholder.size() > self.ndigs.len() {
             return Err(Box::new(KERIError::ValueError(format!(
                 "Invalid nsith = {:?} for ndigs = {:?}",
