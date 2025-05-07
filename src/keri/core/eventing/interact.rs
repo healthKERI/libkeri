@@ -66,11 +66,17 @@ impl InteractEventBuilder {
         // Validate sequence number
         let sner = Number::from_num(&BigUint::from(self.sn))?;
         if sner.num() < 1 {
-            return Err(KERIError::ValueError(format!("Invalid sn = 0x{} for ixn.", sner.numh())));
+            return Err(KERIError::ValueError(format!(
+                "Invalid sn = 0x{} for ixn.",
+                sner.numh()
+            )));
         }
 
         if !Kinds::contains(&self.kind) {
-            return Err(KERIError::ValueError(format!("Invalid kind = {} for ixn.", self.kind)));
+            return Err(KERIError::ValueError(format!(
+                "Invalid kind = {} for ixn.",
+                self.kind
+            )));
         }
         // Create versified string
         let vs = versify("KERI", &Versionage::from(self.version), &self.kind, 0)?;

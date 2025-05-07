@@ -2,13 +2,13 @@ use crate::cesr::bexter::Bexter;
 use crate::cesr::number::Number;
 use crate::cesr::{bex_dex, num_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
+use crate::keri::core::serdering::SadValue;
 use crate::Matter;
 use num_rational::Rational32;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
-use crate::keri::core::serdering::SadValue;
 
 /// Represents a weight specification for weighted thresholds
 #[derive(Debug, Clone, PartialEq)]
@@ -75,7 +75,10 @@ impl TholderSith {
                     Ok(TholderSith::HexString(s))
                 }
             }
-            _ => Err(MatterError::ValueError(format!("invalid sith value: {:?}", val)))
+            _ => Err(MatterError::ValueError(format!(
+                "invalid sith value: {:?}",
+                val
+            ))),
         }
     }
 
@@ -99,7 +102,6 @@ impl TholderSith {
         }
     }
 }
-
 
 impl fmt::Display for TholderSith {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -137,7 +139,6 @@ impl WeightedSithElement {
     }
 }
 
-
 /// Represents the different elements that can appear in a weight clause
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -153,8 +154,7 @@ pub enum WeightedSithElement {
 }
 
 /// Represents the parsed threshold for calculating satisfaction
-#[derive(Debug, Clone)]
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TholderThold {
     /// Simple integer threshold
     Integer(usize),

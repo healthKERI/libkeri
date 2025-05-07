@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
-use std::default::Default;
-use indexmap::IndexMap;
 use crate::keri::core::serdering::SadValue;
 use crate::keri::KERIError;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use std::default::Default;
 
 /// Corresponds to StateEstEvent namedtuple used as sub record in KeyStateRecord
 /// for latest establishment event associated with current key state
@@ -159,8 +159,28 @@ impl StateEERecord {
         let mut map = IndexMap::new();
         map.insert("s".to_string(), SadValue::String(self.s.clone()));
         map.insert("d".to_string(), SadValue::String(self.d.clone()));
-        map.insert("br".to_string(), SadValue::Array(self.br.clone().unwrap().iter().map(|s| SadValue::String(s.to_string())).collect()));
-        map.insert("ba".to_string(), SadValue::Array(self.ba.clone().unwrap().iter().map(|s| SadValue::String(s.to_string())).collect()));
+        map.insert(
+            "br".to_string(),
+            SadValue::Array(
+                self.br
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
+        map.insert(
+            "ba".to_string(),
+            SadValue::Array(
+                self.ba
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
 
         map
     }
@@ -186,7 +206,7 @@ impl StateEERecord {
                     }
                 }
                 Some(br_vec)
-            },
+            }
             _ => None,
         };
 
@@ -199,7 +219,7 @@ impl StateEERecord {
                     }
                 }
                 Some(ba_vec)
-            },
+            }
             _ => None,
         };
 
@@ -211,7 +231,15 @@ impl KeyStateRecord {
     /// Convert to a map representation
     pub fn to_map(&self) -> IndexMap<String, SadValue> {
         let mut map = IndexMap::new();
-        map.insert("vn".to_string(), SadValue::Array(self.vn.iter().map(|n| SadValue::Number(serde_json::Number::from(*n))).collect()));
+        map.insert(
+            "vn".to_string(),
+            SadValue::Array(
+                self.vn
+                    .iter()
+                    .map(|n| SadValue::Number(serde_json::Number::from(*n)))
+                    .collect(),
+            ),
+        );
         map.insert("i".to_string(), SadValue::String(self.i.clone()));
         map.insert("s".to_string(), SadValue::String(self.s.clone()));
         map.insert("p".to_string(), SadValue::String(self.p.clone()));
@@ -220,12 +248,44 @@ impl KeyStateRecord {
         map.insert("dt".to_string(), SadValue::String(self.dt.clone()));
         map.insert("et".to_string(), SadValue::String(self.et.clone()));
         map.insert("kt".to_string(), SadValue::String(self.kt.clone()));
-        map.insert("k".to_string(), SadValue::Array(self.k.iter().map(|s| SadValue::String(s.to_string())).collect()));
+        map.insert(
+            "k".to_string(),
+            SadValue::Array(
+                self.k
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
         map.insert("nt".to_string(), SadValue::String(self.nt.clone()));
-        map.insert("n".to_string(), SadValue::Array(self.n.iter().map(|s| SadValue::String(s.to_string())).collect()));
+        map.insert(
+            "n".to_string(),
+            SadValue::Array(
+                self.n
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
         map.insert("bt".to_string(), SadValue::String(self.bt.clone()));
-        map.insert("b".to_string(), SadValue::Array(self.b.iter().map(|s| SadValue::String(s.to_string())).collect()));
-        map.insert("c".to_string(), SadValue::Array(self.c.iter().map(|s| SadValue::String(s.to_string())).collect()));
+        map.insert(
+            "b".to_string(),
+            SadValue::Array(
+                self.b
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
+        map.insert(
+            "c".to_string(),
+            SadValue::Array(
+                self.c
+                    .iter()
+                    .map(|s| SadValue::String(s.to_string()))
+                    .collect(),
+            ),
+        );
         map.insert("ee".to_string(), SadValue::Object(self.ee.to_map()));
         map.insert("di".to_string(), SadValue::String(self.di.clone()));
 
@@ -245,7 +305,7 @@ impl KeyStateRecord {
                     }
                 }
                 vn_vec
-            },
+            }
             _ => Vec::new(),
         };
 
@@ -298,7 +358,7 @@ impl KeyStateRecord {
                     }
                 }
                 k_vec
-            },
+            }
             _ => Vec::new(),
         };
 
@@ -316,7 +376,7 @@ impl KeyStateRecord {
                     }
                 }
                 n_vec
-            },
+            }
             _ => Vec::new(),
         };
 
@@ -334,7 +394,7 @@ impl KeyStateRecord {
                     }
                 }
                 b_vec
-            },
+            }
             _ => Vec::new(),
         };
 
@@ -347,17 +407,16 @@ impl KeyStateRecord {
                     }
                 }
                 c_vec
-            },
+            }
             _ => Vec::new(),
         };
 
         let ee = match map.get("ee") {
             Some(SadValue::Object(obj)) => {
-                let ee_map: IndexMap<String, SadValue> = obj.iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
+                let ee_map: IndexMap<String, SadValue> =
+                    obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 StateEERecord::from_map(&ee_map)?
-            },
+            }
             _ => StateEERecord::default(),
         };
 
@@ -367,7 +426,23 @@ impl KeyStateRecord {
         };
 
         Ok(KeyStateRecord {
-            vn, i, s, p, d, f, dt, et, kt, k, nt, n, bt, b, c, ee, di
+            vn,
+            i,
+            s,
+            p,
+            d,
+            f,
+            dt,
+            et,
+            kt,
+            k,
+            nt,
+            n,
+            bt,
+            b,
+            c,
+            ee,
+            di,
         })
     }
 }

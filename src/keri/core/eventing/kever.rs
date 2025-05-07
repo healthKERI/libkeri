@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::sync::Arc;
 use crate::cesr::dater::Dater;
 use crate::cesr::diger::Diger;
 use crate::cesr::indexing::siger::Siger;
@@ -12,13 +10,15 @@ use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::trait_dex;
 use crate::cesr::verfer::Verfer;
 use crate::keri::core::eventing::state::StateEventBuilder;
-use crate::keri::core::serdering::{SadValue, Serder, SerderKERI, Rawifiable};
+use crate::keri::core::eventing::verify_sigs;
+use crate::keri::core::serdering::{Rawifiable, SadValue, Serder, SerderKERI};
 use crate::keri::db::basing::{Baser, EventSourceRecord, KeyStateRecord, StateEERecord};
 use crate::keri::db::dbing::keys::{dg_key, sn_key};
 use crate::keri::{Ilk, KERIError};
 use crate::Matter;
 use num_bigint::BigUint;
-use crate::keri::core::eventing::verify_sigs;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Represents the location of the last establishment event
 #[derive(Debug, Clone, PartialEq)]
@@ -56,7 +56,6 @@ pub struct Kever<'db> {
     est_only: Option<bool>,
     do_not_delegate: Option<bool>,
 }
-
 
 impl<'db> Kever<'db> {
     /// Create a new Kever instance for an inception event
@@ -230,26 +229,45 @@ impl<'db> Kever<'db> {
         // Get event type (ilk)
         let ilk = match Ilk::from_str(&state.et) {
             Some(i) => i,
-            None => return Err(KERIError::ValueError(format!("Invalid event type: {}", state.et))),
+            None => {
+                return Err(KERIError::ValueError(format!(
+                    "Invalid event type: {}",
+                    state.et
+                )))
+            }
         };
 
         // Create signing threshold holder
-        let tholder = Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(state.kt))?))?;
+        let tholder = Tholder::new(
+            None,
+            None,
+            Some(TholderSith::from_sad_value(SadValue::String(state.kt))?),
+        )?;
 
         // Create next threshold holder
-        let ntholder = Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(state.nt))?))?;
+        let ntholder = Tholder::new(
+            None,
+            None,
+            Some(TholderSith::from_sad_value(SadValue::String(state.nt))?),
+        )?;
 
         // Create verifiers from signing keys
-        let verfers = state.k.iter()
+        let verfers = state
+            .k
+            .iter()
             .map(|key| Verfer::from_qb64(key))
             .collect::<Result<Vec<Verfer>, _>>()
             .map_err(|e| KERIError::ValueError(format!("Invalid signing key: {}", e)))?;
 
         // Create digers from next keys
-        let ndigers = state.n.iter()
+        let ndigers = state
+            .n
+            .iter()
             .map(|dig| Diger::from_qb64(dig))
             .collect::<Result<Vec<Diger>, _>>()
-            .map_err(|e| KERIError::ValueError(format!("Invalid next signing key digest: {}", e)))?;
+            .map_err(|e| {
+                KERIError::ValueError(format!("Invalid next signing key digest: {}", e))
+            })?;
 
         // Create witness threshold
         let toader = Number::from_numh(&state.bt)
@@ -267,8 +285,9 @@ impl<'db> Kever<'db> {
         let do_not_delegate = state.c.contains(&"DoNotDelegate".to_string());
 
         // Create last establishment event location
-        let last_est_sn = u64::from_str_radix(&state.ee.s, 16)
-            .map_err(|e| KERIError::ValueError(format!("Invalid last establishment sequence number: {}", e)))?;
+        let last_est_sn = u64::from_str_radix(&state.ee.s, 16).map_err(|e| {
+            KERIError::ValueError(format!("Invalid last establishment sequence number: {}", e))
+        })?;
 
         let last_est = LastEstLoc {
             s: last_est_sn,
@@ -276,26 +295,33 @@ impl<'db> Kever<'db> {
         };
 
         // Get delegator prefix if any
-        let delpre = if state.di.is_empty() { None } else { Some(state.di.clone()) };
+        let delpre = if state.di.is_empty() {
+            None
+        } else {
+            Some(state.di.clone())
+        };
         let delegated = delpre.is_some();
 
         // In a complete implementation, the code below would retrieve the event from the database
         // and create the serder, then construct and return the Kever
-        
+
         // Get the corresponding event from the database
         let key = dg_key(prefixer.qb64(), state.d.clone());
-        
+
         let raw = match db.evts.get::<_, Vec<u8>>(&[key]) {
             Ok(Some(data)) => data,
-            _ => return Err(KERIError::DatabaseError(format!(
-                "Corresponding event not found for state={:?}", prefixer.qb64()
-            ))),
+            _ => {
+                return Err(KERIError::DatabaseError(format!(
+                    "Corresponding event not found for state={:?}",
+                    prefixer.qb64()
+                )))
+            }
         };
 
         // Create SerderKERI from raw bytes
         let serder = SerderKERI::from_raw(&raw, None)
             .map_err(|e| KERIError::ValueError(format!("Invalid event serder: {}", e)))?;
-        
+
         // Create and return Kever instance with all components
         Ok(Kever {
             db,
@@ -320,7 +346,6 @@ impl<'db> Kever<'db> {
             est_only: Some(est_only),
             do_not_delegate: Some(do_not_delegate),
         })
-
     }
 
     /// Verify inception key event message from serder
@@ -804,7 +829,7 @@ impl<'db> Kever<'db> {
 
         Ok((sigers, wigers, delpre, delseqner, delsaider))
     }
-    
+
     fn locally_owned(&self, pre: Option<&str>) -> bool {
         match pre {
             Some(pre) => self.db.prefixes.contains(pre) && !self.db.groups.contains(pre),
@@ -827,21 +852,17 @@ impl<'db> Kever<'db> {
 
     fn locally_membered(&self, pre: Option<&str>) -> bool {
         match pre {
-            Some(_) => { self.db.groups.contains(pre.unwrap())}
-            None => {
-                match self.prefixer() {
-                    Some(prefixer) => self.db.groups.contains(&prefixer.qb64()),
-                    None => false,
-                }
-            }
+            Some(_) => self.db.groups.contains(pre.unwrap()),
+            None => match self.prefixer() {
+                Some(prefixer) => self.db.groups.contains(&prefixer.qb64()),
+                None => false,
+            },
         }
     }
 
-    
     fn locally_contributed_indices(&self, _verfers: &[Verfer]) -> Option<Vec<u32>> {
         todo!("Implement getting indices of locally contributed signatures")
     }
-
 
     /// Returns true if a local controller is a witness of this Kever's KEL or the provided witness list
     ///
@@ -888,7 +909,7 @@ impl<'db> Kever<'db> {
         !local_prefix_set.is_disjoint(&witness_set)
     }
 
-    /// Derives and returns tuple of (wits, cuts, adds) for backers given current set 
+    /// Derives and returns tuple of (wits, cuts, adds) for backers given current set
     /// and any changes provided by serder.
     ///
     /// # Arguments
@@ -902,19 +923,24 @@ impl<'db> Kever<'db> {
     ///
     /// # Errors
     /// Returns ValidationError if there are invalid combinations of witnesses, cuts, or adds
-    pub fn derive_backs(&self, serder: &SerderKERI) -> Result<(Vec<String>, Vec<String>, Vec<String>), KERIError> {
+    pub fn derive_backs(
+        &self,
+        serder: &SerderKERI,
+    ) -> Result<(Vec<String>, Vec<String>, Vec<String>), KERIError> {
         // Get current ilk from serder
         let ilk = serder.ilk().unwrap();
         let sn = serder.sn().unwrap();
 
-        // If not a rotation or delegation rotation event, or sequence number is not greater, 
+        // If not a rotation or delegation rotation event, or sequence number is not greater,
         // return current values with no changes
-        if (ilk != Ilk::Icp && ilk != Ilk::Drt) || self.sner.as_ref().map_or(0, |n| n.num()) >= sn as u128 {
+        if (ilk != Ilk::Icp && ilk != Ilk::Drt)
+            || self.sner.as_ref().map_or(0, |n| n.num()) >= sn as u128
+        {
             // Return current values with empty cuts and adds lists
             return Ok((
                 self.wits(),
                 self.cuts.as_ref().map_or_else(Vec::new, |c| c.clone()),
-                self.adds.as_ref().map_or_else(Vec::new, |a| a.clone())
+                self.adds.as_ref().map_or_else(Vec::new, |a| a.clone()),
             ));
         }
 
@@ -930,7 +956,8 @@ impl<'db> Kever<'db> {
         if cut_set.len() != cuts.len() {
             return Err(KERIError::ValidationError(format!(
                 "Invalid cuts = {:?}, has duplicates for evt = {:?}",
-                cuts, serder.ked()
+                cuts,
+                serder.ked()
             )));
         }
 
@@ -938,7 +965,8 @@ impl<'db> Kever<'db> {
         if !cut_set.is_subset(&wit_set) {
             return Err(KERIError::ValidationError(format!(
                 "Invalid cuts = {:?}, not all members in wits for evt = {:?}",
-                cuts, serder.ked()
+                cuts,
+                serder.ked()
             )));
         }
 
@@ -950,7 +978,8 @@ impl<'db> Kever<'db> {
         if add_set.len() != adds.len() {
             return Err(KERIError::ValidationError(format!(
                 "Invalid adds = {:?}, has duplicates for evt = {:?}",
-                adds, serder.ked()
+                adds,
+                serder.ked()
             )));
         }
 
@@ -958,7 +987,9 @@ impl<'db> Kever<'db> {
         if !cut_set.is_disjoint(&add_set) {
             return Err(KERIError::ValidationError(format!(
                 "Intersecting cuts = {:?} and adds = {:?} for evt = {:?}",
-                cuts, adds, serder.ked()
+                cuts,
+                adds,
+                serder.ked()
             )));
         }
 
@@ -966,7 +997,9 @@ impl<'db> Kever<'db> {
         if !wit_set.is_disjoint(&add_set) {
             return Err(KERIError::ValidationError(format!(
                 "Intersecting wits = {:?} and adds = {:?} for evt = {:?}",
-                wits, adds, serder.ked()
+                wits,
+                adds,
+                serder.ked()
             )));
         }
 
@@ -990,15 +1023,18 @@ impl<'db> Kever<'db> {
 
         Ok((new_wits, cuts, adds))
     }
-    
 
     pub fn verfers(&self) -> Option<Vec<Verfer>> {
         self.verfers.clone()
     }
-    
-    pub fn sner(&self) -> Option<Number> { self.sner.clone() }
-    
-    pub fn last_est(&self) -> Option<LastEstLoc> {self.last_est.clone()}
+
+    pub fn sner(&self) -> Option<Number> {
+        self.sner.clone()
+    }
+
+    pub fn last_est(&self) -> Option<LastEstLoc> {
+        self.last_est.clone()
+    }
 
     fn escrow_mf_event(
         &self,
@@ -1131,7 +1167,9 @@ impl<'db> Kever<'db> {
             return Ok((None, None));
         }
 
-        Err(KERIError::ValidationError("Delegation not yet implemented for this kever".to_string()))
+        Err(KERIError::ValidationError(
+            "Delegation not yet implemented for this kever".to_string(),
+        ))
     }
 
     /// Not an inception event. Verify event serder and indexed signatures
@@ -1187,14 +1225,18 @@ impl<'db> Kever<'db> {
 
         // Check if identifier is transferable
         if !self.transferable() {
-            return Err(KERIError::ValidationError("Missing prefixer in Kever state".to_string()));
+            return Err(KERIError::ValidationError(
+                "Missing prefixer in Kever state".to_string(),
+            ));
         }
 
         // Check if event prefix matches kever prefixer
         if serder.pre() != Some(self.prefixer.clone().unwrap().qb64()) {
             return Err(KERIError::ValidationError(format!(
                 "Mismatch event aid prefix = {} expecting = {} for evt = {:?}",
-                serder.pre().unwrap(), self.prefixer.as_ref().unwrap().qb64(), ked
+                serder.pre().unwrap(),
+                self.prefixer.as_ref().unwrap().qb64(),
+                ked
             )));
         }
 
@@ -1209,7 +1251,8 @@ impl<'db> Kever<'db> {
             if self.delegated && ilk != Ilk::Drt {
                 return Err(KERIError::ValidationError(format!(
                     "Attempted non delegated rotation on delegated pre = {} with evt = {:?}",
-                    serder.pre().unwrap(), ked
+                    serder.pre().unwrap(),
+                    ked
                 )));
             }
 
@@ -1217,8 +1260,8 @@ impl<'db> Kever<'db> {
             let (tholder, toader, wits, cuts, adds) = self.rotate(&serder)?;
 
             // Validate signatures, delegation if any, and witnessing when applicable
-            let (sigers_verified, wigers_verified, _, delseqner_updated, delsaider_updated) =
-                self.val_sigs_wigs_del(
+            let (sigers_verified, wigers_verified, _, delseqner_updated, delsaider_updated) = self
+                .val_sigs_wigs_del(
                     serder.clone(),
                     sigers,
                     serder.verfers(),
@@ -1280,7 +1323,8 @@ impl<'db> Kever<'db> {
             // Check if est_only is true
             if self.est_only.unwrap_or(false) {
                 return Err(KERIError::ValidationError(format!(
-                    "Unexpected non-establishment event = {:?}", serder.ked()
+                    "Unexpected non-establishment event = {:?}",
+                    serder.ked()
                 )));
             }
 
@@ -1289,7 +1333,9 @@ impl<'db> Kever<'db> {
             if sner != (self_sn + 1) as u64 {
                 return Err(KERIError::ValidationError(format!(
                     "Invalid sn = {} expecting = {} for evt = {:?}",
-                    sner, self_sn + 1, ked
+                    sner,
+                    self_sn + 1,
+                    ked
                 )));
             }
 
@@ -1298,52 +1344,53 @@ impl<'db> Kever<'db> {
             if ked["p"] != SadValue::String(self_said.unwrap_or_default().to_string()) {
                 return Err(KERIError::ValidationError(format!(
                     "Mismatch event dig = {} with state dig = {} for evt = {:?}",
-                    ked["p"].as_str().unwrap(), self_said.unwrap(), ked
+                    ked["p"].as_str().unwrap(),
+                    self_said.unwrap(),
+                    ked
                 )));
             }
 
             // Use keys, sith, toad, and wits from pre-existing Kever state
-            let verfers = self.verfers.clone().ok_or_else(||
+            let verfers = self.verfers.clone().ok_or_else(|| {
                 KERIError::ValidationError("Missing verfers in Kever state".to_string())
-            )?;
+            })?;
 
-            let tholder = self.tholder.clone().ok_or_else(||
+            let tholder = self.tholder.clone().ok_or_else(|| {
                 KERIError::ValidationError("Missing tholder in Kever state".to_string())
-            )?;
+            })?;
 
-            let toader = self.toader.clone().ok_or_else(||
+            let toader = self.toader.clone().ok_or_else(|| {
                 KERIError::ValidationError("Missing toader in Kever state".to_string())
-            )?;
+            })?;
 
             let wits = self.wits.clone().unwrap_or_default();
 
             // Validate signatures, delegation, and witnessing
-            let (sigers_verified, wigers_verified, _, _, _) =
-                self.val_sigs_wigs_del(
-                    serder.clone(),
-                    sigers,
-                    Some(verfers),
-                    tholder,
-                    wigers,
-                    Some(toader),
-                    wits,
-                    None, // No delegation for ixn events
-                    None, // No delegation for ixn events
-                    eager,
-                    local,
-                )?;
+            let (sigers_verified, wigers_verified, _, _, _) = self.val_sigs_wigs_del(
+                serder.clone(),
+                sigers,
+                Some(verfers),
+                tholder,
+                wigers,
+                Some(toader),
+                wits,
+                None, // No delegation for ixn events
+                None, // No delegation for ixn events
+                eager,
+                local,
+            )?;
 
             // Log event to KEL and FEL if not in check mode
             let (fn_val, dts) = self.log_event(
                 serder.clone(),
                 sigers_verified,
                 wigers_verified,
-                None, // No wits param for ixn
+                None,   // No wits param for ixn
                 !check, // first
-                None,  // No delegation for ixn
-                None,  // No delegation for ixn
-                None,  // No firner for standard ixn
-                None,  // No dater for standard ixn
+                None,   // No delegation for ixn
+                None,   // No delegation for ixn
+                None,   // No firner for standard ixn
+                None,   // No dater for standard ixn
                 local,
             )?;
 
@@ -1365,7 +1412,8 @@ impl<'db> Kever<'db> {
         // Handle unsupported event type
         else {
             return Err(KERIError::ValidationError(format!(
-                "Unsupported ilk = {} for evt = {:?}", ilk, ked
+                "Unsupported ilk = {} for evt = {:?}",
+                ilk, ked
             )));
         }
 
@@ -1389,7 +1437,10 @@ impl<'db> Kever<'db> {
     ///
     /// * `ValidationError` - if the rotation event is invalid
     /// * `ValueError` - if the toad value is invalid
-    pub fn rotate(&self, serder: &SerderKERI) -> Result<(Tholder, Number, Vec<String>, Vec<String>, Vec<String>), KERIError> {
+    pub fn rotate(
+        &self,
+        serder: &SerderKERI,
+    ) -> Result<(Tholder, Number, Vec<String>, Vec<String>, Vec<String>), KERIError> {
         let ked = &serder.ked();
         let sn = serder.sn().unwrap_or_default();
         let pre = serder.pre().unwrap();
@@ -1403,7 +1454,9 @@ impl<'db> Kever<'db> {
         if sn > (self_sn + 1) as u64 {
             return Err(KERIError::ValidationError(format!(
                 "Out of order event sn = {} expecting = {} for evt = {:?}",
-                sn, self_sn + 1, ked
+                sn,
+                self_sn + 1,
+                ked
             )));
         } else if sn <= self_sn as u64 {
             // Event is stale or recovery
@@ -1413,7 +1466,9 @@ impl<'db> Kever<'db> {
                 // Stale event
                 return Err(KERIError::ValidationError(format!(
                     "Stale event sn = {} expecting = {} for evt = {:?}",
-                    sn, self_sn + 1, ked
+                    sn,
+                    self_sn + 1,
+                    ked
                 )));
             } else {
                 // Recovery event
@@ -1435,19 +1490,24 @@ impl<'db> Kever<'db> {
                         Ok(d) => d,
                         Err(_) => return Err(KERIError::ValueError("Invalid digest".to_string())),
                     },
-                    None => return Err(KERIError::ValidationError(format!(
-                        "Invalid recovery attempt: Bad sn = {} for event = {:?}",
-                        psn, ked
-                    ))),
+                    None => {
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid recovery attempt: Bad sn = {} for event = {:?}",
+                            psn, ked
+                        )))
+                    }
                 };
 
                 // Get the event from database
                 let dig_key = dg_key(pre, pdig.clone());
                 let praw = match self.db.evts.get::<_, Vec<u8>>(&[&dig_key])? {
                     Some(raw) => raw,
-                    None => return Err(KERIError::ValidationError(format!(
-                        "Invalid recovery attempt: Bad dig = {}", pdig
-                    ))),
+                    None => {
+                        return Err(KERIError::ValidationError(format!(
+                            "Invalid recovery attempt: Bad dig = {}",
+                            pdig
+                        )))
+                    }
                 };
 
                 // Deserialize prior event
@@ -1478,7 +1538,8 @@ impl<'db> Kever<'db> {
         if self.ndigers.is_none() || self.ndigers.as_ref().map_or(true, |d| d.is_empty()) {
             return Err(KERIError::ValidationError(format!(
                 "Attempted rotation for nontransferable prefix = {} for evt = {:?}",
-                self.prefixer.as_ref().map(|p| p.qb64()).unwrap_or_default(), ked
+                self.prefixer.as_ref().map(|p| p.qb64()).unwrap_or_default(),
+                ked
             )));
         }
 
@@ -1490,7 +1551,9 @@ impl<'db> Kever<'db> {
         if keys.len() < tholder.size() {
             return Err(KERIError::ValidationError(format!(
                 "Invalid sith = {} for keys = {:?} for evt = {:?}",
-                tholder.sith(), keys, ked
+                tholder.sith(),
+                keys,
+                ked
             )));
         }
 
@@ -1505,21 +1568,24 @@ impl<'db> Kever<'db> {
             if toader.num() < 1 || toader.num() > wits.len() as u128 {
                 return Err(KERIError::ValueError(format!(
                     "Invalid toad = {} for backers (wits)={:?} for event={:?}",
-                    toader.num(), wits, ked
+                    toader.num(),
+                    wits,
+                    ked
                 )));
             }
         } else {
             if toader.num() != 0 {
                 return Err(KERIError::ValueError(format!(
                     "Invalid toad = {} for backers (wits)={:?} for event={:?}",
-                    toader.num(), wits, ked
+                    toader.num(),
+                    wits,
+                    ked
                 )));
             }
         }
 
         Ok((tholder, toader, wits, cuts, adds))
     }
-    
 
     pub fn log_event(
         &self,
@@ -1784,12 +1850,17 @@ impl<'db> Kever<'db> {
     fn prefixer(&self) -> Option<Prefixer> {
         self.prefixer.clone()
     }
-    
+
     fn ndigs(&self) -> Vec<String> {
         if self.ndigers.is_none() {
             Vec::new()
         } else {
-            self.ndigers.clone().unwrap().iter().map(|d| {d.qb64()}).collect()
+            self.ndigers
+                .clone()
+                .unwrap()
+                .iter()
+                .map(|d| d.qb64())
+                .collect()
         }
     }
 
@@ -1836,12 +1907,15 @@ impl<'db> Kever<'db> {
         };
 
         // Don't go below 0
-        if start_sn  < 0 {
+        if start_sn < 0 {
             return Ok(None);
         }
 
         // Iterate backwards through the KEL from the starting sequence number
-        let kel_back_iter = self.db.kels.get_on_back_iter::<_, Vec<u8>>(&[&pre], start_sn as u32)?;
+        let kel_back_iter = self
+            .db
+            .kels
+            .get_on_back_iter::<_, Vec<u8>>(&[&pre], start_sn as u32)?;
 
         for digb in kel_back_iter {
             // Create the digest key for the event
@@ -1850,7 +1924,7 @@ impl<'db> Kever<'db> {
             // Get the event data
             let raw = match self.db.evts.get::<_, Vec<u8>>(&[dgkey]) {
                 Ok(evt) => evt,
-                Err(_) => {return Ok(None)},
+                Err(_) => return Ok(None),
             };
 
             // Parse the event
@@ -1866,10 +1940,14 @@ impl<'db> Kever<'db> {
         // No prior establishment event found
         Ok(None)
     }
-    
+
     pub fn transferable(&self) -> bool {
         match &self.prefixer {
-            Some(prefixer) => self.ndigers.is_some() && self.ndigers.clone().unwrap().len() > 0 && prefixer.transferable(),
+            Some(prefixer) => {
+                self.ndigers.is_some()
+                    && self.ndigers.clone().unwrap().len() > 0
+                    && prefixer.transferable()
+            }
             None => false,
         }
     }
@@ -2010,16 +2088,16 @@ mod tests {
     use super::*;
     use crate::cesr::diger::Diger;
     use crate::cesr::signing::{Salter, Sigmat};
+    use crate::cesr::tholder::TholderThold;
     use crate::cesr::{mtr_dex, pre_dex};
+    use crate::keri::core::eventing::interact::InteractEventBuilder;
+    use crate::keri::core::eventing::rotate::RotateEventBuilder;
+    use crate::keri::core::eventing::InceptionEventBuilder;
     use crate::keri::core::serdering::SadValue;
     use crate::keri::db::dbing::LMDBer;
     use crate::keri::KERIError;
     use std::collections::HashMap;
     use std::sync::Arc;
-    use crate::cesr::tholder::TholderThold;
-    use crate::keri::core::eventing::InceptionEventBuilder;
-    use crate::keri::core::eventing::interact::InteractEventBuilder;
-    use crate::keri::core::eventing::rotate::RotateEventBuilder;
 
     #[test]
     fn test_kever() -> Result<(), KERIError> {
@@ -2279,7 +2357,7 @@ mod tests {
             )),
         }
     }
-    
+
     #[test]
     fn test_keyeventsequence_0() -> Result<(), KERIError> {
         // Test generation of a sequence of key events
@@ -2293,16 +2371,19 @@ mod tests {
         let pubkeys: Vec<String> = signers.iter().map(|s| s.verfer().qb64()).collect();
 
         // Assert public keys match expected values
-        assert_eq!(pubkeys, vec![
-            "DErocgXD2RGSyvn3MObcx59jeOsEQhv2TqHirVkzrp0Q".to_string(),
-            "DFXLiTjiRdSBPLL6hLa0rskIxk3dh4XwJLfctkJFLRSS".to_string(),
-            "DE9YgIQVgpLwocTVrG8tidKScsQSMWwLWywNC48fhq4f".to_string(),
-            "DCjxOXniUc5EUzDqERlXdptfKPHy6jNo_ZGsS4Vd8fAE".to_string(),
-            "DNZHARO4dCJlluv0qezEMRmErIWWc-lzOzolBOQ15tHV".to_string(),
-            "DOCQ4KN1jUlKbfjRteDYt9fxgpq1NK9_MqO5IA7shpED".to_string(),
-            "DFY1nGjV9oApBzo5Oq5JqjwQsZEQqsCCftzo3WJjMMX-".to_string(),
-            "DE9ZxA3qXegkgDAhOzWP45S3Ruv5ilJSkv5lvthyWNYY".to_string(),
-        ]);
+        assert_eq!(
+            pubkeys,
+            vec![
+                "DErocgXD2RGSyvn3MObcx59jeOsEQhv2TqHirVkzrp0Q".to_string(),
+                "DFXLiTjiRdSBPLL6hLa0rskIxk3dh4XwJLfctkJFLRSS".to_string(),
+                "DE9YgIQVgpLwocTVrG8tidKScsQSMWwLWywNC48fhq4f".to_string(),
+                "DCjxOXniUc5EUzDqERlXdptfKPHy6jNo_ZGsS4Vd8fAE".to_string(),
+                "DNZHARO4dCJlluv0qezEMRmErIWWc-lzOzolBOQ15tHV".to_string(),
+                "DOCQ4KN1jUlKbfjRteDYt9fxgpq1NK9_MqO5IA7shpED".to_string(),
+                "DFY1nGjV9oApBzo5Oq5JqjwQsZEQqsCCftzo3WJjMMX-".to_string(),
+                "DE9ZxA3qXegkgDAhOzWP45S3Ruv5ilJSkv5lvthyWNYY".to_string(),
+            ]
+        );
 
         let lmdber = LMDBer::builder()
             .name("temp")
@@ -2323,11 +2404,16 @@ mod tests {
         let nxt1 = vec![ndiger1.qb64()];
 
         // Verify next digest matches expected value
-        assert_eq!(nxt1, vec!["EIQsSW4KMrLzY1HQI9H_XxY6MyzhaFFXhG6fdBb5Wxta".to_string()]);
+        assert_eq!(
+            nxt1,
+            vec!["EIQsSW4KMrLzY1HQI9H_XxY6MyzhaFFXhG6fdBb5Wxta".to_string()]
+        );
 
         // Create inception event
 
-        let serder0 = InceptionEventBuilder::new(keys0.clone()).with_ndigs(nxt1.clone()).build()?;
+        let serder0 = InceptionEventBuilder::new(keys0.clone())
+            .with_ndigs(nxt1.clone())
+            .build()?;
         let pre = serder0.pre().unwrap();
         event_digs.push(serder0.said().unwrap().to_string());
 
@@ -2337,17 +2423,26 @@ mod tests {
         assert_eq!(serder0.ked()["kt"].as_str(), Some("1"));
         assert_eq!(
             serder0.ked()["k"].as_array(),
-            Some(&keys0.iter()
-                .map(|k| SadValue::String(k.to_string()))
-                .collect::<Vec<SadValue>>())
+            Some(
+                &keys0
+                    .iter()
+                    .map(|k| SadValue::String(k.to_string()))
+                    .collect::<Vec<SadValue>>()
+            )
         );
         assert_eq!(
             serder0.ked()["n"].as_array(),
-            Some(&nxt1.iter()
-                .map(|n| SadValue::String(n.to_string()))
-                .collect::<Vec<SadValue>>())
+            Some(
+                &nxt1
+                    .iter()
+                    .map(|n| SadValue::String(n.to_string()))
+                    .collect::<Vec<SadValue>>()
+            )
         );
-        assert_eq!(serder0.said().unwrap(), "ECLgCt_5bprUe0SF1XCR94Zo5ShSEZO8cLf0dH3pwZxU");
+        assert_eq!(
+            serder0.said().unwrap(),
+            "ECLgCt_5bprUe0SF1XCR94Zo5ShSEZO8cLf0dH3pwZxU"
+        );
 
         // Sign the serialization
         let sig0 = match signers[0].sign(serder0.raw(), Some(0), None, None)? {
@@ -2371,12 +2466,22 @@ mod tests {
         // Verify Kever state
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 0u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[0]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[0]
+        );
         assert_eq!(kever.ilk, Ilk::Icp);
-        assert_eq!(kever.tholder.clone().unwrap().thold(), &TholderThold::Integer(1));
+        assert_eq!(
+            kever.tholder.clone().unwrap().thold(),
+            &TholderThold::Integer(1)
+        );
 
         // Verify verfers in Kever match keys0
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys0);
@@ -2396,16 +2501,19 @@ mod tests {
         let keys2 = vec![signers[2].verfer().qb64()];
         let ndiger2 = Diger::from_ser(&signers[2].verfer().qb64b(), None)?;
         let nxt2 = vec![ndiger2.qb64()];
-        assert_eq!(nxt2, vec!["EHuvLs1hmwxo4ImDoCpaAermYVQhiPsPDNaZsz4bcgko".to_string()]);
+        assert_eq!(
+            nxt2,
+            vec!["EHuvLs1hmwxo4ImDoCpaAermYVQhiPsPDNaZsz4bcgko".to_string()]
+        );
 
         let serder1 = RotateEventBuilder::new(
             pre.clone(),
             keys1.clone(),
             serder0.said().unwrap().to_string(),
         )
-            .with_sn(1)
-            .with_ndigs(nxt2.clone())
-            .build()?;
+        .with_sn(1)
+        .with_ndigs(nxt2.clone())
+        .build()?;
 
         event_digs.push(serder1.said().unwrap().to_string());
 
@@ -2413,14 +2521,27 @@ mod tests {
         assert_eq!(serder1.ked()["s"].as_str().unwrap(), "1");
         assert_eq!(serder1.ked()["kt"].as_str().unwrap(), "1");
         assert_eq!(
-            serder1.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder1.ked()["k"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             keys1
         );
         assert_eq!(
-            serder1.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder1.ked()["n"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             nxt2
         );
-        assert_eq!(serder1.ked()["p"].as_str().unwrap(), serder0.said().unwrap());
+        assert_eq!(
+            serder1.ked()["p"].as_str().unwrap(),
+            serder0.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig1 = match signers[1].sign(serder1.raw(), Some(0), None, None)? {
@@ -2434,14 +2555,32 @@ mod tests {
         assert!(signers[1].verfer().verify(sig1.raw(), serder1.raw())?);
 
         // update key event verifier state
-        kever.update(serder1.clone(), vec![sig1], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder1.clone(),
+            vec![sig1],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 1u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[1]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[1]
+        );
         assert_eq!(kever.ilk, Ilk::Rot);
 
         // Verify verfers in Kever match keys1
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys1);
@@ -2465,23 +2604,36 @@ mod tests {
             keys2.clone(),
             serder1.said().unwrap().to_string(),
         )
-            .with_sn(2)
-            .with_ndigs(nxt3.clone())
-            .build()?;
+        .with_sn(2)
+        .with_ndigs(nxt3.clone())
+        .build()?;
 
         event_digs.push(serder2.said().unwrap().to_string());
 
         assert_eq!(serder2.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder2.ked()["s"].as_str().unwrap(), "2");
         assert_eq!(
-            serder2.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder2.ked()["k"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             keys2
         );
         assert_eq!(
-            serder2.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder2.ked()["n"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             nxt3
         );
-        assert_eq!(serder2.ked()["p"].as_str().unwrap(), serder1.said().unwrap());
+        assert_eq!(
+            serder2.ked()["p"].as_str().unwrap(),
+            serder1.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig2 = match signers[2].sign(serder2.raw(), Some(0), None, None)? {
@@ -2495,14 +2647,32 @@ mod tests {
         assert!(signers[2].verfer().verify(sig2.raw(), serder2.raw())?);
 
         // update key event verifier state
-        kever.update(serder2.clone(), vec![sig2], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder2.clone(),
+            vec![sig2],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 2u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[2]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[2]
+        );
         assert_eq!(kever.ilk, Ilk::Rot);
 
         // Verify verfers in Kever match keys2
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys2);
@@ -2524,7 +2694,10 @@ mod tests {
 
         assert_eq!(serder3.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder3.ked()["s"].as_str().unwrap(), "3");
-        assert_eq!(serder3.ked()["p"].as_str().unwrap(), serder2.said().unwrap());
+        assert_eq!(
+            serder3.ked()["p"].as_str().unwrap(),
+            serder2.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig3 = match signers[2].sign(serder3.raw(), Some(0), None, None)? {
@@ -2538,14 +2711,32 @@ mod tests {
         assert!(signers[2].verfer().verify(sig3.raw(), serder3.raw())?);
 
         // update key event verifier state
-        kever.update(serder3.clone(), vec![sig3], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder3.clone(),
+            vec![sig3],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 3u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[3]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[3]
+        );
         assert_eq!(kever.ilk, Ilk::Ixn);
 
         // Verify verfers in Kever match keys2 (no change)
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys2);
@@ -2556,7 +2747,7 @@ mod tests {
         let pigers = kever.fetch_prior_digers(None)?;
         assert!(pigers.is_some());
         let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
-        assert_eq!(pigers_qb64, nxt2);  // digs from rot before rot before ixn
+        assert_eq!(pigers_qb64, nxt2); // digs from rot before rot before ixn
 
         // Event 4 Interaction
         let serder4 = InteractEventBuilder::new(pre.clone(), serder3.said().unwrap().to_string())
@@ -2567,7 +2758,10 @@ mod tests {
 
         assert_eq!(serder4.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder4.ked()["s"].as_str().unwrap(), "4");
-        assert_eq!(serder4.ked()["p"].as_str().unwrap(), serder3.said().unwrap());
+        assert_eq!(
+            serder4.ked()["p"].as_str().unwrap(),
+            serder3.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig4 = match signers[2].sign(serder4.raw(), Some(0), None, None)? {
@@ -2581,14 +2775,32 @@ mod tests {
         assert!(signers[2].verfer().verify(sig4.raw(), serder4.raw())?);
 
         // update key event verifier state
-        kever.update(serder4.clone(), vec![sig4], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder4.clone(),
+            vec![sig4],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 4u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[4]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[4]
+        );
         assert_eq!(kever.ilk, Ilk::Ixn);
 
         // Verify verfers in Kever match keys2 (no change)
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys2);
@@ -2599,7 +2811,7 @@ mod tests {
         let pigers = kever.fetch_prior_digers(None)?;
         assert!(pigers.is_some());
         let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
-        assert_eq!(pigers_qb64, nxt2);  // digs from rot before rot before ixn ixn
+        assert_eq!(pigers_qb64, nxt2); // digs from rot before rot before ixn ixn
 
         // Event 5 Rotation Transferable
         // compute nxt digest from keys4
@@ -2612,23 +2824,36 @@ mod tests {
             keys3.clone(),
             serder4.said().unwrap().to_string(),
         )
-            .with_sn(5)
-            .with_ndigs(nxt4.clone())
-            .build()?;
+        .with_sn(5)
+        .with_ndigs(nxt4.clone())
+        .build()?;
 
         event_digs.push(serder5.said().unwrap().to_string());
 
         assert_eq!(serder5.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder5.ked()["s"].as_str().unwrap(), "5");
         assert_eq!(
-            serder5.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder5.ked()["k"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             keys3
         );
         assert_eq!(
-            serder5.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder5.ked()["n"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             nxt4
         );
-        assert_eq!(serder5.ked()["p"].as_str().unwrap(), serder4.said().unwrap());
+        assert_eq!(
+            serder5.ked()["p"].as_str().unwrap(),
+            serder4.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig5 = match signers[3].sign(serder5.raw(), Some(0), None, None)? {
@@ -2642,14 +2867,32 @@ mod tests {
         assert!(signers[3].verfer().verify(sig5.raw(), serder5.raw())?);
 
         // update key event verifier state
-        kever.update(serder5.clone(), vec![sig5], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder5.clone(),
+            vec![sig5],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 5u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[5]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[5]
+        );
         assert_eq!(kever.ilk, Ilk::Rot);
 
         // Verify verfers in Kever match keys3
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys3);
@@ -2660,7 +2903,7 @@ mod tests {
         let pigers = kever.fetch_prior_digers(None)?;
         assert!(pigers.is_some());
         let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
-        assert_eq!(pigers_qb64, nxt3);  // digs from rot before ixn ixn before rot
+        assert_eq!(pigers_qb64, nxt3); // digs from rot before ixn ixn before rot
 
         // Event 6 Interaction
         let serder6 = InteractEventBuilder::new(pre.clone(), serder5.said().unwrap().to_string())
@@ -2671,7 +2914,10 @@ mod tests {
 
         assert_eq!(serder6.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder6.ked()["s"].as_str().unwrap(), "6");
-        assert_eq!(serder6.ked()["p"].as_str().unwrap(), serder5.said().unwrap());
+        assert_eq!(
+            serder6.ked()["p"].as_str().unwrap(),
+            serder5.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig6 = match signers[3].sign(serder6.raw(), Some(0), None, None)? {
@@ -2685,14 +2931,32 @@ mod tests {
         assert!(signers[3].verfer().verify(sig6.raw(), serder6.raw())?);
 
         // update key event verifier state
-        kever.update(serder6.clone(), vec![sig6], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder6.clone(),
+            vec![sig6],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 6u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[6]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[6]
+        );
         assert_eq!(kever.ilk, Ilk::Ixn);
 
         // Verify verfers in Kever match keys3 (no change)
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys3);
@@ -2706,23 +2970,28 @@ mod tests {
             keys4.clone(),
             serder6.said().unwrap().to_string(),
         )
-            .with_sn(7)
-            .build()?;  // Empty ndigs for non-transferable rotation
+        .with_sn(7)
+        .build()?; // Empty ndigs for non-transferable rotation
 
         event_digs.push(serder7.said().unwrap().to_string());
 
         assert_eq!(serder7.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder7.ked()["s"].as_str().unwrap(), "7");
         assert_eq!(
-            serder7.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            serder7.ked()["k"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect::<Vec<&str>>(),
             keys4
         );
         // Check for empty ndigs list
+        assert_eq!(serder7.ked()["n"].as_array().unwrap().len(), 0);
         assert_eq!(
-            serder7.ked()["n"].as_array().unwrap().len(),
-            0
+            serder7.ked()["p"].as_str().unwrap(),
+            serder6.said().unwrap()
         );
-        assert_eq!(serder7.ked()["p"].as_str().unwrap(), serder6.said().unwrap());
 
         // sign serialization and verify signature
         let sig7 = match signers[4].sign(serder7.raw(), Some(0), None, None)? {
@@ -2736,14 +3005,32 @@ mod tests {
         assert!(signers[4].verfer().verify(sig7.raw(), serder7.raw())?);
 
         // update key event verifier state
-        kever.update(serder7.clone(), vec![sig7], None, None, None, None, None, false, false, false)?;
+        kever.update(
+            serder7.clone(),
+            vec![sig7],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        )?;
         assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
         assert_eq!(kever.sner.as_ref().unwrap().num(), 7u128);
-        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[7]);
+        assert_eq!(
+            kever.serder.as_ref().unwrap().said().unwrap(),
+            event_digs[7]
+        );
         assert_eq!(kever.ilk, Ilk::Rot);
 
         // Verify verfers in Kever match keys4
-        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+        let kever_verfers: Vec<String> = kever
+            .verfers
+            .as_ref()
+            .unwrap()
+            .iter()
             .map(|v| v.qb64())
             .collect();
         assert_eq!(kever_verfers, keys4);
@@ -2761,7 +3048,10 @@ mod tests {
 
         assert_eq!(serder8.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder8.ked()["s"].as_str().unwrap(), "8");
-        assert_eq!(serder8.ked()["p"].as_str().unwrap(), serder7.said().unwrap());
+        assert_eq!(
+            serder8.ked()["p"].as_str().unwrap(),
+            serder7.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig8 = match signers[4].sign(serder8.raw(), Some(0), None, None)? {
@@ -2775,26 +3065,40 @@ mod tests {
         assert!(signers[4].verfer().verify(sig8.raw(), serder8.raw())?);
 
         // update key event verifier state - should fail with ValidationError
-        let result = kever.update(serder8.clone(), vec![sig8.clone()], None, None, None, None, None, false, false, false);
+        let result = kever.update(
+            serder8.clone(),
+            vec![sig8.clone()],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        );
         assert!(result.is_err());
         assert!(matches!(result, Err(KERIError::ValidationError(_))));
 
         // Event 8 Rotation (should also be rejected as identifier is non-transferable)
         let keys5 = vec![signers[5].verfer().qb64()];
-        let nxt5 = vec![ndiger4.qb64()];  // reuse ndiger4 as in Python example
+        let nxt5 = vec![ndiger4.qb64()]; // reuse ndiger4 as in Python example
 
         let serder8_rot = RotateEventBuilder::new(
             pre.clone(),
             keys5.clone(),
             serder7.said().unwrap().to_string(),
         )
-            .with_sn(8)
-            .with_ndigs(nxt5.clone())
-            .build()?;
+        .with_sn(8)
+        .with_ndigs(nxt5.clone())
+        .build()?;
 
         assert_eq!(serder8_rot.ked()["i"].as_str().unwrap(), pre);
         assert_eq!(serder8_rot.ked()["s"].as_str().unwrap(), "8");
-        assert_eq!(serder8_rot.ked()["p"].as_str().unwrap(), serder7.said().unwrap());
+        assert_eq!(
+            serder8_rot.ked()["p"].as_str().unwrap(),
+            serder7.said().unwrap()
+        );
 
         // sign serialization and verify signature
         let sig8_rot = match signers[4].sign(serder8_rot.raw(), Some(0), None, None)? {
@@ -2805,10 +3109,23 @@ mod tests {
                 ))
             }
         };
-        assert!(signers[4].verfer().verify(sig8_rot.raw(), serder8_rot.raw())?);
+        assert!(signers[4]
+            .verfer()
+            .verify(sig8_rot.raw(), serder8_rot.raw())?);
 
         // update key event verifier state - should fail with ValidationError
-        let result = kever.update(serder8_rot, vec![sig8_rot], None, None, None, None, None, false, false, false);
+        let result = kever.update(
+            serder8_rot,
+            vec![sig8_rot],
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            false,
+            false,
+        );
         assert!(result.is_err());
         assert!(matches!(result, Err(KERIError::ValidationError(_))));
 
@@ -2820,10 +3137,9 @@ mod tests {
             let string_val = String::from_utf8(raw_bytes).expect("Invalid UTF-8 sequence");
             db_digs.push(string_val);
         }
-        
+
         assert_eq!(db_digs, event_digs);
 
         Ok(())
     }
-
 }

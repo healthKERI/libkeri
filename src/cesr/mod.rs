@@ -66,14 +66,13 @@ impl From<&str> for Versionage {
 }
 
 impl Versionage {
-    
     pub fn to_vec(&self) -> Vec<u8> {
         let mut vec = Vec::new();
         vec.push(self.major as u8);
         vec.push(self.minor as u8);
         vec
     }
-    
+
     /// Extracts version information from a KERI version string
     /// Expects string in format like "KERI10JSON000000_" where
     /// the first digit after KERI is the major version and the second is minor
@@ -323,8 +322,8 @@ pub fn sniff(ims: &[u8]) -> Result<&'static str, MatterError> {
 
 #[allow(dead_code)]
 pub mod trait_dex {
-    use std::collections::HashMap;
     use once_cell::sync::Lazy;
+    use std::collections::HashMap;
 
     /// EstOnly - Only allow establishment events. Inception only.
     pub const EST_ONLY: &str = "EO";
@@ -343,7 +342,7 @@ pub mod trait_dex {
 
     /// DelegateIsDelegator - Treat delegate AIDs same as their delegator. Inception only
     pub const DELEGATE_IS_DELEGATOR: &str = "DID";
-   
+
     // Create a HashMap from name to value
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         let mut map = HashMap::new();
@@ -357,7 +356,7 @@ pub mod trait_dex {
         map
     });
 
-    pub static TUPLE: [&'static str; 6] = [  
+    pub static TUPLE: [&'static str; 6] = [
         EST_ONLY,
         DO_NOT_DELEGATE,
         REGISTRAR_BACKERS,
@@ -365,8 +364,6 @@ pub mod trait_dex {
         NO_REGISTRAR_BACKERS,
         DELEGATE_IS_DELEGATOR,
     ];
-
-    
 }
 
 /// Various derivation codes for Matter types

@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::Matter;
+use std::collections::HashSet;
 use std::error::Error;
 
 use crate::cesr::cigar::Cigar;
@@ -9,20 +9,20 @@ use crate::keri::core::serdering::{Serder, SerderKERI};
 
 mod incept;
 mod interact;
+mod kever;
+mod kevery;
 mod query;
 mod receipt;
 mod reply;
 mod rotate;
-mod kever;
 mod state;
-mod kevery;
 
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
 use crate::cesr::indexing::siger::Siger;
-pub use incept::*;
 use crate::cesr::indexing::Indexer;
 use crate::cesr::verfer::Verfer;
 use crate::keri::KERIError;
+pub use incept::*;
 
 // Determine threshold representations based on intive flag
 const MAX_INT_THOLD: usize = 12; // Define this constant based on your system
@@ -242,7 +242,6 @@ pub fn messagize(
     Ok(msg)
 }
 
-
 /// Verifies signatures against verifiers and returns verified signatures and their indices
 ///
 /// Returns tuple of (vsigers, vindices) where:
@@ -337,7 +336,6 @@ fn verify_sigs(
 
     Ok((vsigers, vindices))
 }
-
 
 #[cfg(test)]
 mod tests {

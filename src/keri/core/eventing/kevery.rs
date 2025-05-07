@@ -1,23 +1,23 @@
-use std::collections::VecDeque;
-use std::string::FromUtf8Error;
-use std::sync::Arc;
-use indexmap::IndexSet;
-use tracing::{debug, info};
 use crate::cesr::dater::Dater;
-use crate::cesr::indexing::Indexer;
 use crate::cesr::indexing::siger::Siger;
+use crate::cesr::indexing::Indexer;
 use crate::cesr::prefixer::Prefixer;
 use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
 use crate::cesr::verfer::Verfer;
 use crate::keri::core::eventing::kever::Kever;
-use crate::keri::core::serdering::{Serder, SerderKERI, Rawifiable};
-use crate::keri::db::basing::Baser;
-use crate::keri::{Ilk, KERIError};
 use crate::keri::core::eventing::verify_sigs;
+use crate::keri::core::serdering::{Rawifiable, Serder, SerderKERI};
+use crate::keri::db::basing::Baser;
 use crate::keri::db::dbing::keys::{dg_key, sn_key};
 use crate::keri::db::subing::SuberError;
+use crate::keri::{Ilk, KERIError};
 use crate::Matter;
+use indexmap::IndexSet;
+use std::collections::VecDeque;
+use std::string::FromUtf8Error;
+use std::sync::Arc;
+use tracing::{debug, info};
 
 /// Kevery (Key Event Message Processing Facility) processes an incoming
 /// message stream composed of KERI key event related messages and attachments.
@@ -65,7 +65,7 @@ pub struct Kevery<'db> {
 #[derive(Debug, Clone)]
 pub struct Cue {
     kin: String,
-    serder: SerderKERI
+    serder: SerderKERI,
 }
 
 /// Recovery module for Kevery
@@ -83,7 +83,7 @@ impl<'db> Kevery<'db> {
     pub const TIMEOUT_URE: u64 = 3600; // seconds to timeout unverified receipt escrows
     pub const TIMEOUT_VRE: u64 = 3600; // seconds to timeout unverified transferable receipt escrows
     pub const TIMEOUT_KSN: u64 = 3600; // seconds to timeout key state notice message escrows
-    pub const TIMEOUT_QNF: u64 = 300;  // seconds to timeout query not found escrows
+    pub const TIMEOUT_QNF: u64 = 300; // seconds to timeout query not found escrows
 
     /// Initialize a new Kevery instance
     ///
@@ -175,21 +175,32 @@ impl<'db> Kevery<'db> {
         };
 
         // Fetch ked ilk, pre, sn, dig to see how to process
-        let pre = serder.pre().ok_or_else(|| KERIError::ValueError("Missing pre in event".to_string()))?;
+        let pre = serder
+            .pre()
+            .ok_or_else(|| KERIError::ValueError("Missing pre in event".to_string()))?;
         let ked = serder.ked();
 
         // See if code of pre is supported and matches size of pre
         match Prefixer::from_qb64(&pre) {
             Ok(_) => (),
             Err(e) => {
-                return Err(KERIError::ValueError(format!("Invalid pre = {:?} for evt = {:?}. Error: {:?}",
-                                                        &pre, &ked, e)).into());
+                return Err(KERIError::ValueError(format!(
+                    "Invalid pre = {:?} for evt = {:?}. Error: {:?}",
+                    &pre, &ked, e
+                ))
+                .into());
             }
         }
 
-        let sn = serder.sn().ok_or_else(|| KERIError::ValueError("Missing sn in event".to_string()))?;
-        let ilk = serder.ilk().ok_or_else(|| KERIError::ValueError("Missing ilk in event".to_string()))?;
-        let said = serder.said().ok_or_else(|| KERIError::ValueError("Missing said in event".to_string()))?;
+        let sn = serder
+            .sn()
+            .ok_or_else(|| KERIError::ValueError("Missing sn in event".to_string()))?;
+        let ilk = serder
+            .ilk()
+            .ok_or_else(|| KERIError::ValueError("Missing ilk in event".to_string()))?;
+        let said = serder
+            .said()
+            .ok_or_else(|| KERIError::ValueError("Missing said in event".to_string()))?;
 
         if !self.kevers.contains_key(&pre) {
             // First seen event for pre
@@ -258,7 +269,9 @@ impl<'db> Kevery<'db> {
                     local,
                 )?;
 
-                return Err(KERIError::OutOfOrderError(format!("Out-of-order event={:?}.", ked)).into());
+                return Err(
+                    KERIError::OutOfOrderError(format!("Out-of-order event={:?}.", ked)).into(),
+                );
             }
         } else {
             // Already accepted inception event for pre so already first seen
@@ -267,20 +280,27 @@ impl<'db> Kevery<'db> {
                 if sn != 0 {
                     return Err(KERIError::ValueError(format!(
                         "Invalid sn={} for inception event={:?}.",
-                        sn, serder.ked()
-                    )).into());
+                        sn,
+                        serder.ked()
+                    ))
+                    .into());
                 }
 
                 // Check if duplicate of existing inception event since est is icp
                 let eserder = match self.fetch_est_event(&pre, sn) {
                     Some(serder) => serder,
-                    None => { return Err(KERIError::ValueError("Kever not found for known prefix".to_string()));}
+                    None => {
+                        return Err(KERIError::ValueError(
+                            "Kever not found for known prefix".to_string(),
+                        ));
+                    }
                 };
                 if eserder.said().unwrap_or_default() == said {
                     // Event is a duplicate but not duplicitous
                     // May have attached valid signature not yet logged
-                    let kever = self.kevers.get(&pre).ok_or_else(||
-                        KERIError::ValueError("Kever not found for known prefix".to_string()))?;
+                    let kever = self.kevers.get(&pre).ok_or_else(|| {
+                        KERIError::ValueError("Kever not found for known prefix".to_string())
+                    })?;
 
                     // Get unique verified lists of sigers and indices from sigers
                     let (verified_sigers, _) = verify_sigs(
@@ -303,13 +323,17 @@ impl<'db> Kevery<'db> {
                         kever.log_event(
                             serder.clone(),
                             verified_sigers,
-                            if verified_wigers.is_empty() { None } else { Some(verified_wigers) },
-                            None, // wits
+                            if verified_wigers.is_empty() {
+                                None
+                            } else {
+                                Some(verified_wigers)
+                            },
+                            None,  // wits
                             false, // not first seen
-                            None, // seqner
-                            None, // saider
-                            None, // firner
-                            None, // dater
+                            None,  // seqner
+                            None,  // saider
+                            None,  // firner
+                            None,  // dater
                             local,
                         )?;
                     }
@@ -330,8 +354,9 @@ impl<'db> Kevery<'db> {
                 }
             } else {
                 // rot, drt, or ixn, so sn matters
-                let kever = self.kevers.get(&pre).ok_or_else(||
-                    KERIError::ValueError("Kever not found for known prefix".to_string()))?;
+                let kever = self.kevers.get(&pre).ok_or_else(|| {
+                    KERIError::ValueError("Kever not found for known prefix".to_string())
+                })?;
 
                 let sno = kever.sner().map(|s| s.num()).unwrap_or_default() + 1; // proper sn of new inorder event
 
@@ -360,11 +385,12 @@ impl<'db> Kevery<'db> {
                     (ilk == Ilk::Rot && // superseding recovery rot or
                         kever.last_est().map(|l| l.s < sn && sn <= sno as u64).unwrap_or(false)) ||
                     (ilk == Ilk::Drt && // delegated superseding recovery drt
-                        kever.last_est().map(|l| l.s <= sn && sn <= sno as u64).unwrap_or(false)) {
-
+                        kever.last_est().map(|l| l.s <= sn && sn <= sno as u64).unwrap_or(false))
+                {
                     // Verify signatures etc and update state if valid
-                    let kever = self.kevers.get_mut(&pre).ok_or_else(||
-                        KERIError::ValueError("Kever not found for known prefix".to_string()))?;
+                    let kever = self.kevers.get_mut(&pre).ok_or_else(|| {
+                        KERIError::ValueError("Kever not found for known prefix".to_string())
+                    })?;
 
                     kever.update(
                         serder.clone(),
@@ -415,16 +441,20 @@ impl<'db> Kevery<'db> {
                     let ddig_res = self.db.kels.get_last::<_, Vec<u8>>(&[&key])?;
 
                     if let Some(ddig) = ddig_res {
-                        let ddig_str = String::from_utf8(ddig).map_err(|_|
-                            KERIError::ValueError("Invalid UTF-8 in digest".to_string()))?;
+                        let ddig_str = String::from_utf8(ddig).map_err(|_| {
+                            KERIError::ValueError("Invalid UTF-8 in digest".to_string())
+                        })?;
 
                         if ddig_str == said {
                             // Event is a duplicate but not duplicitous
                             let eserder = self.fetch_est_event(&pre, sn).unwrap();
 
                             // May have attached valid signature not yet logged
-                            let kever = self.kevers.get(&pre).ok_or_else(||
-                                KERIError::ValueError("Kever not found for known prefix".to_string()))?;
+                            let kever = self.kevers.get(&pre).ok_or_else(|| {
+                                KERIError::ValueError(
+                                    "Kever not found for known prefix".to_string(),
+                                )
+                            })?;
 
                             // Get unique verified lists of sigers and indices from sigers
                             let (verified_sigers, _) = verify_sigs(
@@ -434,7 +464,8 @@ impl<'db> Kevery<'db> {
                             )?;
 
                             let wits = self.fetch_witness_state(&pre, sn)?;
-                            let werfers: Vec<Verfer> = wits.iter()
+                            let werfers: Vec<Verfer> = wits
+                                .iter()
                                 .map(|wit| Verfer::from_qb64(wit))
                                 .collect::<Result<Vec<Verfer>, _>>()?;
 
@@ -449,13 +480,17 @@ impl<'db> Kevery<'db> {
                                 kever.log_event(
                                     serder.clone(),
                                     verified_sigers,
-                                    if verified_wigers.is_empty() { None } else { Some(verified_wigers) },
-                                    None, // wits
+                                    if verified_wigers.is_empty() {
+                                        None
+                                    } else {
+                                        Some(verified_wigers)
+                                    },
+                                    None,  // wits
                                     false, // not first seen
-                                    None, // seqner
-                                    None, // saider
-                                    None, // firner
-                                    None, // dater
+                                    None,  // seqner
+                                    None,  // saider
+                                    None,  // firner
+                                    None,  // dater
                                     local,
                                 )?;
                             }
@@ -504,34 +539,36 @@ impl<'db> Kevery<'db> {
             let key = sn_key(&pre, sn);
             match self.db.kels.get_last::<_, Vec<u8>>(&[&key]) {
                 Ok(dig_bytes) => {
-                    let ldig =  match dig_bytes {
-                        Some(dig_bytes) => {
-                            match String::from_utf8(dig_bytes) {
-                                Ok(ldig) => ldig,
-                                Err(_) => { return None }
-                            }
+                    let ldig = match dig_bytes {
+                        Some(dig_bytes) => match String::from_utf8(dig_bytes) {
+                            Ok(ldig) => ldig,
+                            Err(_) => return None,
                         },
-                        None => { return None }
+                        None => return None,
                     };
-                    
+
                     let dgkey = dg_key(pre, ldig);
                     let raw = match self.db.evts.get::<_, Vec<u8>>(&[&dgkey]) {
                         Ok(r) => r.unwrap(),
-                        Err(_) => { return None }
+                        Err(_) => return None,
                     };
-                    
+
                     let serder = SerderKERI::from_raw(&raw, None).unwrap();
                     let ilk = serder.ilk();
-                    if ilk == Some(Ilk::Icp) || ilk == Some(Ilk::Dip)  || ilk == Some(Ilk::Rot)  || ilk == Some(Ilk::Drt) {
-                        return Some(serder)
-                    }  
-                    
+                    if ilk == Some(Ilk::Icp)
+                        || ilk == Some(Ilk::Dip)
+                        || ilk == Some(Ilk::Rot)
+                        || ilk == Some(Ilk::Drt)
+                    {
+                        return Some(serder);
+                    }
+
                     sn = serder.sn().unwrap() - 1;
                     if sn < 0 {
-                        return None
+                        return None;
                     }
                 }
-                Err(_) => { return None}
+                Err(_) => return None,
             }
         }
     }
@@ -568,7 +605,7 @@ impl<'db> Kevery<'db> {
     /// * `serder` - Instance of serialized receipt message (not receipted event)
     /// * `wigers` - Instances that with witness indexed signatures. Index is offset into
     ///             witness list of latest establishment event for receipted event.
-    ///             Signature uses key pair derived from nontrans witness prefix in 
+    ///             Signature uses key pair derived from nontrans witness prefix in
     ///             associated witness list.
     /// * `local` - True means local (protected) event source.
     ///            False means remote (unprotected).
@@ -594,29 +631,39 @@ impl<'db> Kevery<'db> {
 
         // Fetch pre, dig to process
         let ked = serder.ked();
-        let pre = serder.pre().ok_or_else(|| KERIError::ValueError("Missing pre in receipt".to_string()))?;
-        let sn = serder.sn().ok_or_else(|| KERIError::ValueError("Missing sn in receipt".to_string()))?;
+        let pre = serder
+            .pre()
+            .ok_or_else(|| KERIError::ValueError("Missing pre in receipt".to_string()))?;
+        let sn = serder
+            .sn()
+            .ok_or_else(|| KERIError::ValueError("Missing sn in receipt".to_string()))?;
 
         // Only accept receipt if for last seen version of event at sn
         let sn_key = sn_key(&pre, sn);
 
         // Retrieve dig of last event at sn
         let ldig = match self.db.kels.get_last::<_, Vec<u8>>(&[&sn_key])? {
-            Some(dig_bytes) => {
-                String::from_utf8(dig_bytes)
-                    .map_err(|_| KERIError::ValueError("Invalid UTF-8 in digest".to_string()))?
-            },
+            Some(dig_bytes) => String::from_utf8(dig_bytes)
+                .map_err(|_| KERIError::ValueError("Invalid UTF-8 in digest".to_string()))?,
             None => {
                 // No events to be receipted yet at that sn, so escrow
                 // Get digest from receipt message not receipted event
-                let receipt_dig = ked.get("d")
-                    .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
+                let receipt_dig = ked
+                    .get("d")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing 'd' field in receipt".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("'d' field is not a string".to_string())
+                    })?;
 
                 self.escrow_uw_receipt(&serder, &wigers, receipt_dig)?;
 
-                let msg = format!("Unverified witness receipt={}", serder.said().unwrap_or_default());
+                let msg = format!(
+                    "Unverified witness receipt={}",
+                    serder.said().unwrap_or_default()
+                );
                 info!("{}", msg);
                 debug!("Event=\n{}\n", serder.pretty(None));
 
@@ -625,14 +672,18 @@ impl<'db> Kevery<'db> {
         };
 
         // Verify digs match
-        if !serder.compare_said(ked.get("d")
-            .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
-            .as_str()
-            .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?) {
+        if !serder.compare_said(
+            ked.get("d")
+                .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
+                .as_str()
+                .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?,
+        ) {
             // Stale receipt at sn, discard
-            let msg = format!("Stale receipt at sn = {:?} for rct = {:?}",
-                              ked.get("s").unwrap(),
-                              serder.said().unwrap_or_default());
+            let msg = format!(
+                "Stale receipt at sn = {:?} for rct = {:?}",
+                ked.get("s").unwrap(),
+                serder.said().unwrap_or_default()
+            );
             info!("{}", msg);
             debug!("Stale receipt event body=\n{}\n", serder.pretty(None));
 
@@ -641,8 +692,10 @@ impl<'db> Kevery<'db> {
 
         // Retrieve receipted event at dig
         let dg_key = dg_key(&pre, &ldig);
-        let raw = self.db.evts.get::<_, Vec<u8>>(&[&dg_key])?
-            .ok_or_else(|| KERIError::ValueError(format!("Event not found for dig={}", ldig)))?;
+        let raw =
+            self.db.evts.get::<_, Vec<u8>>(&[&dg_key])?.ok_or_else(|| {
+                KERIError::ValueError(format!("Event not found for dig={}", ldig))
+            })?;
 
         let lserder = SerderKERI::from_raw(&raw, None)?;
 
@@ -667,16 +720,20 @@ impl<'db> Kevery<'db> {
                 // Own is witness
                 if self.db.prefixes.contains(&pre) {
                     // Skip own receiptor of own event - sign own events not receipt them
-                    info!("Kevery: skipped own receipt attachment on own event receipt={}",
-                         serder.said().unwrap_or_default());
+                    info!(
+                        "Kevery: skipped own receipt attachment on own event receipt={}",
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("Event=\n{}\n", serder.pretty(None));
                     continue;
                 }
 
                 if !local {
                     // Skip own receipt on other event when non-local source
-                    debug!("Kevery: skipped own receipt attachment on nonlocal event receipt={}",
-                          serder.said().unwrap_or_default());
+                    debug!(
+                        "Kevery: skipped own receipt attachment on nonlocal event receipt={}",
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("Event=\n{}\n", serder.pretty(None));
                     continue;
                 }
@@ -704,12 +761,14 @@ impl<'db> Kevery<'db> {
         // when the event it's receipting becomes available
 
         // For now we'll just log it
-        debug!("Escrowing unverified witness receipt for event with SAID: {}", said);
+        debug!(
+            "Escrowing unverified witness receipt for event with SAID: {}",
+            said
+        );
 
         // TODO: Implement proper escrow functionality
         Ok(())
     }
-
 }
 
 /// Builder pattern for Kevery to make initialization more ergonomic
@@ -798,8 +857,8 @@ impl<'db> KeveryBuilder<'db> {
 
 #[cfg(test)]
 mod tests {
-    use crate::keri::db::dbing::LMDBer;
     use super::*;
+    use crate::keri::db::dbing::LMDBer;
 
     #[test]
     fn test_kevery_new() -> Result<(), KERIError> {
@@ -810,7 +869,8 @@ mod tests {
             .build()
             .map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let db = Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
+        let db =
+            Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
         // Create Kevery using the new function
         let kevery = Kevery::new(
@@ -843,7 +903,8 @@ mod tests {
             .build()
             .map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let db = Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
+        let db =
+            Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
         // Create Kevery using the builder pattern
         let kevery = KeveryBuilder::new(Arc::new(&db))

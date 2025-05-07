@@ -1,10 +1,5 @@
 mod key_state_record;
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use indexmap::IndexSet;
-use serde::{Deserialize, Serialize};
 use crate::cesr::number::Number;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
 use crate::keri::db::dbing::LMDBer;
@@ -14,10 +9,15 @@ use crate::keri::db::subing::cesr::CesrSuber;
 use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
+use crate::keri::db::subing::oniodup::OnIoDupSuber;
 use crate::keri::db::subing::{Suber, Utf8Codec};
+use indexmap::IndexSet;
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
-use crate::keri::db::subing::oniodup::OnIoDupSuber;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -66,13 +66,12 @@ impl IntoIterator for EventSourceRecord {
     }
 }
 
-
 /// Baser struct for key event log and escrow storage (DB)
 /// Sets up named sub databases for key event logs and escrow storage.
 pub struct Baser<'db> {
     /// Base database
     lmdber: Arc<&'db LMDBer>, // The base LMDB database
-    
+
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,
 
@@ -95,7 +94,7 @@ pub struct Baser<'db> {
     ///    Only one value per DB key is allowed.
     ///    Provides append only ordering of accepted first seen events.
     pub fels: OnSuber<'db>,
-    
+
     /// .kels is named sub DB of key event logs as indices that map sequence numbers
     ///     to serialized key event digests.
     ///     Actual serialized key events are stored in .evts by SAID digest
@@ -105,7 +104,7 @@ pub struct Baser<'db> {
     ///     DB is keyed by identifier prefix plus sequence number of key event
     ///     More than one value per DB key is allowed
     pub kels: OnIoDupSuber<'db, Utf8Codec>,
-    
+
     /// .fons is named subDB CesrSuber
     ///     Uses digest
     ///     dgKey
@@ -118,7 +117,7 @@ pub struct Baser<'db> {
     ///     never have been accepted as first seen.
     ///     CesrSuber(db=self, subkey='fons.', klas=core.Number)
     pub fons: CesrSuber<'db, Number>,
-    
+
     /// .esrs is named sub DB instance of Komer of EventSourceRecord
     ///      dgKey
     ///      DB is keyed by identifier prefix plus digest (said) of serialized event
@@ -132,7 +131,7 @@ pub struct Baser<'db> {
     ///      the source when processing escrows that would otherwise be decoupled
     ///      from the original source of the event.
     pub esrs: Komer<'db, EventSourceRecord>,
-    
+
     /// .dtss is named sub DB of datetime stamp strings in ISO 8601 format of
     ///      the datetime when the event was first escrosed and then later first
     ///      seen by log. Used for escrows timeouts and extended validation.
@@ -140,7 +139,7 @@ pub struct Baser<'db> {
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      Value is ISO 8601 datetime stamp bytes
     pub dtss: DupSuber<'db>,
-    
+
     /// .aess is named sub DB of authorizing event source seal couples
     ///      that map digest to seal source couple of authorizer's
     ///      (delegator or issuer) event. Each couple is a concatenation of full
@@ -152,13 +151,13 @@ pub struct Baser<'db> {
     ///      DB is keyed by identifier prefix plus digest of key event
     ///      Only one value per DB key is allowed
     pub aess: DupSuber<'db>,
-    
+
     /// .sigs is named sub DB of fully qualified indexed event signatures
     ///      dgKey
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      More than one value per DB key is allowed
     pub sigs: DupSuber<'db>,
-    
+
     ///  .wigs is named sub DB of indexed witness signatures of event that may
     ///      come directly or derived from a witness receipt message.
     ///      Witnesses always have nontransferable identifier prefixes.
@@ -168,10 +167,10 @@ pub struct Baser<'db> {
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      More than one value per DB key is allowed
     pub wigs: DupSuber<'db>,
-    
+
     /// Insertion order set of witnesses qb64 prefix
     pub wits: IoDupSuber<'db>,
-   
+
     /// Prefix situation database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is serialized parameter dict of public key situation

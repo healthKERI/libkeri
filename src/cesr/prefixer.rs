@@ -1,8 +1,8 @@
+use crate::cesr::dater::Dater;
 use crate::cesr::{mtr_dex, non_trans_dex, pre_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
 use std::any::Any;
-use crate::cesr::dater::Dater;
 
 ///  Prefixer is Matter subclass for autonomic identifier AID prefix
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ impl Prefixer {
 
         Ok(Prefixer { base })
     }
-    
+
     pub fn transferable(&self) -> bool {
         !non_trans_dex::TUPLE.contains(&self.base.code())
     }

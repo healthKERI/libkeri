@@ -277,11 +277,11 @@ impl BaseSerder {
 
         Ok(hash)
     }
-    
+
     pub fn compare_said(&self, said: &str) -> bool {
         match &self.said {
-            Some(ss) => { ss == said }
-            None => false
+            Some(ss) => ss == said,
+            None => false,
         }
     }
 
@@ -875,17 +875,8 @@ impl SerderKERI {
         ilk: Option<Ilk>,
         saids: Option<HashMap<&str, String>>,
     ) -> Result<Self, KERIError> {
-        let base = BaseSerder::from_init(
-            raw,
-            sad,
-            makify,
-            smellage,
-            proto,
-            vrsn,
-            kind,
-            ilk,
-            saids,
-        )?;
+        let base =
+            BaseSerder::from_init(raw, sad, makify, smellage, proto, vrsn, kind, ilk, saids)?;
         Ok(Self { base })
     }
     /// Creates a new `SerderKERI` by constructing its `BaseSerder` from a sad.
@@ -1017,7 +1008,7 @@ impl SerderKERI {
                             }
                         }
                     }
-                    Err(_) => {None}
+                    Err(_) => None,
                 }
             }
             None => None,
@@ -1270,7 +1261,7 @@ impl SerderKERI {
             None => None,
         }
     }
-    
+
     pub fn compare_said(&self, said: &str) -> bool {
         self.base.compare_said(said)
     }

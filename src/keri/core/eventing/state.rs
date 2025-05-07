@@ -1,35 +1,35 @@
-use std::error::Error;
-use chrono;
-use num_bigint::BigUint;
 use crate::cesr::number::Number;
 use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::{Versionage, VERSION};
 use crate::keri::core::serdering::SadValue;
 use crate::keri::db::basing::{KeyStateRecord, StateEERecord};
 use crate::keri::{KERIError, Kinds};
+use chrono;
+use num_bigint::BigUint;
+use std::error::Error;
 
 /// Builder for creating key state event records
 pub struct StateEventBuilder {
-    pre: String,                   // Identifier prefix qb64
-    sn: u64,                       // Sequence number of latest event
-    pig: String,                   // SAID qb64 of prior event
-    dig: String,                   // SAID qb64 of latest (current) event
-    fn_: u64,                      // First seen ordinal number of latest event
-    eilk: String,                  // Event type (ilk) of latest event
-    keys: Vec<String>,             // qb64 signing keys
-    eevt: StateEERecord,           // Latest establishment event
+    pre: String,         // Identifier prefix qb64
+    sn: u64,             // Sequence number of latest event
+    pig: String,         // SAID qb64 of prior event
+    dig: String,         // SAID qb64 of latest (current) event
+    fn_: u64,            // First seen ordinal number of latest event
+    eilk: String,        // Event type (ilk) of latest event
+    keys: Vec<String>,   // qb64 signing keys
+    eevt: StateEERecord, // Latest establishment event
 
-    stamp: Option<String>,         // ISO-8601 timestamp
-    sith: Option<TholderSith>,     // Current signing threshold
-    ndigs: Vec<String>,            // Current signing key digests qb64
-    nsith: Option<TholderSith>,    // Next signing threshold
-    toad: Option<usize>,           // Witness threshold
-    wits: Vec<String>,             // Witness identifier prefixes qb64
-    cnfg: Vec<String>,             // Configuration trait strings
-    dpre: Option<String>,          // Delegator prefix if any
-    version: String,               // KERI protocol version string
-    kind: String,                  // Serialization kind
-    intive: bool,                  // True to use int thresholds instead of hex
+    stamp: Option<String>,      // ISO-8601 timestamp
+    sith: Option<TholderSith>,  // Current signing threshold
+    ndigs: Vec<String>,         // Current signing key digests qb64
+    nsith: Option<TholderSith>, // Next signing threshold
+    toad: Option<usize>,        // Witness threshold
+    wits: Vec<String>,          // Witness identifier prefixes qb64
+    cnfg: Vec<String>,          // Configuration trait strings
+    dpre: Option<String>,       // Delegator prefix if any
+    version: String,            // KERI protocol version string
+    kind: String,               // Serialization kind
+    intive: bool,               // True to use int thresholds instead of hex
 }
 
 impl StateEventBuilder {
@@ -140,70 +140,93 @@ impl StateEventBuilder {
         let fner = Number::from_num(&BigUint::from(self.fn_))?;
 
         // Validate event type
-        if !matches!(self.eilk.as_str(), 
-            "icp" | "rot" | "ixn" | "dip" | "drt") {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid event type et={} in key state.", self.eilk)
-            )));
+        if !matches!(self.eilk.as_str(), "icp" | "rot" | "ixn" | "dip" | "drt") {
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid event type et={} in key state.",
+                self.eilk
+            ))));
         }
 
         // Generate timestamp if not provided
-        let stamp = self.stamp.unwrap_or_else(||
-            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string()
-        );
+        let stamp = self.stamp.unwrap_or_else(|| {
+            chrono::Utc::now()
+                .format("%Y-%m-%dT%H:%M:%S%.6fZ")
+                .to_string()
+        });
 
         // Calculate default sith if not provided
         let tholder = if let Some(sith) = self.sith {
             Tholder::new(None, None, Some(sith))?
         } else {
-            let default_sith = format!("{:x}",
-                                       std::cmp::max(1, (self.keys.len() as f64 / 2.0).ceil() as usize));
-            Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(default_sith))?))?
+            let default_sith = format!(
+                "{:x}",
+                std::cmp::max(1, (self.keys.len() as f64 / 2.0).ceil() as usize)
+            );
+            Tholder::new(
+                None,
+                None,
+                Some(TholderSith::from_sad_value(SadValue::String(default_sith))?),
+            )?
         };
 
         // Validate sith
         if let Some(num) = tholder.num() {
             if num < 1 {
-                return Err(Box::new(KERIError::ValueError(
-                    format!("Invalid sith = {} less than 1.", num)
-                )));
+                return Err(Box::new(KERIError::ValueError(format!(
+                    "Invalid sith = {} less than 1.",
+                    num
+                ))));
             }
         }
         if tholder.size() > self.keys.len() {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid sith = {:?} for keys = {:?}", tholder.sith(), self.keys)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid sith = {:?} for keys = {:?}",
+                tholder.sith(),
+                self.keys
+            ))));
         }
 
         // Calculate default nsith if not provided
         let ntholder = if let Some(nsith) = self.nsith {
             Tholder::new(None, None, Some(nsith))?
         } else {
-            let default_nsith = format!("{:x}",
-                                        std::cmp::max(0, (self.ndigs.len() as f64 / 2.0).ceil() as usize));
-            Tholder::new(None, None, Some(TholderSith::from_sad_value(SadValue::String(default_nsith))?))?
+            let default_nsith = format!(
+                "{:x}",
+                std::cmp::max(0, (self.ndigs.len() as f64 / 2.0).ceil() as usize)
+            );
+            Tholder::new(
+                None,
+                None,
+                Some(TholderSith::from_sad_value(SadValue::String(
+                    default_nsith,
+                ))?),
+            )?
         };
 
         // Validate nsith
         if let Some(num) = ntholder.num() {
             if num < 0 {
-                return Err(Box::new(KERIError::ValueError(
-                    format!("Invalid nsith = {} less than 0.", num)
-                )));
+                return Err(Box::new(KERIError::ValueError(format!(
+                    "Invalid nsith = {} less than 0.",
+                    num
+                ))));
             }
         }
         if ntholder.size() > self.ndigs.len() {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid nsith = {:?} for ndigs = {:?}", ntholder.sith(), self.ndigs)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid nsith = {:?} for ndigs = {:?}",
+                ntholder.sith(),
+                self.ndigs
+            ))));
         }
 
         // Check for witness duplicates
         let wit_set: std::collections::HashSet<&String> = self.wits.iter().collect();
         if wit_set.len() != self.wits.len() {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid wits = {:?}, has duplicates.", self.wits)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid wits = {:?}, has duplicates.",
+                self.wits
+            ))));
         }
 
         // Calculate default toad if not provided
@@ -221,15 +244,18 @@ impl StateEventBuilder {
         // Validate toad
         if !self.wits.is_empty() {
             if toader.num() < 1 || toader.num() as usize > self.wits.len() {
-                return Err(Box::new(KERIError::ValueError(
-                    format!("Invalid toad = {} for wits = {:?}", toader.num(), self.wits)
-                )));
+                return Err(Box::new(KERIError::ValueError(format!(
+                    "Invalid toad = {} for wits = {:?}",
+                    toader.num(),
+                    self.wits
+                ))));
             }
         } else {
             if toader.num() != 0 {
-                return Err(Box::new(KERIError::ValueError(
-                    format!("Invalid toad = {} for empty wits", toader.num())
-                )));
+                return Err(Box::new(KERIError::ValueError(format!(
+                    "Invalid toad = {} for empty wits",
+                    toader.num()
+                ))));
             }
         }
 
@@ -240,18 +266,20 @@ impl StateEventBuilder {
         let cuts = self.eevt.br.clone().unwrap_or_default();
         let cut_set: std::collections::HashSet<&String> = cuts.iter().collect();
         if cut_set.len() != cuts.len() {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid cuts = {:?}, has duplicates in latest est event.", cuts)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid cuts = {:?}, has duplicates in latest est event.",
+                cuts
+            ))));
         }
 
         // Validate adds (witness additions)
         let adds = self.eevt.ba.clone().unwrap_or_default();
         let add_set: std::collections::HashSet<&String> = adds.iter().collect();
         if add_set.len() != adds.len() {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Invalid adds = {:?}, has duplicates in latest est event.", adds)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Invalid adds = {:?}, has duplicates in latest est event.",
+                adds
+            ))));
         }
 
         // Check for intersection between cuts and adds
@@ -263,13 +291,14 @@ impl StateEventBuilder {
             }
         }
         if intersect {
-            return Err(Box::new(KERIError::ValueError(
-                format!("Intersecting cuts = {:?} and adds = {:?} in latest est event.", cuts, adds)
-            )));
+            return Err(Box::new(KERIError::ValueError(format!(
+                "Intersecting cuts = {:?} and adds = {:?} in latest est event.",
+                cuts, adds
+            ))));
         }
 
         // Define constant for max integer threshold
-        const MAX_INT_THOLD:usize = 2 ^ 32 - 1;
+        const MAX_INT_THOLD: usize = 2 ^ 32 - 1;
 
         // Build the KeyStateRecord
         let ksr = KeyStateRecord {
@@ -281,13 +310,17 @@ impl StateEventBuilder {
             f: fner.numh(),
             dt: stamp,
             et: self.eilk,
-            kt: if self.intive && tholder.num().is_some() && tholder.num().unwrap() <= MAX_INT_THOLD {
+            kt: if self.intive && tholder.num().is_some() && tholder.num().unwrap() <= MAX_INT_THOLD
+            {
                 tholder.num().unwrap().to_string()
             } else {
                 tholder.sith().to_string()
             },
             k: self.keys,
-            nt: if self.intive && ntholder.num().is_some() && ntholder.num().unwrap() <= MAX_INT_THOLD {
+            nt: if self.intive
+                && ntholder.num().is_some()
+                && ntholder.num().unwrap() <= MAX_INT_THOLD
+            {
                 ntholder.num().unwrap().to_string()
             } else {
                 ntholder.sith().to_string()
@@ -336,7 +369,7 @@ mod tests {
             keys.clone(),
             eevt,
         )
-            .build()?;
+        .build()?;
 
         assert_eq!(state.i, "EXwm3_T3cINe-7R4FXQYcjKMr1cwrD7evf-i3k_oYrVM");
         assert_eq!(state.s, "1");
@@ -351,8 +384,12 @@ mod tests {
         let eevt = StateEERecord {
             s: "0".to_string(),
             d: "EXwm3_T3cINe-7R4FXQYcjKMr1cwrD7evf-i3k_oYrVM".to_string(),
-            br: Some(vec!["BGKVzj4ve0VSd8z_AmvhLg4lqcC_9WYX90k03q-R_Ydo".to_string()]),
-            ba: Some(vec!["BuyRFMideczFZoapylLIyCjSdhtqVb31wZkRKvPfNqkw".to_string()]),
+            br: Some(vec![
+                "BGKVzj4ve0VSd8z_AmvhLg4lqcC_9WYX90k03q-R_Ydo".to_string()
+            ]),
+            ba: Some(vec![
+                "BuyRFMideczFZoapylLIyCjSdhtqVb31wZkRKvPfNqkw".to_string()
+            ]),
         };
 
         let wits = vec![
@@ -370,9 +407,9 @@ mod tests {
             vec!["DXwm3_T3cINe-7R4FXQYcjKMr1cwrD7evf-i3k_oYrVM".to_string()],
             eevt,
         )
-            .with_wits(wits.clone())
-            .with_toad(2)
-            .build()?;
+        .with_wits(wits.clone())
+        .with_toad(2)
+        .build()?;
 
         assert_eq!(state.et, "rot");
         assert_eq!(state.b, wits);
@@ -400,8 +437,8 @@ mod tests {
             vec!["DXwm3_T3cINe-7R4FXQYcjKMr1cwrD7evf-i3k_oYrVM".to_string()],
             eevt,
         )
-            .with_dpre("EZAoTNZH3ULvaU6Z-i0d8JJR2nmwyYAfSVPzhzS6b5CM".to_string())
-            .build()?;
+        .with_dpre("EZAoTNZH3ULvaU6Z-i0d8JJR2nmwyYAfSVPzhzS6b5CM".to_string())
+        .build()?;
 
         assert_eq!(state.et, "dip");
         assert_eq!(state.di, "EZAoTNZH3ULvaU6Z-i0d8JJR2nmwyYAfSVPzhzS6b5CM");
@@ -431,9 +468,9 @@ mod tests {
             ],
             eevt,
         )
-            .with_intive(true)
-            .with_sith(TholderSith::Integer(1))
-            .build()?;
+        .with_intive(true)
+        .with_sith(TholderSith::Integer(1))
+        .build()?;
 
         assert_eq!(state.kt, "1");
 

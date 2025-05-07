@@ -1,15 +1,14 @@
 use crate::cesr::{get_sizes, mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
+use lazy_static::lazy_static;
 use std::any::Any;
 use std::collections::HashMap;
-use lazy_static::lazy_static;
 
 // Static instance that can be used throughout the application
 lazy_static! {
     pub static ref B64_TRANSLATOR: B64Translator = B64Translator::new();
 }
-
 
 /// Dater represents RFC-3339 formatted datetimes
 #[derive(Debug, Clone)]
@@ -64,7 +63,7 @@ impl Dater {
         let size = sizes.get(mtr_dex::DATE_TIME).unwrap();
         B64_TRANSLATOR.from_b64(&qb64[size.hs as usize..])
     }
-    
+
     pub fn dtsb(&self) -> Vec<u8> {
         let dts = self.dts();
         dts.as_bytes().to_vec()
@@ -183,7 +182,7 @@ impl B64Translator {
         for c in s.chars() {
             match char_map.get(&c) {
                 Some(Some(replacement)) => result.push_str(replacement),
-                Some(None) => (), // Character should be removed
+                Some(None) => (),       // Character should be removed
                 None => result.push(c), // No mapping, keep original
             }
         }
