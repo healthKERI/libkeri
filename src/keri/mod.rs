@@ -153,6 +153,15 @@ pub enum KERIError {
 
     #[error("Deserialization error: {0}")]
     DeserializationError(String),
+
+    #[error("Out of order error: {0}")]
+    OutOfOrderError(String),
+
+    #[error("Likely duplicitious event error: {0}")]
+    LikelyDuplicitousError(String),
+
+    #[error("Unverified witness receipt event error: {0}")]
+    UnverifiedWitnessReceiptError(String),
 }
 
 impl From<MatterError> for KERIError {

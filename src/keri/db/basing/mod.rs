@@ -14,7 +14,7 @@ use crate::keri::db::subing::cesr::CesrSuber;
 use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
-use crate::keri::db::subing::Suber;
+use crate::keri::db::subing::{Suber, Utf8Codec};
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
 use crate::keri::db::subing::oniodup::OnIoDupSuber;
@@ -104,7 +104,7 @@ pub struct Baser<'db> {
     ///     Values are digests used to lookup event in .evts sub DB
     ///     DB is keyed by identifier prefix plus sequence number of key event
     ///     More than one value per DB key is allowed
-    pub kels: OnIoDupSuber<'db>,
+    pub kels: OnIoDupSuber<'db, Utf8Codec>,
     
     /// .fons is named subDB CesrSuber
     ///     Uses digest

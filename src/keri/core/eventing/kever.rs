@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 use crate::cesr::dater::Dater;
 use crate::cesr::diger::Diger;
 use crate::cesr::indexing::siger::Siger;
@@ -17,6 +18,7 @@ use crate::keri::db::dbing::keys::{dg_key, sn_key};
 use crate::keri::{Ilk, KERIError};
 use crate::Matter;
 use num_bigint::BigUint;
+use crate::keri::core::eventing::verify_sigs;
 
 /// Represents the location of the last establishment event
 #[derive(Debug, Clone, PartialEq)]
@@ -28,7 +30,7 @@ pub struct LastEstLoc {
 }
 
 pub struct Kever<'db> {
-    pub db: Baser<'db>,
+    pub db: Arc<&'db Baser<'db>>,
     version: String,        // Version of KERI protocol
     ilk: Ilk,               // Event type ilk
     delpre: Option<String>, // Delegator prefix if any
@@ -42,7 +44,6 @@ pub struct Kever<'db> {
     tholder: Option<Tholder>,
     prefixer: Option<Prefixer>,
     serder: Option<SerderKERI>,
-    ndigs: Option<Vec<String>>,
     ndigers: Option<Vec<Diger>>,
     ntholder: Option<Tholder>,
     cuts: Option<Vec<String>>,
@@ -81,7 +82,7 @@ impl<'db> Kever<'db> {
     ///
     /// * `Result<Self, KERIError>` - New Kever instance or error
     pub fn new(
-        db: Baser<'db>,
+        db: Arc<&'db Baser<'db>>,
         state: Option<KeyStateRecord>,
         serder: Option<SerderKERI>,
         sigers: Option<Vec<Siger>>,
@@ -143,7 +144,6 @@ impl<'db> Kever<'db> {
             tholder: None,
             prefixer: None,
             serder: None,
-            ndigs: None,
             ndigers: None,
             ntholder: None,
             cuts: None,
@@ -211,7 +211,7 @@ impl<'db> Kever<'db> {
     /// # Returns
     ///
     /// * `Result<Self, KERIError>` - New Kever instance initialized from state or error
-    pub fn reload(db: Baser<'db>, state: KeyStateRecord) -> Result<Self, KERIError> {
+    pub fn reload(db: Arc<&'db Baser<'db>>, state: KeyStateRecord) -> Result<Self, KERIError> {
         // Create a Prefixer from the identifier prefix
         let prefixer = Prefixer::from_qb64(&state.i)
             .map_err(|e| KERIError::ValueError(format!("Invalid identifier prefix: {}", e)))?;
@@ -310,7 +310,6 @@ impl<'db> Kever<'db> {
             tholder: Some(tholder),
             prefixer: Some(prefixer),
             serder: Some(serder),
-            ndigs: Some(state.n.clone()),
             ndigers: Some(ndigers),
             ntholder: Some(ntholder),
             cuts: Some(cuts),
@@ -464,7 +463,6 @@ impl<'db> Kever<'db> {
         self.tholder = Some(tholder);
         self.prefixer = Some(prefixer);
         self.serder = Some(serder.clone());
-        self.ndigs = Some(ndigs);
         self.ndigers = Some(ndigers);
         self.ntholder = ntholder;
         self.cuts = Some(cuts);
@@ -603,7 +601,7 @@ impl<'db> Kever<'db> {
         }
 
         // Verify signatures and get unique verified sigers and indices
-        let (sigers, indices) = self.verify_sigs(&serder.raw(), sigers, &verfers)?;
+        let (sigers, indices) = verify_sigs(&serder.raw(), sigers, &verfers)?;
 
         // Check if minimally signed
         if indices.is_empty() {
@@ -665,7 +663,7 @@ impl<'db> Kever<'db> {
         // Verify witness signatures
         let (wigers, windices) = match wigers {
             Some(wigers) => {
-                let (wigers, windices) = self.verify_sigs(&serder.raw(), wigers, &werfers)?;
+                let (wigers, windices) = verify_sigs(&serder.raw(), wigers, &werfers)?;
                 (Some(wigers), windices)
             }
             None => (None, vec![]),
@@ -806,104 +804,7 @@ impl<'db> Kever<'db> {
 
         Ok((sigers, wigers, delpre, delseqner, delsaider))
     }
-
-
-    /// Verifies signatures against verifiers and returns verified signatures and their indices
-    ///
-    /// Returns tuple of (vsigers, vindices) where:
-    /// - vsigers is a list of unique verified sigers with assigned verfer
-    /// - vindices is a list of indices from those verified sigers
-    ///
-    /// The returned vsigers and vindices may be used for threshold validation
-    ///
-    /// Assigns appropriate verfer from verfers to each siger based on siger index
-    /// If no signatures verify then sigers and indices are empty
-    ///
-    /// # Arguments
-    ///
-    /// * `raw` - The signed data as bytes
-    /// * `sigers` - A list of indexed Siger instances (signatures)
-    /// * `verfers` - A list of Verfer instances (public keys)
-    ///
-    /// # Returns
-    ///
-    /// * `Result<(Vec<Siger>, Vec<usize>), KERIError>` - Tuple of verified sigers and their indices
-    fn verify_sigs(
-        &self,
-        raw: &[u8],
-        sigers: Vec<Siger>,
-        verfers: &[Verfer],
-    ) -> Result<(Vec<Siger>, Vec<usize>), KERIError> {
-        if sigers.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
-        }
-
-        // Create a set of unique signatures to avoid duplicates
-        // In Rust, we'll use a HashSet to collect unique sigers based on their qb64
-        let mut unique_signatures = HashSet::new();
-        let mut unique_sigers = Vec::new();
-
-        for siger in sigers {
-            let qb64 = siger.qb64();
-            if unique_signatures.insert(qb64) {
-                unique_sigers.push(siger);
-            }
-        }
-
-        // Create a vector to hold sigers with assigned verfers
-        let mut usigers_with_verfers = Vec::new();
-
-        // Assign verfers to each unique siger based on index
-        for mut siger in unique_sigers {
-            let index = siger.index() as usize;
-            if index >= verfers.len() {
-                // Log if index is out of bounds
-                continue;
-            }
-
-            // Clone the verfer and assign it to the siger
-            let verfer = verfers[index].clone();
-            siger.set_verfer(verfer);
-            usigers_with_verfers.push(siger);
-        }
-
-        // Create lists of verified sigers and their indices
-        let mut vindices = Vec::new();
-        let mut vsigers = Vec::new();
-
-        // Verify each siger and collect valid ones
-        for siger in usigers_with_verfers {
-            // Get verfer from siger - it should be present now
-            if let Some(verfer) = siger.verfer() {
-                // Verify the signature
-                match verfer.verify(siger.raw(), raw) {
-                    Ok(true) => {
-                        // Signature verified successfully
-                        vindices.push(siger.index() as usize);
-                        vsigers.push(siger);
-                    }
-                    Ok(false) => {
-                        // Signature failed verification
-                        print!("Signature failed verification for index {}", siger.index());
-                    }
-                    Err(err) => {
-                        // Error during verification
-                        print!(
-                            "Error verifying signature at index {}: {:?}",
-                            siger.index(),
-                            err
-                        );
-                    }
-                }
-            } else {
-                // This shouldn't happen if we properly assigned verfers above
-                print!("Siger missing verfer at index {}", siger.index());
-            }
-        }
-
-        Ok((vsigers, vindices))
-    }
-
+    
     fn locally_owned(&self, pre: Option<&str>) -> bool {
         match pre {
             Some(pre) => self.db.prefixes.contains(pre) && !self.db.groups.contains(pre),
@@ -1094,6 +995,10 @@ impl<'db> Kever<'db> {
     pub fn verfers(&self) -> Option<Vec<Verfer>> {
         self.verfers.clone()
     }
+    
+    pub fn sner(&self) -> Option<Number> { self.sner.clone() }
+    
+    pub fn last_est(&self) -> Option<LastEstLoc> {self.last_est.clone()}
 
     fn escrow_mf_event(
         &self,
@@ -1281,13 +1186,7 @@ impl<'db> Kever<'db> {
         let ked = &serder.ked();
 
         // Check if identifier is transferable
-        if let Some(prefixer) = &self.prefixer {
-            if !prefixer.transferable() {
-                return Err(KERIError::ValidationError(format!(
-                    "Unexpected event = {:?} is nontransferable or abandoned state", ked
-                )));
-            }
-        } else {
+        if !self.transferable() {
             return Err(KERIError::ValidationError("Missing prefixer in Kever state".to_string()));
         }
 
@@ -1530,7 +1429,7 @@ impl<'db> Kever<'db> {
                 let psn = sn - 1;
 
                 // Fetch raw serialization of last inserted event at psn
-                let key = sn_key(pre, psn);
+                let key = sn_key(pre.clone(), psn);
                 let pdig = match self.db.kels.get_last(&[&key])? {
                     Some(dig) => match String::from_utf8(dig) {
                         Ok(d) => d,
@@ -1543,7 +1442,7 @@ impl<'db> Kever<'db> {
                 };
 
                 // Get the event from database
-                let dig_key = format!("{}.{}", pre, pdig);
+                let dig_key = dg_key(pre, pdig.clone());
                 let praw = match self.db.evts.get::<_, Vec<u8>>(&[&dig_key])? {
                     Some(raw) => raw,
                     None => return Err(KERIError::ValidationError(format!(
@@ -1622,7 +1521,7 @@ impl<'db> Kever<'db> {
     }
     
 
-    fn log_event(
+    pub fn log_event(
         &self,
         serder: SerderKERI,
         sigers: Vec<Siger>,
@@ -1885,6 +1784,14 @@ impl<'db> Kever<'db> {
     fn prefixer(&self) -> Option<Prefixer> {
         self.prefixer.clone()
     }
+    
+    fn ndigs(&self) -> Vec<String> {
+        if self.ndigers.is_none() {
+            Vec::new()
+        } else {
+            self.ndigers.clone().unwrap().iter().map(|d| {d.qb64()}).collect()
+        }
+    }
 
     /// Returns either the most recent prior list of digers before .last_est or None
     ///
@@ -1960,13 +1867,18 @@ impl<'db> Kever<'db> {
         Ok(None)
     }
     
-    
+    pub fn transferable(&self) -> bool {
+        match &self.prefixer {
+            Some(prefixer) => self.ndigers.is_some() && self.ndigers.clone().unwrap().len() > 0 && prefixer.transferable(),
+            None => false,
+        }
+    }
 }
 
 /// KeverBuilder provides a builder pattern for constructing a Kever instance
 /// Each optional parameter of Kever::new is represented by a with_* method
 pub struct KeverBuilder<'db> {
-    db: Baser<'db>,
+    db: Arc<&'db Baser<'db>>,
     state: Option<KeyStateRecord>,
     serder: Option<SerderKERI>,
     sigers: Option<Vec<Siger>>,
@@ -1983,7 +1895,7 @@ pub struct KeverBuilder<'db> {
 
 impl<'db> KeverBuilder<'db> {
     /// Create a new KeverBuilder with required database
-    pub fn new(db: Baser<'db>) -> Self {
+    pub fn new(db: Arc<&'db Baser<'db>>) -> Self {
         KeverBuilder {
             db,
             state: None,
@@ -2106,6 +2018,8 @@ mod tests {
     use std::sync::Arc;
     use crate::cesr::tholder::TholderThold;
     use crate::keri::core::eventing::InceptionEventBuilder;
+    use crate::keri::core::eventing::interact::InteractEventBuilder;
+    use crate::keri::core::eventing::rotate::RotateEventBuilder;
 
     #[test]
     fn test_kever() -> Result<(), KERIError> {
@@ -2250,7 +2164,7 @@ mod tests {
         assert!(skp0.verfer().verify(tsig0.raw(), tser0.raw())?);
 
         // Create the Kever
-        let kever = KeverBuilder::new(db)
+        let kever = KeverBuilder::new(Arc::new(&db))
             .with_serder(tser0.clone())
             .with_sigers(vec![tsig0])
             .build()?;
@@ -2270,7 +2184,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![skp0.verfer().qb64()]
         );
-        assert_eq!(kever.ndigs.clone().unwrap(), nxt);
+        assert_eq!(kever.ndigs().clone(), nxt);
         let prefixer = kever
             .prefixer()
             .ok_or_else(|| KERIError::ValueError("Missing prefixer in Kever".to_string()))?;
@@ -2352,7 +2266,7 @@ mod tests {
             .expect("Failed to open Baser database: {}");
         let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
 
-        let result = KeverBuilder::new(db).build();
+        let result = KeverBuilder::new(Arc::new(&db)).build();
 
         assert!(result.is_err());
         match result {
@@ -2365,7 +2279,7 @@ mod tests {
             )),
         }
     }
-
+    
     #[test]
     fn test_keyeventsequence_0() -> Result<(), KERIError> {
         // Test generation of a sequence of key events
@@ -2412,7 +2326,7 @@ mod tests {
         assert_eq!(nxt1, vec!["EIQsSW4KMrLzY1HQI9H_XxY6MyzhaFFXhG6fdBb5Wxta".to_string()]);
 
         // Create inception event
-        
+
         let serder0 = InceptionEventBuilder::new(keys0.clone()).with_ndigs(nxt1.clone()).build()?;
         let pre = serder0.pre().unwrap();
         event_digs.push(serder0.said().unwrap().to_string());
@@ -2449,8 +2363,8 @@ mod tests {
         assert!(signers[0].verfer().verify(sig0.raw(), serder0.raw())?);
 
         // Create Kever with the event
-        let kever = KeverBuilder::new(db)
-            .with_serder(serder0)
+        let mut kever = KeverBuilder::new(Arc::new(&db))
+            .with_serder(serder0.clone())
             .with_sigers(vec![sig0])
             .build()?;
 
@@ -2468,15 +2382,446 @@ mod tests {
         assert_eq!(kever_verfers, keys0);
 
         // Verify ndigs in Kever
-        assert_eq!(kever.ndigs.as_ref().unwrap(), &nxt1);
+        assert_eq!(kever.ndigs().clone(), nxt1);
 
         // Verify transferable and estOnly flags
         assert_eq!(kever.est_only, Some(false));
         assert!(kever.prefixer.as_ref().unwrap().transferable());
 
-        // TODO: Add test for fetchPriorDigers when that method is implemented
         let pigers = kever.fetch_prior_digers(None)?;
         assert!(pigers.is_none());
+
+        // Event 1 Rotation Transferable
+        // compute nxt digest from keys2
+        let keys2 = vec![signers[2].verfer().qb64()];
+        let ndiger2 = Diger::from_ser(&signers[2].verfer().qb64b(), None)?;
+        let nxt2 = vec![ndiger2.qb64()];
+        assert_eq!(nxt2, vec!["EHuvLs1hmwxo4ImDoCpaAermYVQhiPsPDNaZsz4bcgko".to_string()]);
+
+        let serder1 = RotateEventBuilder::new(
+            pre.clone(),
+            keys1.clone(),
+            serder0.said().unwrap().to_string(),
+        )
+            .with_sn(1)
+            .with_ndigs(nxt2.clone())
+            .build()?;
+
+        event_digs.push(serder1.said().unwrap().to_string());
+
+        assert_eq!(serder1.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder1.ked()["s"].as_str().unwrap(), "1");
+        assert_eq!(serder1.ked()["kt"].as_str().unwrap(), "1");
+        assert_eq!(
+            serder1.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            keys1
+        );
+        assert_eq!(
+            serder1.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            nxt2
+        );
+        assert_eq!(serder1.ked()["p"].as_str().unwrap(), serder0.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig1 = match signers[1].sign(serder1.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[1].verfer().verify(sig1.raw(), serder1.raw())?);
+
+        // update key event verifier state
+        kever.update(serder1.clone(), vec![sig1], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 1u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[1]);
+        assert_eq!(kever.ilk, Ilk::Rot);
+
+        // Verify verfers in Kever match keys1
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys1);
+
+        // Verify ndigs in Kever
+        assert_eq!(kever.ndigs().clone(), nxt2);
+
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_some());
+        let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
+        assert_eq!(pigers_qb64, nxt1);
+
+        // Event 2 Rotation Transferable
+        // compute nxt digest from keys3
+        let keys3 = vec![signers[3].verfer().qb64()];
+        let ndiger3 = Diger::from_ser(&signers[3].verfer().qb64b(), None)?;
+        let nxt3 = vec![ndiger3.qb64()];
+
+        let serder2 = RotateEventBuilder::new(
+            pre.clone(),
+            keys2.clone(),
+            serder1.said().unwrap().to_string(),
+        )
+            .with_sn(2)
+            .with_ndigs(nxt3.clone())
+            .build()?;
+
+        event_digs.push(serder2.said().unwrap().to_string());
+
+        assert_eq!(serder2.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder2.ked()["s"].as_str().unwrap(), "2");
+        assert_eq!(
+            serder2.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            keys2
+        );
+        assert_eq!(
+            serder2.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            nxt3
+        );
+        assert_eq!(serder2.ked()["p"].as_str().unwrap(), serder1.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig2 = match signers[2].sign(serder2.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[2].verfer().verify(sig2.raw(), serder2.raw())?);
+
+        // update key event verifier state
+        kever.update(serder2.clone(), vec![sig2], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 2u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[2]);
+        assert_eq!(kever.ilk, Ilk::Rot);
+
+        // Verify verfers in Kever match keys2
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys2);
+
+        // Verify ndigs in Kever
+        assert_eq!(kever.ndigs().clone(), nxt3);
+
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_some());
+        let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
+        assert_eq!(pigers_qb64, nxt2);
+
+        // Event 3 Interaction
+        let serder3 = InteractEventBuilder::new(pre.clone(), serder2.said().unwrap().to_string())
+            .with_sn(3)
+            .build()?;
+
+        event_digs.push(serder3.said().unwrap().to_string());
+
+        assert_eq!(serder3.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder3.ked()["s"].as_str().unwrap(), "3");
+        assert_eq!(serder3.ked()["p"].as_str().unwrap(), serder2.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig3 = match signers[2].sign(serder3.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[2].verfer().verify(sig3.raw(), serder3.raw())?);
+
+        // update key event verifier state
+        kever.update(serder3.clone(), vec![sig3], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 3u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[3]);
+        assert_eq!(kever.ilk, Ilk::Ixn);
+
+        // Verify verfers in Kever match keys2 (no change)
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys2);
+
+        // Verify ndigs in Kever (no change)
+        assert_eq!(kever.ndigs().clone(), nxt3);
+
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_some());
+        let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
+        assert_eq!(pigers_qb64, nxt2);  // digs from rot before rot before ixn
+
+        // Event 4 Interaction
+        let serder4 = InteractEventBuilder::new(pre.clone(), serder3.said().unwrap().to_string())
+            .with_sn(4)
+            .build()?;
+
+        event_digs.push(serder4.said().unwrap().to_string());
+
+        assert_eq!(serder4.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder4.ked()["s"].as_str().unwrap(), "4");
+        assert_eq!(serder4.ked()["p"].as_str().unwrap(), serder3.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig4 = match signers[2].sign(serder4.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[2].verfer().verify(sig4.raw(), serder4.raw())?);
+
+        // update key event verifier state
+        kever.update(serder4.clone(), vec![sig4], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 4u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[4]);
+        assert_eq!(kever.ilk, Ilk::Ixn);
+
+        // Verify verfers in Kever match keys2 (no change)
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys2);
+
+        // Verify ndigs in Kever (no change)
+        assert_eq!(kever.ndigs().clone(), nxt3);
+
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_some());
+        let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
+        assert_eq!(pigers_qb64, nxt2);  // digs from rot before rot before ixn ixn
+
+        // Event 5 Rotation Transferable
+        // compute nxt digest from keys4
+        let keys4 = vec![signers[4].verfer().qb64()];
+        let ndiger4 = Diger::from_ser(&signers[4].verfer().qb64b(), None)?;
+        let nxt4 = vec![ndiger4.qb64()];
+
+        let serder5 = RotateEventBuilder::new(
+            pre.clone(),
+            keys3.clone(),
+            serder4.said().unwrap().to_string(),
+        )
+            .with_sn(5)
+            .with_ndigs(nxt4.clone())
+            .build()?;
+
+        event_digs.push(serder5.said().unwrap().to_string());
+
+        assert_eq!(serder5.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder5.ked()["s"].as_str().unwrap(), "5");
+        assert_eq!(
+            serder5.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            keys3
+        );
+        assert_eq!(
+            serder5.ked()["n"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            nxt4
+        );
+        assert_eq!(serder5.ked()["p"].as_str().unwrap(), serder4.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig5 = match signers[3].sign(serder5.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[3].verfer().verify(sig5.raw(), serder5.raw())?);
+
+        // update key event verifier state
+        kever.update(serder5.clone(), vec![sig5], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 5u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[5]);
+        assert_eq!(kever.ilk, Ilk::Rot);
+
+        // Verify verfers in Kever match keys3
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys3);
+
+        // Verify ndigs in Kever
+        assert_eq!(kever.ndigs().clone(), nxt4);
+
+        let pigers = kever.fetch_prior_digers(None)?;
+        assert!(pigers.is_some());
+        let pigers_qb64: Vec<String> = pigers.unwrap().iter().map(|d| d.qb64()).collect();
+        assert_eq!(pigers_qb64, nxt3);  // digs from rot before ixn ixn before rot
+
+        // Event 6 Interaction
+        let serder6 = InteractEventBuilder::new(pre.clone(), serder5.said().unwrap().to_string())
+            .with_sn(6)
+            .build()?;
+
+        event_digs.push(serder6.said().unwrap().to_string());
+
+        assert_eq!(serder6.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder6.ked()["s"].as_str().unwrap(), "6");
+        assert_eq!(serder6.ked()["p"].as_str().unwrap(), serder5.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig6 = match signers[3].sign(serder6.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[3].verfer().verify(sig6.raw(), serder6.raw())?);
+
+        // update key event verifier state
+        kever.update(serder6.clone(), vec![sig6], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 6u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[6]);
+        assert_eq!(kever.ilk, Ilk::Ixn);
+
+        // Verify verfers in Kever match keys3 (no change)
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys3);
+
+        // Verify ndigs in Kever (no change)
+        assert_eq!(kever.ndigs().clone(), nxt4);
+
+        // Event 7 Rotation to null NonTransferable Abandon
+        let serder7 = RotateEventBuilder::new(
+            pre.clone(),
+            keys4.clone(),
+            serder6.said().unwrap().to_string(),
+        )
+            .with_sn(7)
+            .build()?;  // Empty ndigs for non-transferable rotation
+
+        event_digs.push(serder7.said().unwrap().to_string());
+
+        assert_eq!(serder7.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder7.ked()["s"].as_str().unwrap(), "7");
+        assert_eq!(
+            serder7.ked()["k"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<&str>>(),
+            keys4
+        );
+        // Check for empty ndigs list
+        assert_eq!(
+            serder7.ked()["n"].as_array().unwrap().len(),
+            0
+        );
+        assert_eq!(serder7.ked()["p"].as_str().unwrap(), serder6.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig7 = match signers[4].sign(serder7.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[4].verfer().verify(sig7.raw(), serder7.raw())?);
+
+        // update key event verifier state
+        kever.update(serder7.clone(), vec![sig7], None, None, None, None, None, false, false, false)?;
+        assert_eq!(kever.prefixer.as_ref().unwrap().qb64(), pre);
+        assert_eq!(kever.sner.as_ref().unwrap().num(), 7u128);
+        assert_eq!(kever.serder.as_ref().unwrap().said().unwrap(), event_digs[7]);
+        assert_eq!(kever.ilk, Ilk::Rot);
+
+        // Verify verfers in Kever match keys4
+        let kever_verfers: Vec<String> = kever.verfers.as_ref().unwrap().iter()
+            .map(|v| v.qb64())
+            .collect();
+        assert_eq!(kever_verfers, keys4);
+
+        // Verify ndigs in Kever are empty
+        assert_eq!(kever.ndigs().len(), 0);
+
+        // Verify the identifier is no longer transferable
+        assert!(!kever.transferable());
+
+        // Event 8 Interaction (should be rejected as identifier is non-transferable)
+        let serder8 = InteractEventBuilder::new(pre.clone(), serder7.said().unwrap().to_string())
+            .with_sn(8)
+            .build()?;
+
+        assert_eq!(serder8.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder8.ked()["s"].as_str().unwrap(), "8");
+        assert_eq!(serder8.ked()["p"].as_str().unwrap(), serder7.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig8 = match signers[4].sign(serder8.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[4].verfer().verify(sig8.raw(), serder8.raw())?);
+
+        // update key event verifier state - should fail with ValidationError
+        let result = kever.update(serder8.clone(), vec![sig8.clone()], None, None, None, None, None, false, false, false);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(KERIError::ValidationError(_))));
+
+        // Event 8 Rotation (should also be rejected as identifier is non-transferable)
+        let keys5 = vec![signers[5].verfer().qb64()];
+        let nxt5 = vec![ndiger4.qb64()];  // reuse ndiger4 as in Python example
+
+        let serder8_rot = RotateEventBuilder::new(
+            pre.clone(),
+            keys5.clone(),
+            serder7.said().unwrap().to_string(),
+        )
+            .with_sn(8)
+            .with_ndigs(nxt5.clone())
+            .build()?;
+
+        assert_eq!(serder8_rot.ked()["i"].as_str().unwrap(), pre);
+        assert_eq!(serder8_rot.ked()["s"].as_str().unwrap(), "8");
+        assert_eq!(serder8_rot.ked()["p"].as_str().unwrap(), serder7.said().unwrap());
+
+        // sign serialization and verify signature
+        let sig8_rot = match signers[4].sign(serder8_rot.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            _ => {
+                return Err(KERIError::ValueError(
+                    "Expected indexed signature".to_string(),
+                ))
+            }
+        };
+        assert!(signers[4].verfer().verify(sig8_rot.raw(), serder8_rot.raw())?);
+
+        // update key event verifier state - should fail with ValidationError
+        let result = kever.update(serder8_rot, vec![sig8_rot], None, None, None, None, None, false, false, false);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(KERIError::ValidationError(_))));
+
+        let mut db_digs = Vec::new();
+        let val_iter = kever.db.kels.get_on_iter::<_, Vec<u8>>(&[&pre], 0)?;
+
+        for val_result in val_iter {
+            let raw_bytes = val_result?;
+            let string_val = String::from_utf8(raw_bytes).expect("Invalid UTF-8 sequence");
+            db_digs.push(string_val);
+        }
+        
+        assert_eq!(db_digs, event_digs);
 
         Ok(())
     }

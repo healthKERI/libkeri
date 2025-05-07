@@ -1,7 +1,7 @@
 use crate::cesr::number::Number;
 use crate::cesr::Versionage;
 use crate::keri::core::serdering::{SadValue, SerderKERI};
-use crate::keri::{versify, Ilks, Kinds};
+use crate::keri::{versify, Ilks, KERIError, Kinds};
 use indexmap::IndexMap;
 use num_bigint::BigUint;
 use std::error::Error;
@@ -62,15 +62,15 @@ impl InteractEventBuilder {
     }
 
     /// Build the interaction event serder
-    pub fn build(self) -> Result<SerderKERI, Box<dyn Error>> {
+    pub fn build(self) -> Result<SerderKERI, KERIError> {
         // Validate sequence number
         let sner = Number::from_num(&BigUint::from(self.sn))?;
         if sner.num() < 1 {
-            return Err(format!("Invalid sn = 0x{} for ixn.", sner.numh()).into());
+            return Err(KERIError::ValueError(format!("Invalid sn = 0x{} for ixn.", sner.numh())));
         }
 
         if !Kinds::contains(&self.kind) {
-            return Err(format!("Invalid kind = {} for ixn.", self.kind).into());
+            return Err(KERIError::ValueError(format!("Invalid kind = {} for ixn.", self.kind)));
         }
         // Create versified string
         let vs = versify("KERI", &Versionage::from(self.version), &self.kind, 0)?;

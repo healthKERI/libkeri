@@ -3,7 +3,7 @@ use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::Versionage;
 use crate::keri::core::eventing::{ample, MAX_INT_THOLD};
 use crate::keri::core::serdering::{SadValue, SerderKERI};
-use crate::keri::{versify, Ilks};
+use crate::keri::{versify, Ilks, KERIError};
 use indexmap::IndexMap;
 use num_bigint::BigUint;
 use serde_json::Value;
@@ -122,16 +122,16 @@ impl RotateEventBuilder {
         self
     }
 
-    pub fn build(self) -> Result<SerderKERI, Box<dyn Error>> {
+    pub fn build(self) -> Result<SerderKERI, KERIError> {
         // Validate ilk
         if self.ilk != Ilks::ROT && self.ilk != Ilks::DRT {
-            return Err(format!("Invalid ilk = {} for rot or drt.", self.ilk).into());
+            return Err(KERIError::ValueError(format!("Invalid ilk = {} for rot or drt.", self.ilk)));
         }
 
         // Validate sequence number
         let sner = Number::from_num(&BigUint::from(self.sn))?;
         if sner.num() < 1 {
-            return Err(format!("Invalid sn = 0x{} for rot or drt.", sner.numh()).into());
+            return Err(KERIError::ValueError(format!("Invalid sn = 0x{} for rot or drt.", sner.numh())));
         }
 
         // Process isith
@@ -147,16 +147,15 @@ impl RotateEventBuilder {
         // Validate isith
         if let Some(num) = tholder.num() {
             if num < 1 {
-                return Err(format!("Invalid sith = {} less than 1.", num).into());
+                return Err(KERIError::ValueError(format!("Invalid sith = {} less than 1.", num)));
             }
         }
         if tholder.size() > self.keys.len() {
-            return Err(format!(
+            return Err(KERIError::ValueError(format!(
                 "Invalid sith = {:?} for keys = {:?}",
                 tholder.sith(),
                 self.keys
-            )
-            .into());
+            )));
         }
 
         // Process nsith
@@ -171,32 +170,31 @@ impl RotateEventBuilder {
 
         // Validate nsith
         if ntholder.size() > self.ndigs.len() {
-            return Err(format!(
+            return Err(KERIError::ValueError(format!(
                 "Invalid nsith = {:?} for ndigs = {:?}",
                 ntholder.sith(),
                 self.ndigs
-            )
-            .into());
+            )));
         }
 
         // Validate witnesses
         let wits = self.wits;
         let witset: HashSet<_> = wits.iter().collect();
         if witset.len() != wits.len() {
-            return Err(format!("Invalid wits = {:?}, has duplicates.", wits).into());
+            return Err(KERIError::ValueError(format!("Invalid wits = {:?}, has duplicates.", wits)));
         }
 
         // Validate cuts
         let cuts = self.cuts;
         let cutset: HashSet<_> = cuts.iter().collect();
         if cutset.len() != cuts.len() {
-            return Err(format!("Invalid cuts = {:?}, has duplicates.", cuts).into());
+            return Err(KERIError::ValueError(format!("Invalid cuts = {:?}, has duplicates.", cuts)));
         }
 
         // Check cuts are all in wits
         for cut in &cuts {
             if !wits.contains(cut) {
-                return Err(format!("Invalid cuts = {:?}, not all members in wits.", cuts).into());
+                return Err(KERIError::ValueError(format!("Invalid cuts = {:?}, not all members in wits.", cuts)));
             }
         }
 
@@ -204,14 +202,14 @@ impl RotateEventBuilder {
         let adds = self.adds;
         let addset: HashSet<_> = adds.iter().collect();
         if addset.len() != adds.len() {
-            return Err(format!("Invalid adds = {:?}, has duplicates.", adds).into());
+            return Err(KERIError::ValueError(format!("Invalid adds = {:?}, has duplicates.", adds)));
         }
 
         // Check no intersection between wits and adds
         for add in &adds {
             if wits.contains(add) {
                 return Err(
-                    format!("Intersecting wits = {:?} and adds = {:?}.", wits, adds).into(),
+                    KERIError::ValueError(format!("Intersecting wits = {:?} and adds = {:?}.", wits, adds)),
                 );
             }
         }
@@ -220,7 +218,7 @@ impl RotateEventBuilder {
         for add in &adds {
             if cuts.contains(add) {
                 return Err(
-                    format!("Intersecting cuts = {:?} and adds = {:?}.", cuts, adds).into(),
+                    KERIError::ValueError(format!("Intersecting cuts = {:?} and adds = {:?}.", cuts, adds)),
                 );
             }
         }
@@ -234,11 +232,10 @@ impl RotateEventBuilder {
             .collect();
 
         if newitset.len() != (wits.len() - cuts.len() + adds.len()) {
-            return Err(format!(
+            return Err(KERIError::ValueError(format!(
                 "Invalid member combination among wits = {:?}, cuts = {:?}, and adds = {:?}.",
                 wits, cuts, adds
-            )
-            .into());
+            )));
         }
 
         // Process toad (witness threshold)
@@ -255,12 +252,12 @@ impl RotateEventBuilder {
         if !newitset.is_empty() {
             if toader.num() < 1 || toader.num() as usize > newitset.len() {
                 return Err(
-                    format!("Invalid toad = {} for wits = {:?}", toader.num(), newitset).into(),
+                    KERIError::ValueError(format!("Invalid toad = {} for wits = {:?}", toader.num(), newitset)),
                 );
             }
         } else if toader.num() != 0 {
             return Err(
-                format!("Invalid toad = {} for wits = {:?}", toader.num(), newitset).into(),
+                KERIError::ValueError(format!("Invalid toad = {} for wits = {:?}", toader.num(), newitset)),
             );
         }
 
@@ -284,8 +281,8 @@ impl RotateEventBuilder {
                 match &tholder.sith() {
                     TholderSith::Integer(n) => Value::Number(serde_json::Number::from(*n as u64)),
                     TholderSith::HexString(s) => Value::String(s.clone()),
-                    TholderSith::Json(s) => serde_json::from_str(s)?,
-                    TholderSith::Weights(w) => serde_json::to_value(w)?,
+                    TholderSith::Json(s) => serde_json::from_str(s).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {} for keys = {:?}", s, self.keys))})?,
+                    TholderSith::Weights(w) => serde_json::to_value(w).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {:?} for keys = {:?}", w, self.keys))})?,
                 }
             };
 
@@ -326,8 +323,8 @@ impl RotateEventBuilder {
             match &ntholder.sith() {
                 TholderSith::Integer(n) => Value::Number(serde_json::Number::from(*n as u64)),
                 TholderSith::HexString(s) => Value::String(s.clone()),
-                TholderSith::Json(s) => serde_json::from_str(s)?,
-                TholderSith::Weights(w) => serde_json::to_value(w)?,
+                TholderSith::Json(s) => serde_json::from_str(s).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {} for keys = {:?}", s, self.keys))})?,
+                TholderSith::Weights(w) => serde_json::to_value(w).map_err(|e| { KERIError::ValueError(format!("Invalid tholder = {:?} for keys = {:?}", w, self.keys))})?,
             }
         };
 

@@ -21,7 +21,6 @@ use serde_json::{self};
 use std::any::Any;
 use std::collections::HashMap;
 use tracing::error;
-use crate::errors::MatterError;
 
 /// Get the span length for a given version and serialization format
 fn get_version_span(vrsn: &Versionage, kind: &Kinds) -> Result<usize, KERIError> {
@@ -277,6 +276,13 @@ impl BaseSerder {
         };
 
         Ok(hash)
+    }
+    
+    pub fn compare_said(&self, said: &str) -> bool {
+        match &self.said {
+            Some(ss) => { ss == said }
+            None => false
+        }
     }
 
     // Helper method to get the primary said field label
@@ -1263,6 +1269,10 @@ impl SerderKERI {
             },
             None => None,
         }
+    }
+    
+    pub fn compare_said(&self, said: &str) -> bool {
+        self.base.compare_said(said)
     }
 }
 
