@@ -81,7 +81,6 @@ impl TholderSith {
             ))),
         }
     }
-
 }
 
 impl fmt::Display for TholderSith {
