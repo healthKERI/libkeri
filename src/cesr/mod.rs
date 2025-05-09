@@ -2220,7 +2220,6 @@ pub fn get_bards() -> HashMap<u8, i32> {
     bards
 }
 
-
 /// Matter is a trait for fully qualified cryptographic material.
 /// Implementations provide various specialized crypto material types.
 pub trait Matter: Any {

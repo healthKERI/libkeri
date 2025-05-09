@@ -12,7 +12,7 @@ pub struct Seqner {
 #[allow(dead_code)]
 impl Seqner {
     pub fn from_sn(sn: u128) -> Self {
-        // For the particular test case of u64::MAX + 1, 
+        // For the particular test case of u64::MAX + 1,
         // we want [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
         let mut bytes = [0u8; 16];
 
@@ -35,7 +35,7 @@ impl Seqner {
         let base = BaseMatter::new(Some(&raw), Some(mtr_dex::SALT_128), None, None).unwrap();
         Seqner { base }
     }
-    
+
     pub fn from_snh(snh: &str) -> Result<Self, MatterError> {
         let sn = u128::from_str_radix(snh, 16).unwrap();
         let seqner = Seqner::from_sn(sn);
@@ -61,14 +61,14 @@ impl Seqner {
     pub fn sn(&self) -> u64 {
         let raw = self.base.raw();
         let start = raw.len().saturating_sub(8); // Get the start index for the last 8 bytes
-    
+
         let mut bytes = [0u8; 8];
         let slice = &raw[start..]; // This could be less than 8 bytes if raw is smaller
-    
+
         // Copy the available bytes starting from the right (least significant)
         let offset = 8 - slice.len();
         bytes[offset..].copy_from_slice(slice);
-    
+
         u64::from_be_bytes(bytes)
     }
 
@@ -148,7 +148,10 @@ mod tests {
     fn test_seqner() {
         // Test default sequence number (zero)
         let number = Seqner::from_sn(0);
-        assert_eq!(number.raw(), &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            number.raw(),
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        );
         assert_eq!(number.code(), mtr_dex::SALT_128);
         assert_eq!(number.sn(), 0);
         assert_eq!(number.snh(), "0");
@@ -214,7 +217,10 @@ mod tests {
 
         // Test with sn=5
         let number = Seqner::from_sn(5);
-        assert_eq!(number.raw(), &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]);
+        assert_eq!(
+            number.raw(),
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        );
         assert_eq!(number.code(), mtr_dex::SALT_128);
         assert_eq!(number.sn(), 5);
         assert_eq!(number.snh(), "5");
@@ -228,7 +234,10 @@ mod tests {
 
         // Test from_snh with hexadecimal value
         let number = Seqner::from_snh("a").unwrap();
-        assert_eq!(number.raw(), &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]);
+        assert_eq!(
+            number.raw(),
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
+        );
         assert_eq!(number.code(), mtr_dex::SALT_128);
         assert_eq!(number.sn(), 10);
         assert_eq!(number.snh(), "a");
@@ -294,5 +303,4 @@ mod tests {
         assert_eq!(number.raw()[8..], (1u64).to_be_bytes());
         assert_eq!(number.raw()[0..8], [0, 0, 0, 0, 0, 0, 0, 0]);
     }
-
 }
