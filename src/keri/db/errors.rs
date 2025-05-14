@@ -35,4 +35,10 @@ pub enum DBError {
 
     #[error("Mapping Error")]
     MapDBError,
+
+    #[error("Missing entry error")]
+    MissingEntryError(String),
+
+    #[error("Encoding error")]
+    EncodingError(String),
 }

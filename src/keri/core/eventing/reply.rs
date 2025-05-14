@@ -1,9 +1,8 @@
 use crate::cesr::Versionage;
 use crate::keri::core::serdering::{SadValue, SerderKERI};
-use crate::keri::{versify, Ilks, Kinds};
+use crate::keri::{versify, Ilks, KERIError, Kinds};
 use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
-use std::error::Error;
 
 /// Builder for creating KERI reply events
 pub struct ReplyEventBuilder {
@@ -67,22 +66,19 @@ impl ReplyEventBuilder {
     }
 
     /// Build the reply event serder
-    pub fn build(self) -> Result<SerderKERI, Box<dyn Error>> {
+    pub fn build(self) -> Result<SerderKERI, KERIError> {
         if !Kinds::contains(&self.kind) {
-            return Err(format!("Invalid kind = {} for rpy.", self.kind).into());
+            return Err(KERIError::ValueError(format!("Invalid kind = {} for rpy.", self.kind)));
         }
 
         // Create versified string
         let vs = versify("KERI", &Versionage::from(self.version), &self.kind, 0)?;
 
         // Generate timestamp if not provided
-        let timestamp = match self.stamp {
-            Some(ts) => ts,
-            None => {
-                let now: DateTime<Utc> = Utc::now();
-                now.to_rfc3339()
-            }
-        };
+        let timestamp = self.stamp.unwrap_or_else(|| {
+            let now: DateTime<Utc> = Utc::now();
+            now.to_rfc3339()
+        });
 
         // Create the key event dict (ked)
         let mut ked = IndexMap::new();
@@ -109,10 +105,9 @@ impl ReplyEventBuilder {
 mod tests {
     use super::*;
     use crate::keri::core::serdering::Serder;
-    use std::error::Error;
 
     #[test]
-    fn test_reply_event_builder_basic() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_builder_basic() -> Result<(), KERIError> {
         // Create a basic reply
         let serder = ReplyEventBuilder::new()
             .with_route("logs/processor".to_string())
@@ -130,7 +125,7 @@ mod tests {
         // Check dt field exists (timestamp)
         assert!(ked.get("dt").is_some());
         let a = ked["a"].clone();
-        let raw_str = std::str::from_utf8(serder.raw())?;
+        let raw_str = std::str::from_utf8(serder.raw()).expect("bad utf8");
 
         // Check a field is an empty object
         match &ked["a"] {
@@ -142,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_with_data() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_with_data() -> Result<(), KERIError> {
         // Create data
         let mut data = IndexMap::new();
         data.insert(
@@ -196,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_custom_version_kind() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_custom_version_kind() -> Result<(), KERIError> {
         // Create a reply with custom version and kind
         let serder = ReplyEventBuilder::new()
             .with_route("logs/processor".to_string())
@@ -213,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_invalid_kind() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_invalid_kind() -> Result<(), KERIError> {
         // Try to create a reply with invalid kind
         let result = ReplyEventBuilder::new()
             .with_kind("INVALID".to_string())
@@ -227,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_said_derivation() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_said_derivation() -> Result<(), KERIError> {
         // Create a reply
         let serder = ReplyEventBuilder::new()
             .with_route("logs/processor".to_string())
@@ -246,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_matches_python_example() -> Result<(), Box<dyn Error>> {
+    fn test_reply_matches_python_example() -> Result<(), KERIError> {
         // Recreate the Python example from the docstring
         let mut data = IndexMap::new();
         data.insert(
@@ -299,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_builder_serialization() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_builder_serialization() -> Result<(), KERIError> {
         // Create data
         let mut data = IndexMap::new();
         data.insert(
@@ -331,7 +326,7 @@ mod tests {
 
         // The SAID will be dynamically generated, so we can't check the exact raw bytes
         // but we can check that it starts and ends correctly
-        let raw_str = std::str::from_utf8(&raw)?;
+        let raw_str = std::str::from_utf8(&raw).expect("bad utf8");
 
         // Check that it starts with the correct version and type
         assert!(raw_str.starts_with("{\"v\":\"KERI10JSON"));
@@ -348,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_with_empty_route() -> Result<(), Box<dyn Error>> {
+    fn test_reply_with_empty_route() -> Result<(), KERIError> {
         // Create a reply with empty route (should be valid)
         let serder = ReplyEventBuilder::new().build()?;
 
@@ -364,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reply_event_for_role_add() -> Result<(), Box<dyn Error>> {
+    fn test_reply_event_for_role_add() -> Result<(), KERIError> {
         // Define the route
         let route = "/end/role/add".to_string();
 

@@ -7,6 +7,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt;
 use thiserror::Error;
+use crate::keri::db::errors::DBError;
 
 pub mod app;
 pub mod core;
@@ -120,6 +121,9 @@ pub enum KERIError {
 
     #[error("IO Error")]
     Io(#[from] std::io::Error),
+    
+    #[error("DBError")]
+    DBError(#[from] DBError),
 
     #[error("Parsing Error: {0}")]
     Parsing(String),
@@ -162,6 +166,12 @@ pub enum KERIError {
 
     #[error("Unverified witness receipt event error: {0}")]
     UnverifiedWitnessReceiptError(String),
+
+    #[error("Unverified receipt event error: {0}")]
+    UnverifiedReceiptError(String),
+
+    #[error("Query not found error: {0}")]
+    QueryNotFoundError(String),
 }
 
 impl From<MatterError> for KERIError {

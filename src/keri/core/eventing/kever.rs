@@ -1658,7 +1658,7 @@ impl<'db> Kever<'db> {
             let seqner = seqner.unwrap();
             let saider = saider.unwrap();
             let couple = [seqner.qb64().as_bytes(), saider.qb64().as_bytes()].concat();
-            self.db.aess.put(&dg_keys, &[&couple])?;
+            self.db.aess.put(&dg_keys, &couple)?;
         }
 
         // Update event source record
@@ -1839,7 +1839,7 @@ impl<'db> Kever<'db> {
         self.tholder.clone()
     }
 
-    fn toader(&self) -> Option<Number> {
+    pub fn toader(&self) -> Option<Number> {
         self.toader.clone()
     }
 
@@ -1847,9 +1847,13 @@ impl<'db> Kever<'db> {
         self.wits.clone().unwrap_or_else(Vec::new)
     }
 
-    fn prefixer(&self) -> Option<Prefixer> {
+    pub fn prefixer(&self) -> Option<Prefixer> {
         self.prefixer.clone()
     }
+    
+    pub fn serder(&self) -> Option<SerderKERI> { self.serder.clone() }
+    
+    pub fn delpre(&self) -> Option<String> {self.delpre.clone()}
 
     fn ndigs(&self) -> Vec<String> {
         if self.ndigers.is_none() {

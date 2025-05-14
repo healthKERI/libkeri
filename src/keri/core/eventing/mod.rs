@@ -23,6 +23,14 @@ use crate::cesr::indexing::Indexer;
 use crate::cesr::verfer::Verfer;
 use crate::keri::KERIError;
 pub use incept::*;
+pub use interact::*;
+pub use kever::*;
+pub use kevery::*;
+pub use query::*;
+pub use receipt::*;
+pub use reply::*;
+pub use rotate::*;
+pub use state::*;
 
 // Determine threshold representations based on intive flag
 const MAX_INT_THOLD: usize = 12; // Define this constant based on your system

@@ -7,7 +7,6 @@ use crate::keri::{versify, KERIError};
 use num_bigint::BigUint;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 
 /// Builder for creating SerderKERI inception events
 pub struct InceptionEventBuilder {

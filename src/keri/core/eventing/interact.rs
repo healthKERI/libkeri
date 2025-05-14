@@ -4,7 +4,6 @@ use crate::keri::core::serdering::{SadValue, SerderKERI};
 use crate::keri::{versify, Ilks, KERIError, Kinds};
 use indexmap::IndexMap;
 use num_bigint::BigUint;
-use std::error::Error;
 
 /// Builder for creating KERI interaction events
 pub struct InteractEventBuilder {
@@ -267,7 +266,7 @@ mod tests {
 
         // Check version string starts with KERI10CBOR
         let kver = ked["v"].as_str().unwrap();
-        assert!(ked["v"].as_str().unwrap().starts_with("KERI10CBOR"));
+        assert!(kver.starts_with("KERI10CBOR"));
 
         Ok(())
     }

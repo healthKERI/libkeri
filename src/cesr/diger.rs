@@ -1,8 +1,7 @@
 use crate::cesr::{dig_dex, mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
-use blake2::digest::VariableOutput;
-use blake2::{Blake2b512, Blake2bVar, Blake2s256, Digest as Blake2Digest};
+use blake2::{Blake2b512, Blake2s256, Digest as Blake2Digest};
 use blake3::Hasher as Blake3Hasher;
 use sha2::{Sha256, Sha512};
 use sha3::{Digest as Sha3Digest, Sha3_256, Sha3_512};
