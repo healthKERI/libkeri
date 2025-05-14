@@ -1,4 +1,4 @@
-use crate::cesr::{mtr_dex, non_trans_dex, BaseMatter, Parsable};
+use crate::cesr::{mtr_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
 use std::any::Any;

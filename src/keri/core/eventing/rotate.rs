@@ -8,7 +8,6 @@ use indexmap::IndexMap;
 use num_bigint::BigUint;
 use serde_json::Value;
 use std::collections::HashSet;
-use std::error::Error;
 
 pub struct RotateEventBuilder {
     pre: String,

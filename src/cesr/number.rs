@@ -15,6 +15,10 @@ pub struct Number {
 impl Number {
     pub fn from_num(num: &BigUint) -> Result<Self, MatterError> {
         let code = number_code(num)?;
+        Self::from_num_and_code(num, code)
+    }
+    
+    pub fn from_num_and_code(num: &BigUint, code: &str) -> Result<Self, MatterError> {
         let raw = num.to_bytes_be();
         let rs = raw_size(code)?;
         if raw.len() > rs {
@@ -28,6 +32,7 @@ impl Number {
 
         let base = BaseMatter::new(Some(&bytes), Some(code), None, None)?;
         Ok(Number { base })
+        
     }
 
     pub fn from_numh(numh: &str) -> Result<Self, MatterError> {

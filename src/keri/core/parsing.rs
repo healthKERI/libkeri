@@ -13,8 +13,9 @@ use crate::cesr::{sniff, Parsable, Versionage, VRSN_1_0};
 use crate::errors::MatterError;
 use crate::keri::core::serdering::{Serder, SerderACDC, SerderKERI, Serdery};
 use crate::keri::{Ilk, KERIError};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncRead, AsyncReadExt};
+use crate::keri::core::eventing::Kevery;
 
 /// Trans Indexed Sig Groups
 #[derive(Debug, Clone)]
@@ -98,7 +99,7 @@ pub enum SadPathGroup {
 pub enum Message {
     /// Identifier key event messages
     KeyEvent {
-        serder: Box<dyn Serder>,
+        serder: Box<SerderKERI>,
         sigers: Option<Vec<Siger>>,
         wigers: Option<Vec<Siger>>,
         delseqner: Option<Seqner>,
@@ -112,14 +113,14 @@ pub enum Message {
 
     /// Non-transferable receipt messages
     Receipt {
-        serder: Box<dyn Serder>,
+        serder: Box<SerderKERI>,
         cigars: Vec<Cigar>,
         local: Option<bool>,
     },
 
     /// Witness receipt messages
     WitnessReceipt {
-        serder: Box<dyn Serder>,
+        serder: Box<SerderKERI>,
         wigers: Vec<Siger>,
         local: Option<bool>,
     },
@@ -133,7 +134,7 @@ pub enum Message {
 
     /// Query messages for Kevery or Tevery
     Query {
-        serder: Box<dyn Serder>,
+        serder: Box<SerderKERI>,
         source: Option<Prefixer>,
         sigers: Option<Vec<Siger>>,
         cigar: Option<Vec<Cigar>>,
@@ -186,23 +187,6 @@ pub enum Message {
 
 // Implementation with helper methods
 impl Message {
-    /// Returns the serder from any message type
-    pub fn serder(&self) -> &Box<dyn Serder> {
-        match self {
-            Message::KeyEvent { serder, .. } => serder,
-            Message::Receipt { serder, .. } => serder,
-            Message::WitnessReceipt { serder, .. } => serder,
-            Message::ReceiptTrans { serder, .. } => serder,
-            Message::Query { serder, .. } => serder,
-            Message::ReplyNonTrans { serder, .. } => serder,
-            Message::ReplyTrans { serder, .. } => serder,
-            Message::ExchangeEventNonTrans { serder, .. } => serder,
-            Message::ExchangeEventTrans { serder, .. } => serder,
-            Message::TELEvent { serder, .. } => serder,
-            Message::Credential { creder, .. } => creder,
-        }
-    }
-
     /// Determines if the message is local
     pub fn is_local(&self) -> bool {
         match self {
@@ -220,16 +204,16 @@ pub trait MessageHandler: Send + Sync {
     async fn handle(&self, msg: Message) -> Result<(), KERIError>;
 }
 
-pub struct Parser<R> {
+pub struct Parser<'a, R> {
     reader: R,
     buffer: Vec<u8>,
     framed: bool,
     pipeline: bool,
-    handlers: Handlers,
+    handlers: Handlers<'a>,
     serdery: Serdery,
 }
-pub struct Handlers {
-    pub kevery: Arc<dyn MessageHandler>,
+pub struct Handlers<'a> {
+    pub kevery: Arc<Mutex<Kevery<'a>>>,
     pub tevery: Arc<dyn MessageHandler>,
     pub exchanger: Arc<dyn MessageHandler>,
     pub revery: Arc<dyn MessageHandler>,
@@ -237,8 +221,8 @@ pub struct Handlers {
     pub local: bool,
 }
 
-impl<R: AsyncRead + Unpin + Send> Parser<R> {
-    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers) -> Self {
+impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
+    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers<'a>) -> Self {
         Self {
             reader,
             buffer: Vec::new(),
@@ -711,48 +695,67 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
         Ok(())
     }
 
-    async fn dispatch_message(&self, msg: Message) -> Result<(), KERIError> {
+    async fn dispatch_message(&mut self, msg: Message) -> Result<(), KERIError> {
         // Match message type to handler
         match msg {
             Message::KeyEvent {
-                serder: _,
-                sigers: _,
-                wigers: _,
-                delseqner: _,
-                delsaider: _,
-                firner: _,
-                dater: _,
-                cigars: _,
-                trqs: _,
-                local: _,
-            } => self.handlers.kevery.handle(msg).await?,
+                serder,
+                sigers,
+                wigers,
+                delseqner,
+                delsaider,
+                firner,
+                dater,
+                cigars,
+                trqs,
+                local,
+            } => {
+                let sigs = sigers.unwrap_or_default();
+                self.handlers.kevery.lock().unwrap().process_event(*serder.clone(), sigs, wigers, delseqner, delsaider, firner.clone(), dater, Some(false), local)?;
+
+                if cigars.is_some() {
+                    self.handlers.kevery.lock().unwrap().process_attached_receipt_couples(*serder.clone(), firner.clone(), cigars.unwrap())?;
+                }
+
+                if trqs.is_some() {
+                    self.handlers.kevery.lock().unwrap().process_attached_receipt_quadruples(*serder, trqs.unwrap(), firner, local)?;
+                }
+            }
             Message::Receipt {
-                serder: _,
-                cigars: _,
-                local: _,
-            } => self.handlers.kevery.handle(msg).await?,
+                serder,
+                cigars,
+                local,
+            } => {
+                self.handlers.kevery.lock().unwrap().process_receipt(*serder, cigars, local)?;
+            },
             Message::WitnessReceipt {
-                serder: _,
-                wigers: _,
-                local: _,
-            } => self.handlers.kevery.handle(msg).await?,
+                serder,
+                wigers,
+                local,
+            } => {
+                self.handlers.kevery.lock().unwrap().process_receipt_witness(*serder, wigers, local)?;
+            },
             Message::ReceiptTrans {
                 serder: _,
                 tsgs: _,
                 local: _,
-            } => self.handlers.kevery.handle(msg).await?,
-            Message::Query {
-                serder: _,
-                source: _,
-                sigers: _,
-                cigar: _,
             } => {
-                let serder = msg.serder();
-                let ilk = serder.ilk();
-                match ilk {
-                    Some(ilk) => match ilk {
-                        "logs" | "ksn" | "mbx" => self.handlers.kevery.handle(msg).await?,
-                        "tels" | "tsn" => self.handlers.tevery.handle(msg).await?,
+
+            },
+            Message::Query {
+                serder,
+                source,
+                sigers,
+                cigar,
+            } => {
+                let ked = serder.ked();
+                let route = ked["r"].as_str();
+                match route {
+                    Some(route) => match route {
+                        "logs" | "ksn" | "mbx" => {
+                            self.handlers.kevery.lock().unwrap().process_query(*serder, source, sigers, cigar)?;
+                        },
+                        "tels" | "tsn" => {} //self.handlers.tevery.handle(msg).await?,
                         &_ => {}
                     },
                     None => {}
@@ -805,8 +808,8 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
         frcs: Vec<Frcs>,
         ssts: Vec<Ssts>,
         pathed: Vec<Vec<u8>>,
-        sadtsgs: Vec<SadTsgs>,
-        sadcigars: Vec<SadCigars>,
+        _sadtsgs: Vec<SadTsgs>,
+        _sadcigars: Vec<SadCigars>,
         essrs: Vec<Texter>,
         local: bool,
     ) -> Result<Message, MatterError> {
@@ -845,7 +848,7 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
 
                 // Create KeyEvent message
                 let message = Message::KeyEvent {
-                    serder,
+                    serder: Box::new(keri_serder.clone()),
                     sigers: Some(sigers),
                     wigers: if wigers.is_empty() {
                         None
@@ -878,7 +881,7 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
 
                 if !cigars.is_empty() {
                     return Ok(Message::Receipt {
-                        serder,
+                        serder: Box::new(keri_serder.clone()),
                         cigars,
                         local: Some(local),
                     });
@@ -886,7 +889,7 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
 
                 if !wigers.is_empty() {
                     return Ok(Message::WitnessReceipt {
-                        serder,
+                        serder: Box::new(keri_serder.clone()),
                         wigers,
                         local: Some(local),
                     });
@@ -925,14 +928,14 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
                     let ssgs = ssgs.last().unwrap();
 
                     Ok(Message::Query {
-                        serder,
+                        serder: Box::new(keri_serder.clone()),
                         source: Some(ssgs.prefixer.clone()),
                         sigers: Some(ssgs.sigers.clone()),
                         cigar: None,
                     })
                 } else if !cigars.is_empty() {
                     Ok(Message::Query {
-                        serder,
+                        serder: Box::new(keri_serder.clone()),
                         source: None,
                         sigers: None,
                         cigar: Some(cigars),
@@ -1081,7 +1084,7 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
         &mut self,
         cold: &str,
         abort: bool,
-        gvrsn: &Versionage,
+        _gvrsn: &Versionage,
     ) -> Result<T, MatterError> {
         // Try parsing until we either succeed or get a shortage error
 
@@ -1317,6 +1320,13 @@ impl<R: AsyncRead + Unpin + Send> Parser<R> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cesr::BaseMatter;
+    use crate::cesr::signing::{Salter, Sigmat};
+    use crate::keri::core::eventing::{InceptionEventBuilder, InteractEventBuilder, Kever, KeveryBuilder, RotateEventBuilder};
+    use crate::keri::core::serdering::Rawifiable;
+    use crate::keri::db::basing::Baser;
+    use crate::keri::db::dbing::LMDBer;
+    use crate::Matter;
     use super::*;
 
     struct MockHandler {
@@ -1340,11 +1350,33 @@ mod tests {
     #[tokio::test]
     async fn test_parser_valid_message() {
         // Provide CESR-encoded message bytes matching KERIpy tests
+        let pre = "DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx";
+        let said = "EIcca2-uqsicYK7-q5gxlZXuzOkqrNSL3JIaLflSOOgF";
+        
         let input = r#"{"v":"KERI10JSON00012b_","t":"icp","d":"EIcca2-uqsicYK7-q5gxlZXuzOkqrNSL3JIaLflSOOgF","i":"DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx","s":"0","kt":"1","k":["DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx"],"nt":"1","n":["EFXIx7URwmw7AVQTBcMxPXfOOJ2YYA1SJAam69DXV8D2"],"bt":"0","b":[],"c":[],"a":[]}-AABAAApXLez5eVIs6YyRXOMDMBy4cTm2GvsilrZlcMmtBbO5twLst_jjFoEyfKTWKntEtv9JPBv1DLkqg-ImDmGPM8E"#.as_bytes();
         let reader = tokio::io::BufReader::new(input);
 
+        // Create a temporary database
+        let lmdber = &LMDBer::builder()
+            .temp(true)
+            .name("test_kevery_builder")
+            .build().expect("LMDBer should be build");
+
+        let db =
+            Baser::new(Arc::new(lmdber)).expect("Baser should be built");
+
+        // Create Kevery using the builder pattern
+        let kevery = KeveryBuilder::new(Arc::new(&db))
+            .with_lax(true)
+            .with_local(false)
+            .with_cloned(false)
+            .with_direct(true)
+            .with_check(false)
+            .build().expect("Should build a Kevery");
+
+
         let handlers = Handlers {
-            kevery: Arc::new(MockHandler { serder: None }),
+            kevery: Arc::new(kevery.into()),
             tevery: Arc::new(MockHandler { serder: None }),
             exchanger: Arc::new(MockHandler { serder: None }),
             revery: Arc::new(MockHandler { serder: None }),
@@ -1354,5 +1386,479 @@ mod tests {
 
         let mut parser = Parser::new(reader, true, false, handlers);
         assert!(parser.parse_stream(Some(true)).await.is_ok());
+
+        let msgs = db.clone_pre_iter("DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx", None).expect("Clone failed");
+        assert_eq!(msgs.len(), 1);
+        let msg = msgs.get(0).unwrap();
+
+        let bytes = concat!(
+        r#"{"v":"KERI10JSON00012b_","t":"icp","d":"EIcca2-uqsicYK7-q5gxlZXuzOkqrNSL3JIaLflSOOgF","i":"DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx","s":"0","kt":"1","k":["DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx"],"nt":"1","n":["EFXIx7URwmw7AVQTBcMxPXfOOJ2YYA1SJAam69DXV8D2"],"bt":"0","b":[],"c":[],"a":[]}"#,
+        r#"-VAn-AABAAApXLez5eVIs6YyRXOMDMBy4cTm2GvsilrZlcMmtBbO5twLst_jjFoEyfKTWKntEtv9JPBv1DLkqg-ImDmGPM8E"#
+        ).as_bytes();
+
+        assert!(msg.starts_with(bytes));
     }
+
+    #[tokio::test]
+    async fn test_parser() -> Result<(), KERIError> {
+        // Create signers
+        let raw = b"ABCDEFGH01234567";
+        let salter = Salter::new(Some(raw), None, None);
+        let signers = salter.unwrap().signers(8, 0, "psr", None, None, None, true)?;
+
+        // Create databases
+        let con_lmdber = LMDBer::builder().name("controller").temp(true).build()?;
+        let val_lmdber = LMDBer::builder().name("validator").temp(true).build()?;
+
+        let con_db = Baser::new(Arc::new(&con_lmdber))?;
+        let val_db = Baser::new(Arc::new(&val_lmdber))?;
+
+        let mut event_digs = Vec::new();
+        let mut msgs = Vec::new();
+
+        let keys = vec![signers[0].verfer.qb64()];
+        let ndigs = vec![BaseMatter::from_qb64(&signers[1].verfer.qb64())?.qb64()];
+
+        let serder = InceptionEventBuilder::new(keys)
+            .with_ndigs(ndigs)
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[0].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Create key event verifier state
+        let mut kever = Kever::new(
+            Arc::new(&con_db),
+            None,
+            Some(serder.clone()),
+            Some(vec![siger.clone()]),
+            None, None, None, None, None, None, None, None, None
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 1: Rotation Transferable
+        let pre = kever.prefixer().unwrap().qb64();
+        let keys = vec![signers[1].verfer.qb64()];
+        let dig = kever.serder().unwrap().said().unwrap();
+        let ndigs = vec![BaseMatter::from_qb64(&signers[2].verfer.qb64()).unwrap().qb64()];
+
+        let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
+            .with_sn(1)
+            .with_ndigs(ndigs)
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0"))?;
+
+        // Sign serialization
+        let siger = match signers[1].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 2: Rotation Transferable
+        let pre = kever.prefixer().unwrap().qb64();
+        let keys = vec![signers[2].verfer.qb64()];
+        let dig = kever.serder().unwrap().said().unwrap();
+        let ndigs = vec![BaseMatter::from_qb64(&signers[3].verfer.qb64()).unwrap().qb64()];
+
+        let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
+            .with_sn(2)
+            .with_ndigs(ndigs)
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[2].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 3: Interaction
+        let pre = kever.prefixer().unwrap().qb64();
+        let dig = kever.serder().unwrap().said().unwrap();
+
+        let serder = InteractEventBuilder::new(pre, dig.to_string()).with_sn(3)
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[2].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 4: Interaction
+        let pre = kever.prefixer().unwrap().qb64();
+        let dig = kever.serder().unwrap().said().unwrap();
+
+        let serder = InteractEventBuilder::new(pre, dig.to_string())
+            .with_sn(4)
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0"))?;
+
+        // Sign serialization
+        let siger = match signers[2].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 5: Rotation Transferable
+        let pre = kever.prefixer().unwrap().qb64();
+        let keys = vec![signers[3].verfer.qb64()];
+        let dig = kever.serder().unwrap().said().unwrap();
+        let ndigs = vec![BaseMatter::from_qb64(&signers[4].verfer.qb64())?.qb64()];
+
+        let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
+            .with_sn(5)
+            .with_ndigs(ndigs)
+            .build()?;
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[3].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 6: Interaction
+        let pre = kever.prefixer().unwrap().qb64();
+        let dig = kever.serder().unwrap().said().unwrap();
+
+        let serder = InteractEventBuilder::new(pre, dig.to_string())
+            .with_sn(6)
+            .build()?;
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0"))?;
+
+        // Sign serialization
+        let siger = match signers[3].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 7: Rotation to null NonTransferable Abandon
+        // nxt digest is empty (no ndigs)
+        let pre = kever.prefixer().unwrap().qb64();
+        let keys = vec![signers[4].verfer.qb64()];
+        let dig = kever.serder().unwrap().said().unwrap();
+
+        let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
+            .with_sn(7)
+            // ndigs is intentionally empty - this makes the key non-transferable
+            .with_ndigs(vec![])
+            .build()?;
+
+        event_digs.push(serder.said().unwrap());
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0"))?;
+
+        // Sign serialization
+        let siger = match signers[4].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state
+        kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        )?;
+
+        // Extend key event stream
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 8: Interaction but already abandoned
+        let pre = kever.prefixer().unwrap().qb64();
+        let dig = kever.serder().unwrap().said().unwrap();
+
+        let serder = InteractEventBuilder::new(pre, dig.to_string())
+            .with_sn(8)
+            .build()?;
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[4].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state - should fail because abandoned
+        let result = kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        );
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), KERIError::ValidationError(_)));
+
+        // Extend key event stream anyway
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Event 8: Rotation override interaction but already abandoned
+        let pre = kever.prefixer().unwrap().qb64();
+        let keys = vec![signers[4].verfer.qb64()];
+        let dig = kever.serder().unwrap().said().unwrap();
+        let ndigs = vec![BaseMatter::from_qb64(&signers[5].verfer.qb64()).unwrap().qb64()];
+
+        let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
+            .with_sn(8)
+            .with_ndigs(ndigs)
+            .build()?;
+
+        // Create sig counter
+        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0")).unwrap();
+
+        // Sign serialization
+        let siger = match signers[4].sign(&serder.raw(), Some(0), None, None)? {
+            Sigmat::Indexed(siger) => siger,
+            Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
+        };
+
+        // Update key event verifier state - should fail because nontransferable
+        let result = kever.update(
+            serder.clone(),
+            vec![siger.clone()],
+            None, None, None, None, None,
+            true,
+            true,
+            false
+        );
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), KERIError::ValidationError(_)));
+
+        // Extend key event stream anyway
+        msgs.extend_from_slice(&serder.raw());
+        msgs.extend_from_slice(&counter.qb64b());
+        msgs.extend_from_slice(&siger.qb64b());
+
+        // Assert message length
+        assert_eq!(msgs.len(), 3745);
+
+        let pre = kever.prefixer().unwrap().qb64();
+
+        // Check db digs
+        let db_digs: Vec<String> = con_db.clone_pre_iter(&pre, None)?
+            .iter()
+            .map(|msg| {
+                let serder = SerderKERI::from_raw(&msg, None).unwrap();
+                serder.said().unwrap().to_string()
+            })
+            .collect();
+
+        assert_eq!(db_digs, event_digs);
+
+        // Create Kevery and Parser
+        let kevery = Kevery::new(
+            None,
+            Arc::new(&val_db),
+            None,
+            Some(false),
+            Some(false),
+            Some(false),
+            Some(false),
+            Some(false)
+        )?;
+
+        let handlers = Handlers {
+            kevery: Arc::new(Mutex::new(kevery)),
+            tevery: Arc::new(MockHandler { serder: None }),
+            exchanger: Arc::new(MockHandler { serder: None }),
+            revery: Arc::new(MockHandler { serder: None }),
+            verifier: Arc::new(MockHandler { serder: None }),
+            local: false,
+        };
+
+        let mut parser = Parser::new(msgs.as_slice(), true, false, handlers);
+
+        // Parse the messages
+        assert!(parser.parse_stream(Some(true)).await.is_ok());
+
+        // Check parsed results
+        assert!(parser.handlers.kevery.lock().unwrap().kevers().contains_key(&pre));
+
+        let vkever = parser.handlers.kevery.lock().unwrap().kevers().get(&pre).unwrap();
+        // let vkever = (parser.handlers.kevery.lock().await).kevers()[&pre].clone();
+        assert_eq!(vkever.sner().unwrap().num(), kever.sner().unwrap().num());
+        assert_eq!(vkever.verfers().unwrap()[0].qb64(), kever.verfers().unwrap()[0].qb64());
+        assert_eq!(vkever.verfers().unwrap()[0].qb64(), signers[4].verfer.qb64());
+
+        // Check val_db digs
+        let val_db_digs: Vec<String> = val_db.clone_pre_iter(&pre, None)?
+            .iter()
+            .map(|msg| {
+                let serder = SerderKERI::from_raw(&msg, None).unwrap();
+                serder.said().unwrap().to_string()
+            })
+            .collect();
+
+        assert_eq!(val_db_digs, event_digs);
+
+        // Test parser without kevery
+        // Mock a parser with no handlers
+        let mut no_handler_parser = Parser::new(msgs.as_slice(), true, false, Handlers::default());
+        assert!(no_handler_parser.parse_stream(Some(true)).await.is_ok());
+
+        // Cleanup should be automatic because we're using temp databases
+        Ok(())
+    }
+
+    impl Default for Handlers<'_> {
+        fn default() -> Self {
+            // Create minimal handlers for testing
+            let lmdber = LMDBer::builder().temp(true).name("temp").build().unwrap();
+            let db = Arc::new(&Baser::new(Arc::new(&lmdber)).unwrap());
+
+            let kevery = Kevery::new(
+                None, db, None, Some(false), Some(false),
+                Some(false), Some(false), Some(false)
+            ).unwrap();
+
+            Handlers {
+                kevery: Arc::new(Mutex::new(kevery)),
+                tevery: Arc::new(MockHandler { serder: None }),
+                exchanger: Arc::new(MockHandler { serder: None }),
+                revery: Arc::new(MockHandler { serder: None }),
+                verifier: Arc::new(MockHandler { serder: None }),
+                local: false,
+            }
+        }
+    }
+    
+    
 }

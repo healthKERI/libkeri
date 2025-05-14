@@ -1,5 +1,4 @@
-use crate::cesr::dater::Dater;
-use crate::cesr::{mtr_dex, non_trans_dex, pre_dex, BaseMatter, Parsable};
+use crate::cesr::{non_trans_dex, pre_dex, BaseMatter, Parsable};
 use crate::errors::MatterError;
 use crate::Matter;
 use std::any::Any;
