@@ -1226,7 +1226,7 @@ impl<'db> Kever<'db> {
         // Check if identifier is transferable
         if !self.transferable() {
             return Err(KERIError::ValidationError(
-                "Missing prefixer in Kever state".to_string(),
+                "Can't rotate; Prefixer is either missing or identifier is non-transferrable".to_string(),
             ));
         }
 

@@ -246,8 +246,23 @@ impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
 
             // Process buffer into messages
             loop {
-                let (msg, _) = self.try_parse_message()?;
-                self.dispatch_message(msg).await?;
+                match self.try_parse_message() {
+                    Ok((msg, _)) => {
+                        // Try to dispatch the message but ignore validation errors
+                        if let Err(e) = self.dispatch_message(msg).await {
+                            match e {
+                                // Only ignore ValidationErrors, propagate other errors
+                                KERIError::ValidationError(_) => {
+                                    // Optionally log the validation error
+                                    // eprintln!("Validation error during parsing (continuing): {:?}", e);
+                                },
+                                _ => return Err(e),
+                            }
+                        }
+                    },
+                    Err(e) => return Err(KERIError::MatterError(e.to_string())),
+                }
+
                 if self.buffer.len() == 0 {
                     if once.unwrap_or(false) {
                         return Ok(());
@@ -258,6 +273,8 @@ impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
         }
         Ok(())
     }
+
+
 
     fn try_parse_message(&mut self) -> Result<(Message, usize), MatterError> {
         let serder = self
@@ -1316,11 +1333,13 @@ impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
 
         Ok(cigars)
     }
+
 }
 
 #[cfg(test)]
 mod tests {
     use crate::cesr::BaseMatter;
+    use crate::cesr::diger::Diger;
     use crate::cesr::signing::{Salter, Sigmat};
     use crate::keri::core::eventing::{InceptionEventBuilder, InteractEventBuilder, Kever, KeveryBuilder, RotateEventBuilder};
     use crate::keri::core::serdering::Rawifiable;
@@ -1340,9 +1359,6 @@ mod tests {
                 Message::KeyEvent { serder, .. } => Some(Box::new(serder)),
                 _ => None,
             };
-            if serder.is_some() {
-                println!("{}", serder.unwrap().pretty(None));
-            }
             Ok(())
         }
     }
@@ -1417,12 +1433,12 @@ mod tests {
         let mut msgs = Vec::new();
 
         let keys = vec![signers[0].verfer.qb64()];
-        let ndigs = vec![BaseMatter::from_qb64(&signers[1].verfer.qb64())?.qb64()];
+        let ndigs = vec![Diger::from_ser(signers[1].verfer.raw(), None)?.qb64()];
+
 
         let serder = InceptionEventBuilder::new(keys)
             .with_ndigs(ndigs)
             .build()?;
-
         event_digs.push(serder.said().unwrap());
 
         // Create sig counter
@@ -1451,8 +1467,9 @@ mod tests {
         // Event 1: Rotation Transferable
         let pre = kever.prefixer().unwrap().qb64();
         let keys = vec![signers[1].verfer.qb64()];
-        let dig = kever.serder().unwrap().said().unwrap();
-        let ndigs = vec![BaseMatter::from_qb64(&signers[2].verfer.qb64()).unwrap().qb64()];
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
+        let ndigs = vec![Diger::from_ser(signers[2].verfer.raw(), None)?.qb64()];
 
         let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
             .with_sn(1)
@@ -1463,23 +1480,21 @@ mod tests {
 
         // Create sig counter
         let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(1), Some("1.0"))?;
-
         // Sign serialization
         let siger = match signers[1].sign(&serder.raw(), Some(0), None, None)? {
             Sigmat::Indexed(siger) => siger,
             Sigmat::NonIndexed(_) => {panic!("Should not be non-indexed")}
         };
 
-        // Update key event verifier state
         kever.update(
             serder.clone(),
             vec![siger.clone()],
-            None, None, None, None, None,
+            Some(Vec::new()),
+            None, None, None, None,
             true,
             true,
             false
         )?;
-
         // Extend key event stream
         msgs.extend_from_slice(&serder.raw());
         msgs.extend_from_slice(&counter.qb64b());
@@ -1488,14 +1503,15 @@ mod tests {
         // Event 2: Rotation Transferable
         let pre = kever.prefixer().unwrap().qb64();
         let keys = vec![signers[2].verfer.qb64()];
-        let dig = kever.serder().unwrap().said().unwrap();
-        let ndigs = vec![BaseMatter::from_qb64(&signers[3].verfer.qb64()).unwrap().qb64()];
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
+        let ndigs = vec![Diger::from_ser(signers[3].verfer.raw(), None)?.qb64()];
+
 
         let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
             .with_sn(2)
             .with_ndigs(ndigs)
             .build()?;
-
         event_digs.push(serder.said().unwrap());
 
         // Create sig counter
@@ -1524,7 +1540,8 @@ mod tests {
 
         // Event 3: Interaction
         let pre = kever.prefixer().unwrap().qb64();
-        let dig = kever.serder().unwrap().said().unwrap();
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
 
         let serder = InteractEventBuilder::new(pre, dig.to_string()).with_sn(3)
             .build()?;
@@ -1557,7 +1574,8 @@ mod tests {
 
         // Event 4: Interaction
         let pre = kever.prefixer().unwrap().qb64();
-        let dig = kever.serder().unwrap().said().unwrap();
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
 
         let serder = InteractEventBuilder::new(pre, dig.to_string())
             .with_sn(4)
@@ -1592,8 +1610,9 @@ mod tests {
         // Event 5: Rotation Transferable
         let pre = kever.prefixer().unwrap().qb64();
         let keys = vec![signers[3].verfer.qb64()];
-        let dig = kever.serder().unwrap().said().unwrap();
-        let ndigs = vec![BaseMatter::from_qb64(&signers[4].verfer.qb64())?.qb64()];
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
+        let ndigs = vec![Diger::from_ser(signers[4].verfer.raw(), None)?.qb64()];
 
         let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
             .with_sn(5)
@@ -1627,7 +1646,8 @@ mod tests {
 
         // Event 6: Interaction
         let pre = kever.prefixer().unwrap().qb64();
-        let dig = kever.serder().unwrap().said().unwrap();
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
 
         let serder = InteractEventBuilder::new(pre, dig.to_string())
             .with_sn(6)
@@ -1662,7 +1682,8 @@ mod tests {
         // nxt digest is empty (no ndigs)
         let pre = kever.prefixer().unwrap().qb64();
         let keys = vec![signers[4].verfer.qb64()];
-        let dig = kever.serder().unwrap().said().unwrap();
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
 
         let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
             .with_sn(7)
@@ -1698,7 +1719,8 @@ mod tests {
 
         // Event 8: Interaction but already abandoned
         let pre = kever.prefixer().unwrap().qb64();
-        let dig = kever.serder().unwrap().said().unwrap();
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
 
         let serder = InteractEventBuilder::new(pre, dig.to_string())
             .with_sn(8)
@@ -1733,8 +1755,9 @@ mod tests {
         // Event 8: Rotation override interaction but already abandoned
         let pre = kever.prefixer().unwrap().qb64();
         let keys = vec![signers[4].verfer.qb64()];
-        let dig = kever.serder().unwrap().said().unwrap();
-        let ndigs = vec![BaseMatter::from_qb64(&signers[5].verfer.qb64()).unwrap().qb64()];
+        let srd = kever.serder().unwrap();
+        let dig = srd.said().unwrap();
+        let ndigs = vec![Diger::from_ser(signers[5].verfer.raw(), None)?.qb64()];
 
         let serder = RotateEventBuilder::new(pre, keys, dig.to_string())
             .with_sn(8)
@@ -1812,7 +1835,8 @@ mod tests {
         // Check parsed results
         assert!(parser.handlers.kevery.lock().unwrap().kevers().contains_key(&pre));
 
-        let vkever = parser.handlers.kevery.lock().unwrap().kevers().get(&pre).unwrap();
+        let lock = parser.handlers.kevery.lock().unwrap();
+        let vkever = lock.kevers().get(&pre).unwrap();
         // let vkever = (parser.handlers.kevery.lock().await).kevers()[&pre].clone();
         assert_eq!(vkever.sner().unwrap().num(), kever.sner().unwrap().num());
         assert_eq!(vkever.verfers().unwrap()[0].qb64(), kever.verfers().unwrap()[0].qb64());
@@ -1837,16 +1861,35 @@ mod tests {
         // Cleanup should be automatic because we're using temp databases
         Ok(())
     }
-
     impl Default for Handlers<'_> {
         fn default() -> Self {
-            // Create minimal handlers for testing
-            let lmdber = LMDBer::builder().temp(true).name("temp").build().unwrap();
-            let db = Arc::new(&Baser::new(Arc::new(&lmdber)).unwrap());
+            // Create minimal handlers for testing with static lifetime
+            let lmdber = Box::leak(Box::new(
+                LMDBer::builder().temp(true).name("temp").build().unwrap()
+            ));
+
+            // Convert &mut LMDBer to &LMDBer
+            let lmdber_ref: &LMDBer = &*lmdber;
+
+            // Now create Arc<&LMDBer>
+            let lmdber_arc = Arc::new(lmdber_ref);
+
+            // Create Baser with static lifetime
+            let baser = Box::leak(Box::new(Baser::new(lmdber_arc).unwrap()));
+
+            // Convert to immutable reference and wrap in Arc
+            let baser_ref: &Baser = &*baser;
+            let db = Arc::new(baser_ref);
 
             let kevery = Kevery::new(
-                None, db, None, Some(false), Some(false),
-                Some(false), Some(false), Some(false)
+                None,
+                db,
+                None,
+                Some(false),
+                Some(false),
+                Some(false),
+                Some(false),
+                Some(false)
             ).unwrap();
 
             Handlers {
@@ -1859,6 +1902,4 @@ mod tests {
             }
         }
     }
-    
-    
 }
