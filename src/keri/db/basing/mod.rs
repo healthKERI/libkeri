@@ -1,7 +1,13 @@
 mod key_state_record;
 
+use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
+use crate::cesr::dater::Dater;
+use crate::cesr::num_dex;
 use crate::cesr::number::Number;
+use crate::keri::core::eventing::Kever;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
+use crate::keri::core::serdering::{Serder, SerderKERI};
+use crate::keri::db::dbing::keys::dg_key;
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::{Komer, SerialKind};
@@ -11,23 +17,16 @@ use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
 use crate::keri::db::subing::oniodup::OnIoDupSuber;
 use crate::keri::db::subing::{Suber, Utf8Codec};
+use crate::Matter;
+use chrono::DateTime;
 use indexmap::IndexSet;
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use chrono::DateTime;
-use num_bigint::BigUint;
-use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
-use crate::cesr::dater::Dater;
-use crate::cesr::indexing::siger::Siger;
-use crate::cesr::num_dex;
-use crate::keri::core::eventing::Kever;
-use crate::keri::core::serdering::{Serder, SerderKERI};
-use crate::keri::db::dbing::keys::{dg_key, on_key};
-use crate::Matter;
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -85,7 +84,7 @@ pub struct Baser<'db> {
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,
     pub kevers: HashMap<String, Kever<'db>>,
-    
+
     /// .evts is named sub DB whose values are serialized key events
     ///     dgKey
     ///     DB is keyed by identifier prefix plus digest of serialized event
@@ -193,7 +192,7 @@ pub struct Baser<'db> {
     ///     DB is keyed by identifier prefix plus digest of serialized event
     ///     More than one value per DB key is allowed
     pub rcts: DupSuber<'db>,
-    
+
     /// .vrcs is named sub DB of event validator receipt quadruples from transferable
     ///     signers. Each quadruple is concatenation of  four fully qualified items
     ///     of validator. These are: transferable prefix, plus latest establishment
@@ -339,15 +338,19 @@ impl<'db> Baser<'db> {
                 let toad = kever.toader().unwrap().num();
                 !wigs.len() < toad as usize
             }
-            Err(_) => { false }
+            Err(_) => false,
         }
     }
 
-    pub fn fetch_all_sealing_event_by_event_seal(&self, _pre: &str, _anchor: &str) -> Result<bool, DBError> {
+    pub fn fetch_all_sealing_event_by_event_seal(
+        &self,
+        _pre: &str,
+        _anchor: &str,
+    ) -> Result<bool, DBError> {
         Ok(false)
     }
 
-    /// Returns an iterator of first seen event messages with attachments for the 
+    /// Returns an iterator of first seen event messages with attachments for the
     /// identifier prefix `pre` starting at first seen order number, `fn_num`.
     /// Essentially a replay in first seen order with attachments.
     ///
@@ -363,16 +366,17 @@ impl<'db> Baser<'db> {
 
         // We need to get items from the fels database for the given prefix
         // starting at the specified first seen ordinal number
-        let key_prefix = pre.as_bytes();  // Prefix for key search
+        let key_prefix = pre.as_bytes(); // Prefix for key search
 
         // Get all items with this prefix
         let mut items = Vec::new();
 
         // Use the low-level interface to get items from the fels database
-        let on_items: Vec<(Vec<Vec<u8>>, u64, Vec<u8>)> = self.fels.get_on_item_iter(&[&key_prefix], start_fn as u32)
+        let on_items: Vec<(Vec<Vec<u8>>, u64, Vec<u8>)> = self
+            .fels
+            .get_on_item_iter(&[&key_prefix], start_fn as u32)
             .map_err(|e| DBError::DatabaseError(format!("Error getting items: {}", e)))?;
-        
-        
+
         for (ckey, cn, cval) in on_items {
             // Check if the key starts with our prefix
             if ckey.starts_with(&[pre.as_bytes().to_vec()]) && cn >= start_fn {
@@ -404,24 +408,33 @@ impl<'db> Baser<'db> {
     /// * `Result<Vec<u8>, DBError>` - Message body with attachments
     pub fn clone_evt_msg(&self, pre: &str, fn_num: u64, dig: &str) -> Result<Vec<u8>, DBError> {
         // Initialize message and attachments
-        let mut msg = Vec::<u8>::new();  // message
-        let mut atc = Vec::<u8>::new();  // attachments
+        let mut msg = Vec::<u8>::new(); // message
+        let mut atc = Vec::<u8>::new(); // attachments
 
         // Get the event message
         let dg_key = dg_key(pre, dig);
-        let raw = self.evts.get::<_, Vec<u8>>(&[&dg_key])
+        let raw = self
+            .evts
+            .get::<_, Vec<u8>>(&[&dg_key])
             .map_err(|_| DBError::MissingEntryError(format!("Missing event for dig={}.", dig)))?;
 
         // Extend message with raw event data
         msg.extend_from_slice(&raw.unwrap_or_default());
 
         // Add indexed signatures to attachments
-        let sigs = self.sigs.get::<_, Vec<u8>>(&[&dg_key])
+        let sigs = self
+            .sigs
+            .get::<_, Vec<u8>>(&[&dg_key])
             .map_err(|_| DBError::MissingEntryError(format!("Missing sigs for dig={}.", dig)))?;
 
         // Add counter for controller indexed signatures
-        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS), Some(sigs.len() as u64), Some("1.0"))
-            .unwrap().qb64b();
+        let counter = BaseCounter::from_code_and_count(
+            Some(ctr_dex_1_0::CONTROLLER_IDX_SIGS),
+            Some(sigs.len() as u64),
+            Some("1.0"),
+        )
+        .unwrap()
+        .qb64b();
         atc.extend_from_slice(&counter);
 
         // Add each signature to attachments
@@ -433,8 +446,13 @@ impl<'db> Baser<'db> {
         if let Ok(wigs) = self.wigs.get::<_, Vec<u8>>(&[&dg_key]) {
             if !wigs.is_empty() {
                 // Add counter for witness indexed signatures
-                let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::WITNESS_IDX_SIGS), Some(wigs.len() as u64), Some("1.0")).unwrap()
-                    .qb64b();
+                let counter = BaseCounter::from_code_and_count(
+                    Some(ctr_dex_1_0::WITNESS_IDX_SIGS),
+                    Some(wigs.len() as u64),
+                    Some("1.0"),
+                )
+                .unwrap()
+                .qb64b();
                 atc.extend_from_slice(&counter);
 
                 // Add each witness signature to attachments
@@ -447,8 +465,13 @@ impl<'db> Baser<'db> {
         // Add authorizer (delegator/issuer) source seal event couple to attachments
         if let Ok(Some(couple)) = self.aess.get::<_, Option<Vec<u8>>>(&[&dg_key]) {
             // Add counter for seal source couples
-            let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::SEAL_SOURCE_COUPLES), Some(1), Some("1.0")).unwrap()
-                .qb64b();
+            let counter = BaseCounter::from_code_and_count(
+                Some(ctr_dex_1_0::SEAL_SOURCE_COUPLES),
+                Some(1),
+                Some("1.0"),
+            )
+            .unwrap()
+            .qb64b();
             atc.extend_from_slice(&counter);
             atc.extend_from_slice(&couple.unwrap());
         }
@@ -457,8 +480,13 @@ impl<'db> Baser<'db> {
         if let Ok(quads) = self.vrcs.get::<_, Vec<u8>>(&[&dg_key]) {
             if !quads.is_empty() {
                 // Add counter for trans receipt quadruples
-                let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::TRANS_RECEIPT_QUADRUPLES), Some(quads.len() as u64), Some("1.0"))
-                    .unwrap().qb64b();
+                let counter = BaseCounter::from_code_and_count(
+                    Some(ctr_dex_1_0::TRANS_RECEIPT_QUADRUPLES),
+                    Some(quads.len() as u64),
+                    Some("1.0"),
+                )
+                .unwrap()
+                .qb64b();
                 atc.extend_from_slice(&counter);
 
                 // Add each quadruple to attachments
@@ -472,8 +500,13 @@ impl<'db> Baser<'db> {
         if let Ok(coups) = self.rcts.get::<_, Vec<u8>>(&[&dg_key]) {
             if !coups.is_empty() {
                 // Add counter for non-trans receipt couples
-                let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::NON_TRANS_RECEIPT_COUPLES), Some(coups.len() as u64), Some("1.0")).unwrap()
-                    .qb64b();
+                let counter = BaseCounter::from_code_and_count(
+                    Some(ctr_dex_1_0::NON_TRANS_RECEIPT_COUPLES),
+                    Some(coups.len() as u64),
+                    Some("1.0"),
+                )
+                .unwrap()
+                .qb64b();
                 atc.extend_from_slice(&counter);
 
                 // Add each couple to attachments
@@ -484,33 +517,48 @@ impl<'db> Baser<'db> {
         }
 
         // Add first seen replay couple to attachments
-        let dts = self.dtss.get::<_, Vec<u8>>(&[&dg_key])
-            .map_err(|_| DBError::MissingEntryError(format!("Missing datetime for dig={}.", dig)))?;
+        let dts = self.dtss.get::<_, Vec<u8>>(&[&dg_key]).map_err(|_| {
+            DBError::MissingEntryError(format!("Missing datetime for dig={}.", dig))
+        })?;
 
         // Add counter for first seen replay couples
-        let counter = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::FIRST_SEEN_REPLAY_COUPLES), Some(1), Some("1.0")).unwrap()
-            .qb64b();
+        let counter = BaseCounter::from_code_and_count(
+            Some(ctr_dex_1_0::FIRST_SEEN_REPLAY_COUPLES),
+            Some(1),
+            Some("1.0"),
+        )
+        .unwrap()
+        .qb64b();
         atc.extend_from_slice(&counter);
 
         // Add first seen number
-        let fn_bytes = Number::from_num_and_code(&BigUint::from(fn_num), num_dex::HUGE).unwrap().qb64b();
+        let fn_bytes = Number::from_num_and_code(&BigUint::from(fn_num), num_dex::HUGE)
+            .unwrap()
+            .qb64b();
         atc.extend_from_slice(&fn_bytes);
 
         // Add datetime
-        let dt = DateTime::parse_from_rfc3339(&String::from_utf8_lossy(&dts[0])).map_err(|e| DBError::ValueError(format!("{}", e)))?;
+        let dt = DateTime::parse_from_rfc3339(&String::from_utf8_lossy(&dts[0]))
+            .map_err(|e| DBError::ValueError(format!("{}", e)))?;
         let dater = Dater::from_dt(DateTime::from(dt)).qb64b();
         atc.extend_from_slice(&dater);
 
         // Check if attachments size is valid (multiple of 4)
         if atc.len() % 4 != 0 {
-            return Err(DBError::ValueError(
-                format!("Invalid attachments size={}, nonintegral quadlets.", atc.len())
-            ));
+            return Err(DBError::ValueError(format!(
+                "Invalid attachments size={}, nonintegral quadlets.",
+                atc.len()
+            )));
         }
 
         // Prepend pipelining counter to attachments
-        let pcnt = BaseCounter::from_code_and_count(Some(ctr_dex_1_0::ATTACHMENT_GROUP), Some((atc.len() / 4) as u64), Some("1.0")).unwrap()
-            .qb64b();
+        let pcnt = BaseCounter::from_code_and_count(
+            Some(ctr_dex_1_0::ATTACHMENT_GROUP),
+            Some((atc.len() / 4) as u64),
+            Some("1.0"),
+        )
+        .unwrap()
+        .qb64b();
         msg.extend_from_slice(&pcnt);
 
         // Add attachments to message

@@ -68,7 +68,10 @@ impl ReplyEventBuilder {
     /// Build the reply event serder
     pub fn build(self) -> Result<SerderKERI, KERIError> {
         if !Kinds::contains(&self.kind) {
-            return Err(KERIError::ValueError(format!("Invalid kind = {} for rpy.", self.kind)));
+            return Err(KERIError::ValueError(format!(
+                "Invalid kind = {} for rpy.",
+                self.kind
+            )));
         }
 
         // Create versified string

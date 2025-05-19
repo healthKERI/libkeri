@@ -51,7 +51,7 @@ pub struct BaseSerder {
     /// Serialized message as bytes
     raw: Vec<u8>,
     /// Serializable attribute dictionary (key event dict)
-    sad: Sadder,
+    pub sad: Sadder,
     /// Protocol identifier type (e.g., 'KERI' or 'ACDC')
     proto: String,
     /// Event version information
@@ -621,6 +621,8 @@ pub trait Serder: Any + Send + Sync {
     fn ilk(&self) -> Option<&str>;
 
     fn as_any(&self) -> &dyn Any;
+
+    fn clone_box(&self) -> Box<dyn Serder>;
 }
 
 /// Trait that must be implemented by types that can be parsed
@@ -684,6 +686,10 @@ impl Serder for BaseSerder {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn clone_box(&self) -> Box<dyn Serder> {
+        Box::new(self.clone())
     }
 }
 
@@ -812,7 +818,7 @@ impl Verifiable for BaseSerder {
 /// KERI-specific implementation of the Serder
 #[derive(Debug, Clone)]
 pub struct SerderKERI {
-    base: BaseSerder,
+    pub base: BaseSerder,
 }
 
 /// Implement the Serder trait for SerderKERI
@@ -852,6 +858,9 @@ impl Serder for SerderKERI {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn Serder> {
+        Box::new(self.clone())
     }
 }
 
@@ -1345,6 +1354,9 @@ impl Serder for SerderACDC {
     }
     fn as_any(&self) -> &dyn Any {
         self
+    }
+    fn clone_box(&self) -> Box<dyn Serder> {
+        Box::new(self.clone())
     }
 }
 
