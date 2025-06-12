@@ -823,7 +823,7 @@ pub mod num_dex {
 
     pub static MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         let mut map = HashMap::new();
-        map.insert(SHORT, "SHORT");   // Use the actual code as key
+        map.insert(SHORT, "SHORT");
         map.insert(LONG, "LONG");
         map.insert(TALL, "TALL");
         map.insert(BIG, "BIG");
