@@ -278,7 +278,9 @@ impl Tholder {
 
             TholderSith::Json(json_val) => {
                 // Try to parse as nested array first (multi-clause)
-                if let Ok(nested_clauses) = serde_json::from_str::<Vec<Vec<WeightedSithElement>>>(json_val.as_str()) {
+                if let Ok(nested_clauses) =
+                    serde_json::from_str::<Vec<Vec<WeightedSithElement>>>(json_val.as_str())
+                {
                     // Multi-clause case
                     let mut thold = Vec::new();
                     for clause_elements in nested_clauses {
@@ -292,7 +294,8 @@ impl Tholder {
                     self.process_weighted(thold)
                 } else {
                     // Single clause case
-                    let clauses: Vec<WeightedSithElement> = serde_json::from_str(json_val.as_str()).unwrap();
+                    let clauses: Vec<WeightedSithElement> =
+                        serde_json::from_str(json_val.as_str()).unwrap();
                     if clauses.is_empty() {
                         return Err(MatterError::ValueError("Empty weight list".to_string()));
                     }
@@ -323,9 +326,11 @@ impl Tholder {
         }
     }
 
-
     /// Helper function to process a clause of weight elements
-    fn process_weight_clause(&self, clause: &WeightedSithElement) -> Result<Vec<WeightSpec>, MatterError> {
+    fn process_weight_clause(
+        &self,
+        clause: &WeightedSithElement,
+    ) -> Result<Vec<WeightSpec>, MatterError> {
         match clause {
             WeightedSithElement::Simple(weight_str) => {
                 let weight = Self::weight(weight_str)?;
@@ -334,7 +339,9 @@ impl Tholder {
 
             WeightedSithElement::Array(elements) => {
                 if elements.is_empty() {
-                    return Err(MatterError::ValueError("Empty weight array not allowed".to_string()));
+                    return Err(MatterError::ValueError(
+                        "Empty weight array not allowed".to_string(),
+                    ));
                 }
 
                 let mut specs = Vec::new();
@@ -347,13 +354,17 @@ impl Tholder {
 
             WeightedSithElement::Complex(weight_map) => {
                 if weight_map.is_empty() {
-                    return Err(MatterError::ValueError("Empty weight map not allowed".to_string()));
+                    return Err(MatterError::ValueError(
+                        "Empty weight map not allowed".to_string(),
+                    ));
                 }
 
                 let mut specs = Vec::new();
                 for (key_str, value_elements) in weight_map {
                     if value_elements.is_empty() {
-                        return Err(MatterError::ValueError("Empty weight values not allowed".to_string()));
+                        return Err(MatterError::ValueError(
+                            "Empty weight values not allowed".to_string(),
+                        ));
                     }
 
                     let key_weight = Self::weight(key_str)?;
@@ -363,7 +374,9 @@ impl Tholder {
                         if let WeightedSithElement::Simple(weight_str) = value_element {
                             value_weights.push(Self::weight(weight_str)?);
                         } else {
-                            return Err(MatterError::ValueError("Complex weight values must be simple weights".to_string()));
+                            return Err(MatterError::ValueError(
+                                "Complex weight values must be simple weights".to_string(),
+                            ));
                         }
                     }
 
@@ -373,7 +386,6 @@ impl Tholder {
             }
         }
     }
-
 
     /// Evaluates if the provided verified signature indices satisfy the threshold
     ///
@@ -475,7 +487,6 @@ impl Tholder {
         }
     }
 
-
     /// Returns whether the threshold is weighted or not
     pub fn weighted(&self) -> bool {
         self._weighted
@@ -514,7 +525,9 @@ impl Tholder {
                     for element in clause {
                         match element {
                             WeightSpec::Simple(weight) => {
-                                let weight_str = if *weight > Rational32::new(0, 1) && *weight < Rational32::new(1, 1) {
+                                let weight_str = if *weight > Rational32::new(0, 1)
+                                    && *weight < Rational32::new(1, 1)
+                                {
                                     format!("{}/{}", weight.numer(), weight.denom())
                                 } else {
                                     format!("{}", weight.numer() / weight.denom())
@@ -522,15 +535,20 @@ impl Tholder {
                                 sith_clause.push(WeightedSithElement::Simple(weight_str));
                             }
                             WeightSpec::WeightedMap(key_weight, nested_weights) => {
-                                let key_str = if *key_weight > Rational32::new(0, 1) && *key_weight < Rational32::new(1, 1) {
+                                let key_str = if *key_weight > Rational32::new(0, 1)
+                                    && *key_weight < Rational32::new(1, 1)
+                                {
                                     format!("{}/{}", key_weight.numer(), key_weight.denom())
                                 } else {
                                     format!("{}", key_weight.numer() / key_weight.denom())
                                 };
 
-                                let value_elements: Vec<WeightedSithElement> = nested_weights.iter()
+                                let value_elements: Vec<WeightedSithElement> = nested_weights
+                                    .iter()
                                     .map(|w| {
-                                        let weight_str = if *w > Rational32::new(0, 1) && *w < Rational32::new(1, 1) {
+                                        let weight_str = if *w > Rational32::new(0, 1)
+                                            && *w < Rational32::new(1, 1)
+                                        {
                                             format!("{}/{}", w.numer(), w.denom())
                                         } else {
                                             format!("{}", w.numer() / w.denom())
@@ -560,12 +578,9 @@ impl Tholder {
                     TholderSith::Json(serde_json::to_string(&sith_clauses).unwrap_or_default())
                 }
             }
-            TholderThold::Integer(n) => {
-                TholderSith::HexString(format!("{:x}", n))
-            }
+            TholderThold::Integer(n) => TholderSith::HexString(format!("{:x}", n)),
         }
     }
-
 
     /// Returns JSON serialization of sith expression
     pub fn json(&self) -> String {
@@ -765,27 +780,32 @@ impl Tholder {
             for element in &thold[0] {
                 match element {
                     WeightSpec::Simple(weight) => {
-                        let weight_str = if *weight > Rational32::new(0, 1) && *weight < Rational32::new(1, 1) {
-                            format!("{}/{}", weight.numer(), weight.denom())
-                        } else {
-                            format!("{}", weight.numer() / weight.denom())
-                        };
+                        let weight_str =
+                            if *weight > Rational32::new(0, 1) && *weight < Rational32::new(1, 1) {
+                                format!("{}/{}", weight.numer(), weight.denom())
+                            } else {
+                                format!("{}", weight.numer() / weight.denom())
+                            };
                         weight_elements.push(WeightedSithElement::Simple(weight_str));
                     }
                     WeightSpec::WeightedMap(key_weight, nested_weights) => {
-                        let key_str = if *key_weight > Rational32::new(0, 1) && *key_weight < Rational32::new(1, 1) {
+                        let key_str = if *key_weight > Rational32::new(0, 1)
+                            && *key_weight < Rational32::new(1, 1)
+                        {
                             format!("{}/{}", key_weight.numer(), key_weight.denom())
                         } else {
                             format!("{}", key_weight.numer() / key_weight.denom())
                         };
 
-                        let value_elements: Vec<WeightedSithElement> = nested_weights.iter()
+                        let value_elements: Vec<WeightedSithElement> = nested_weights
+                            .iter()
                             .map(|w| {
-                                let weight_str = if *w > Rational32::new(0, 1) && *w < Rational32::new(1, 1) {
-                                    format!("{}/{}", w.numer(), w.denom())
-                                } else {
-                                    format!("{}", w.numer() / w.denom())
-                                };
+                                let weight_str =
+                                    if *w > Rational32::new(0, 1) && *w < Rational32::new(1, 1) {
+                                        format!("{}/{}", w.numer(), w.denom())
+                                    } else {
+                                        format!("{}", w.numer() / w.denom())
+                                    };
                                 WeightedSithElement::Simple(weight_str)
                             })
                             .collect();
@@ -810,7 +830,9 @@ impl Tholder {
                 for element in clause {
                     match element {
                         WeightSpec::Simple(weight) => {
-                            let weight_str = if *weight > Rational32::new(0, 1) && *weight < Rational32::new(1, 1) {
+                            let weight_str = if *weight > Rational32::new(0, 1)
+                                && *weight < Rational32::new(1, 1)
+                            {
                                 format!("{}/{}", weight.numer(), weight.denom())
                             } else {
                                 format!("{}", weight.numer() / weight.denom())
@@ -818,15 +840,20 @@ impl Tholder {
                             sith_clause.push(WeightedSithElement::Simple(weight_str));
                         }
                         WeightSpec::WeightedMap(key_weight, nested_weights) => {
-                            let key_str = if *key_weight > Rational32::new(0, 1) && *key_weight < Rational32::new(1, 1) {
+                            let key_str = if *key_weight > Rational32::new(0, 1)
+                                && *key_weight < Rational32::new(1, 1)
+                            {
                                 format!("{}/{}", key_weight.numer(), key_weight.denom())
                             } else {
                                 format!("{}", key_weight.numer() / key_weight.denom())
                             };
 
-                            let value_elements: Vec<WeightedSithElement> = nested_weights.iter()
+                            let value_elements: Vec<WeightedSithElement> = nested_weights
+                                .iter()
                                 .map(|w| {
-                                    let weight_str = if *w > Rational32::new(0, 1) && *w < Rational32::new(1, 1) {
+                                    let weight_str = if *w > Rational32::new(0, 1)
+                                        && *w < Rational32::new(1, 1)
+                                    {
                                         format!("{}/{}", w.numer(), w.denom())
                                     } else {
                                         format!("{}", w.numer() / w.denom())
@@ -871,7 +898,8 @@ impl Tholder {
             let int_val = float_val as i32;
             if (float_val - int_val as f64).abs() > f64::EPSILON {
                 return Err(MatterError::WeightError(format!(
-                    "Invalid weight str got float w={}.", weight_str
+                    "Invalid weight str got float w={}.",
+                    weight_str
                 )));
             }
             // It's actually an integer, continue with integer parsing
@@ -881,7 +909,8 @@ impl Tholder {
         if let Ok(int_val) = weight_str.parse::<i32>() {
             if int_val < 0 || int_val > 1 {
                 return Err(MatterError::WeightError(format!(
-                    "Invalid weight not 0 <= {} <= 1.", int_val
+                    "Invalid weight not 0 <= {} <= 1.",
+                    int_val
                 )));
             }
             return Ok(Rational32::new(int_val, 1));
@@ -896,25 +925,29 @@ impl Tholder {
                 (Ok(num), Ok(denom)) => {
                     if denom <= 0 {
                         return Err(MatterError::WeightError(format!(
-                            "Denominator must be positive, got: {}", denom
+                            "Denominator must be positive, got: {}",
+                            denom
                         )));
                     }
 
                     let rational = Rational32::new(num, denom);
                     if rational < Rational32::new(0, 1) || rational > Rational32::new(1, 1) {
                         return Err(MatterError::WeightError(format!(
-                            "Invalid weight not 0 <= {} <= 1.", rational
+                            "Invalid weight not 0 <= {} <= 1.",
+                            rational
                         )));
                     }
                     Ok(rational)
                 }
                 _ => Err(MatterError::ParseError(format!(
-                    "Failed to parse rational number: {}", weight_str
+                    "Failed to parse rational number: {}",
+                    weight_str
                 ))),
             }
         } else {
             Err(MatterError::ParseError(format!(
-                "Invalid weight format: {}", weight_str
+                "Invalid weight format: {}",
+                weight_str
             )))
         }
     }
@@ -950,7 +983,7 @@ mod tests {
     fn test_tholder_validation_errors() {
         // Test negative integer - should fail validation
         let result = Tholder::new(None, None, Some(TholderSith::Integer(usize::MAX))); // This will wrap, simulating negative
-        // Note: In Rust, usize can't be negative, but we can test other invalid values
+                                                                                       // Note: In Rust, usize can't be negative, but we can test other invalid values
 
         // Test invalid JSON with integers instead of strings for weights
         let json_str1 = r#"[1]"#;
@@ -989,13 +1022,23 @@ mod tests {
 
         // Test non-integer string for unweighted
         let result5 = Tholder::new(None, None, Some(TholderSith::HexString("1.0".to_string())));
-        assert!(result5.is_err(), "Should fail with float string for unweighted");
+        assert!(
+            result5.is_err(),
+            "Should fail with float string for unweighted"
+        );
 
         let result6 = Tholder::new(None, None, Some(TholderSith::HexString("0.5".to_string())));
-        assert!(result6.is_err(), "Should fail with float string for unweighted");
+        assert!(
+            result6.is_err(),
+            "Should fail with float string for unweighted"
+        );
 
         // Test ratio of floats
-        let result7 = Tholder::new(None, None, Some(TholderSith::HexString("1.0/2.0".to_string())));
+        let result7 = Tholder::new(
+            None,
+            None,
+            Some(TholderSith::HexString("1.0/2.0".to_string())),
+        );
         assert!(result7.is_err(), "Should fail with float ratio");
 
         // Test empty array
@@ -1014,7 +1057,10 @@ mod tests {
         assert!(weights_result1.is_ok(), "JSON parsing should succeed");
         let weights1 = weights_result1.unwrap();
         let result1 = Tholder::new(None, None, Some(TholderSith::Weights(weights1)));
-        assert!(result1.is_err(), "Should fail with mixed array containing empty element");
+        assert!(
+            result1.is_err(),
+            "Should fail with mixed array containing empty element"
+        );
 
         // Test insufficient total weight
         let json_str2 = r#"["1/3", "1/2"]"#;
@@ -1028,11 +1074,13 @@ mod tests {
 
         // Test nested empty arrays
         let json_str3 = r#"[[], []]"#;
-        let weights_result3: Result<Vec<Vec<WeightedSithElement>>, _> = serde_json::from_str(json_str3);
+        let weights_result3: Result<Vec<Vec<WeightedSithElement>>, _> =
+            serde_json::from_str(json_str3);
         if weights_result3.is_ok() {
             // Convert to single array format for testing
             let nested_weights = weights_result3.unwrap();
-            let flat_weights: Vec<WeightedSithElement> = nested_weights.into_iter().flatten().collect();
+            let flat_weights: Vec<WeightedSithElement> =
+                nested_weights.into_iter().flatten().collect();
             let result3 = Tholder::new(None, None, Some(TholderSith::Weights(flat_weights)));
             assert!(result3.is_err(), "Should fail with empty nested arrays");
         }
@@ -1069,10 +1117,12 @@ mod tests {
     fn test_tholder_nested_validation_errors() {
         // Test nested arrays with invalid weights
         let json_str1 = r#"[["1/2", "1/2", "3/2"]]"#;
-        let weights_result1: Result<Vec<Vec<WeightedSithElement>>, _> = serde_json::from_str(json_str1);
+        let weights_result1: Result<Vec<Vec<WeightedSithElement>>, _> =
+            serde_json::from_str(json_str1);
         if weights_result1.is_ok() {
             let nested_weights = weights_result1.unwrap();
-            let flat_weights: Vec<WeightedSithElement> = nested_weights.into_iter().flatten().collect();
+            let flat_weights: Vec<WeightedSithElement> =
+                nested_weights.into_iter().flatten().collect();
             let result1 = Tholder::new(None, None, Some(TholderSith::Weights(flat_weights)));
             assert!(result1.is_err(), "Should fail with nested weight > 1");
         }
@@ -1093,7 +1143,10 @@ mod tests {
         if weights_result3.is_ok() {
             let weights3 = weights_result3.unwrap();
             let result3 = Tholder::new(None, None, Some(TholderSith::Weights(weights3)));
-            assert!(result3.is_err(), "Should fail with float in mixed structure");
+            assert!(
+                result3.is_err(),
+                "Should fail with float in mixed structure"
+            );
         }
 
         // Test empty array in mixed structure
@@ -1102,7 +1155,10 @@ mod tests {
         if weights_result4.is_ok() {
             let weights4 = weights_result4.unwrap();
             let result4 = Tholder::new(None, None, Some(TholderSith::Weights(weights4)));
-            assert!(result4.is_err(), "Should fail with empty array in mixed structure");
+            assert!(
+                result4.is_err(),
+                "Should fail with empty array in mixed structure"
+            );
         }
     }
 
@@ -1238,7 +1294,8 @@ mod tests {
     fn test_tholder_hex_f() {
         // Test Tholder(sith=f'{15:x}') which would be "f"
         let expected_limen = b"MAAP";
-        let tholder = Tholder::new(None, None, Some(TholderSith::HexString("f".to_string()))).unwrap();
+        let tholder =
+            Tholder::new(None, None, Some(TholderSith::HexString("f".to_string()))).unwrap();
 
         assert!(!tholder.weighted());
 
@@ -1859,7 +1916,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_tholder_weighted_multi_clause() -> Result<(), Box<dyn std::error::Error>> {
         // Test Tholder(sith=[["1/2", "1/2", "1/4", "1/4", "1/4"], ["1/1", "1"]])
@@ -2215,7 +2271,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_tholder_from_limen_multi_clause() -> Result<(), Box<dyn std::error::Error>> {
         // Test Tholder(limen=b'4AAGA1s2c1s2c1s4c1s4c1s4a1c1')
@@ -2420,7 +2475,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_tholder_nested_weighted_single_clause() -> Result<(), Box<dyn std::error::Error>> {
         // Test single clause with complex weighted mapping
@@ -2582,27 +2636,22 @@ mod tests {
     #[test]
     fn test_tholder_nested_weighted_from_thold() -> Result<(), Box<dyn std::error::Error>> {
         // Test creating from direct thold structure
-        let thold = TholderThold::Weighted(vec![
-            vec![
-                WeightSpec::WeightedMap(
-                    Rational32::new(1, 3),
-                    vec![
-                        Rational32::new(1, 2),
-                        Rational32::new(1, 2),
-                        Rational32::new(1, 2),
-                    ]
-                ),
-                WeightSpec::Simple(Rational32::new(1, 3)),
-                WeightSpec::Simple(Rational32::new(1, 2)),
-                WeightSpec::WeightedMap(
+        let thold = TholderThold::Weighted(vec![vec![
+            WeightSpec::WeightedMap(
+                Rational32::new(1, 3),
+                vec![
                     Rational32::new(1, 2),
-                    vec![
-                        Rational32::new(1, 1),
-                        Rational32::new(1, 1),
-                    ]
-                ),
-            ]
-        ]);
+                    Rational32::new(1, 2),
+                    Rational32::new(1, 2),
+                ],
+            ),
+            WeightSpec::Simple(Rational32::new(1, 3)),
+            WeightSpec::Simple(Rational32::new(1, 2)),
+            WeightSpec::WeightedMap(
+                Rational32::new(1, 2),
+                vec![Rational32::new(1, 1), Rational32::new(1, 1)],
+            ),
+        ]]);
 
         let tholder = Tholder::new(Some(thold), None, None)?;
 
@@ -2658,7 +2707,10 @@ mod tests {
         }
 
         // Check serialized limen
-        assert_eq!(tholder.limen(), b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1");
+        assert_eq!(
+            tholder.limen(),
+            b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1"
+        );
 
         // Verify sith representation (should be nested for multi-clause)
         if let TholderSith::Json(json_str) = tholder.sith() {
@@ -2669,7 +2721,8 @@ mod tests {
         }
 
         // Verify JSON representation
-        let expected_json = r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
+        let expected_json =
+            r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
         assert_eq!(tholder.json(), expected_json);
 
         assert_eq!(tholder.num(), None);
@@ -2690,16 +2743,21 @@ mod tests {
     }
 
     #[test]
-    fn test_tholder_nested_weighted_multi_clause_from_limen() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_tholder_nested_weighted_multi_clause_from_limen(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Test creating multi-clause from limen
         let limen = b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1".to_vec();
         let tholder = Tholder::new(None, Some(limen), None)?;
 
         assert!(tholder.weighted());
         assert_eq!(tholder.size(), 9);
-        assert_eq!(tholder.limen(), b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1");
+        assert_eq!(
+            tholder.limen(),
+            b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1"
+        );
 
-        let expected_json = r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
+        let expected_json =
+            r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
         assert_eq!(tholder.json(), expected_json);
 
         assert_eq!(tholder.num(), None);
@@ -2708,7 +2766,8 @@ mod tests {
     }
 
     #[test]
-    fn test_tholder_nested_weighted_multi_clause_from_thold() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_tholder_nested_weighted_multi_clause_from_thold(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Test creating multi-clause from direct thold structure
         let thold = TholderThold::Weighted(vec![
             vec![
@@ -2718,36 +2777,34 @@ mod tests {
                         Rational32::new(1, 2),
                         Rational32::new(1, 2),
                         Rational32::new(1, 2),
-                    ]
+                    ],
                 ),
                 WeightSpec::Simple(Rational32::new(1, 2)),
                 WeightSpec::WeightedMap(
                     Rational32::new(1, 2),
-                    vec![
-                        Rational32::new(1, 1),
-                        Rational32::new(1, 1),
-                    ]
+                    vec![Rational32::new(1, 1), Rational32::new(1, 1)],
                 ),
             ],
             vec![
                 WeightSpec::Simple(Rational32::new(1, 2)),
                 WeightSpec::WeightedMap(
                     Rational32::new(1, 2),
-                    vec![
-                        Rational32::new(1, 1),
-                        Rational32::new(1, 1),
-                    ]
+                    vec![Rational32::new(1, 1), Rational32::new(1, 1)],
                 ),
-            ]
+            ],
         ]);
 
         let tholder = Tholder::new(Some(thold), None, None)?;
 
         assert!(tholder.weighted());
         assert_eq!(tholder.size(), 9);
-        assert_eq!(tholder.limen(), b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1");
+        assert_eq!(
+            tholder.limen(),
+            b"4AAKA1s3k1s2v1s2v1s2c1s2c1s2k1v1a1s2c1s2k1v1"
+        );
 
-        let expected_json = r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
+        let expected_json =
+            r#"[[{"1/3":["1/2","1/2","1/2"]},"1/2",{"1/2":["1","1"]}],["1/2",{"1/2":["1","1"]}]]"#;
         assert_eq!(tholder.json(), expected_json);
 
         assert_eq!(tholder.num(), None);
@@ -2785,4 +2842,3 @@ mod tests {
         Ok(())
     }
 }
-
