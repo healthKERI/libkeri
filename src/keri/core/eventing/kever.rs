@@ -1226,7 +1226,8 @@ impl<'db> Kever<'db> {
         // Check if identifier is transferable
         if !self.transferable() {
             return Err(KERIError::ValidationError(
-                "Missing prefixer in Kever state".to_string(),
+                "Can't rotate; Prefixer is either missing or identifier is non-transferrable"
+                    .to_string(),
             ));
         }
 
@@ -1713,6 +1714,7 @@ impl<'db> Kever<'db> {
         }
 
         // Add event to Key Event Log
+        println!("SEQUENCE NUMBER: {:?}", serder.sn().unwrap());
         let sn_key = sn_key(serder.preb().unwrap(), serder.sn().unwrap());
         self.db.kels.add(&[sn_key], &serder.saidb().unwrap())?;
 
@@ -1850,10 +1852,14 @@ impl<'db> Kever<'db> {
     pub fn prefixer(&self) -> Option<Prefixer> {
         self.prefixer.clone()
     }
-    
-    pub fn serder(&self) -> Option<SerderKERI> { self.serder.clone() }
-    
-    pub fn delpre(&self) -> Option<String> {self.delpre.clone()}
+
+    pub fn serder(&self) -> Option<SerderKERI> {
+        self.serder.clone()
+    }
+
+    pub fn delpre(&self) -> Option<String> {
+        self.delpre.clone()
+    }
 
     fn ndigs(&self) -> Vec<String> {
         if self.ndigers.is_none() {

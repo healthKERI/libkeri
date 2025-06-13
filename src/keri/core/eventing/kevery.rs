@@ -1,3 +1,4 @@
+use crate::cesr::cigar::Cigar;
 use crate::cesr::dater::Dater;
 use crate::cesr::indexing::siger::Siger;
 use crate::cesr::indexing::Indexer;
@@ -7,6 +8,7 @@ use crate::cesr::seqner::Seqner;
 use crate::cesr::verfer::Verfer;
 use crate::keri::core::eventing::kever::Kever;
 use crate::keri::core::eventing::{verify_sigs, ReplyEventBuilder};
+use crate::keri::core::parsing::Trqs;
 use crate::keri::core::serdering::{Rawifiable, SadValue, Serder, SerderKERI};
 use crate::keri::db::basing::Baser;
 use crate::keri::db::dbing::keys::{dg_key, sn_key};
@@ -16,8 +18,6 @@ use indexmap::IndexSet;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tracing::{debug, info};
-use crate::cesr::cigar::Cigar;
-use crate::keri::core::parsing::Trqs;
 
 /// Kevery (Key Event Message Processing Facility) processes an incoming
 /// message stream composed of KERI key event related messages and attachments.
@@ -740,13 +740,24 @@ impl<'db> Kevery<'db> {
 
         Ok(())
     }
-    
-    pub fn process_attached_receipt_couples(&mut self, _serder: SerderKERI, _firner: Option<Seqner>, _cigars: Vec<Cigar>) -> Result<(), KERIError> {
+
+    pub fn process_attached_receipt_couples(
+        &mut self,
+        _serder: SerderKERI,
+        _firner: Option<Seqner>,
+        _cigars: Vec<Cigar>,
+    ) -> Result<(), KERIError> {
         // todo!("Implement process_attached_receipt_couples method")
         Ok(())
     }
-    
-    pub fn process_attached_receipt_quadruples(&mut self, _serder: SerderKERI, _trqs: Vec<Trqs>, _firner: Option<Seqner>, _local: Option<bool>) -> Result<(), KERIError> {
+
+    pub fn process_attached_receipt_quadruples(
+        &mut self,
+        _serder: SerderKERI,
+        _trqs: Vec<Trqs>,
+        _firner: Option<Seqner>,
+        _local: Option<bool>,
+    ) -> Result<(), KERIError> {
         // todo!("Implement process_attached_receipt_quadruples method")
         Ok(())
     }
@@ -783,8 +794,12 @@ impl<'db> Kevery<'db> {
 
         // Fetch pre, dig to process
         let ked = serder.ked();
-        let pre = serder.pre().ok_or_else(|| KERIError::ValueError("Missing pre in receipt".to_string()))?;
-        let sn = serder.sn().ok_or_else(|| KERIError::ValueError("Missing sn in receipt".to_string()))?;
+        let pre = serder
+            .pre()
+            .ok_or_else(|| KERIError::ValueError("Missing pre in receipt".to_string()))?;
+        let sn = serder
+            .sn()
+            .ok_or_else(|| KERIError::ValueError("Missing sn in receipt".to_string()))?;
 
         // Only accept receipt if for last seen version of event at sn
         let sn_key = sn_key(&pre, sn);
@@ -795,39 +810,46 @@ impl<'db> Kevery<'db> {
             String::from_utf8(dig_bytes.get(0).unwrap().to_vec())
                 .map_err(|_| KERIError::ValueError("Invalid UTF-8 in digest".to_string()))?
         } else {
-        // No events to be receipted yet at that sn, so escrow
-                // Get digest from receipt message not receipted event
-                let receipt_dig = ked.get("d")
-                    .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
-                    .as_str()
-                    .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?;
+            // No events to be receipted yet at that sn, so escrow
+            // Get digest from receipt message not receipted event
+            let receipt_dig = ked
+                .get("d")
+                .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
+                .as_str()
+                .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?;
 
-                self.escrow_u_receipt(&serder, &cigars, receipt_dig)?;
+            self.escrow_u_receipt(&serder, &cigars, receipt_dig)?;
 
-                let msg = format!("Unverified receipt = {}", serder.said().unwrap_or_default());
-                info!("{}", msg);
-                debug!("Event=\n{}\n", serder.pretty(None));
+            let msg = format!("Unverified receipt = {}", serder.said().unwrap_or_default());
+            info!("{}", msg);
+            debug!("Event=\n{}\n", serder.pretty(None));
 
-                return Err(KERIError::UnverifiedReceiptError(msg).into());
+            return Err(KERIError::UnverifiedReceiptError(msg).into());
         };
 
         // Verify digs match
-        if !serder.compare_said(ked.get("d")
-            .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
-            .as_str()
-            .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?) {
+        if !serder.compare_said(
+            ked.get("d")
+                .ok_or_else(|| KERIError::ValueError("Missing 'd' field in receipt".to_string()))?
+                .as_str()
+                .ok_or_else(|| KERIError::ValueError("'d' field is not a string".to_string()))?,
+        ) {
             // Stale receipt at sn, discard
-            let msg = format!("Stale receipt at sn = {:?} for rct = {:?}",
-                              ked.get("s").unwrap_or(&SadValue::String("".to_string())),
-                              serder.said().unwrap_or_default());
+            let msg = format!(
+                "Stale receipt at sn = {:?} for rct = {:?}",
+                ked.get("s").unwrap_or(&SadValue::String("".to_string())),
+                serder.said().unwrap_or_default()
+            );
 
             return Err(KERIError::ValueError(msg).into());
         }
 
         // Retrieve receipted event at dig
         let dg_key = dg_key(&pre, ldig.clone());
-        let raw = self.db.evts.get::<_, Vec<u8>>(&[&dg_key])?
-            .ok_or_else(|| KERIError::ValueError(format!("Event not found for dig={:?}", ldig)))?;
+        let raw =
+            self.db.evts.get::<_, Vec<u8>>(&[&dg_key])?.ok_or_else(|| {
+                KERIError::ValueError(format!("Event not found for dig={:?}", ldig))
+            })?;
 
         let lserder = SerderKERI::from_raw(&raw, None)?;
 
@@ -839,12 +861,19 @@ impl<'db> Kevery<'db> {
             }
 
             // Handle own receiptor scenarios
-            if !self.lax && self.db.prefixes.contains(&cigar.verfer.clone().unwrap().qb64()) {
+            if !self.lax
+                && self
+                    .db
+                    .prefixes
+                    .contains(&cigar.verfer.clone().unwrap().qb64())
+            {
                 // Own is receiptor
                 if self.db.prefixes.contains(&pre) {
                     // Skip own receipter of own event - sign own events not receipt them
-                    debug!("Kevery process: skipped own receipt attachment on own event receipt={}",
-                         serder.said().unwrap_or_default());
+                    debug!(
+                        "Kevery process: skipped own receipt attachment on own event receipt={}",
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("Event=\n{}\n", serder.pretty(None));
                     continue;
                 }
@@ -859,15 +888,21 @@ impl<'db> Kevery<'db> {
             }
 
             // Verify signature
-            if cigar.verfer.clone().unwrap().verify(&cigar.raw(), &lserder.raw())? {
+            if cigar
+                .verfer
+                .clone()
+                .unwrap()
+                .verify(&cigar.raw(), &lserder.raw())?
+            {
                 // Get witness list for the event
                 let wits = self.fetch_witness_state(&pre, sn)?;
                 let rpre = cigar.verfer.clone().unwrap().qb64(); // prefix of receiptor
 
                 if wits.contains(&rpre) {
                     // It's a witness receipt, write in .wigs
-                    let index = wits.iter().position(|w| w == &rpre)
-                        .ok_or_else(|| KERIError::ValueError("Witness not found in witness list".to_string()))?;
+                    let index = wits.iter().position(|w| w == &rpre).ok_or_else(|| {
+                        KERIError::ValueError("Witness not found in witness list".to_string())
+                    })?;
 
                     // Create witness indexed signature
                     let wiger = Siger::new(
@@ -882,7 +917,11 @@ impl<'db> Kevery<'db> {
                     self.db.wigs.add(&[&dg_key], &wiger.qb64().as_bytes())?;
                 } else {
                     // Not witness receipt, write receipt couple to database .rcts
-                    let couple = [cigar.verfer.clone().unwrap().qb64().as_bytes(), cigar.qb64().as_bytes()].concat();
+                    let couple = [
+                        cigar.verfer.clone().unwrap().qb64().as_bytes(),
+                        cigar.qb64().as_bytes(),
+                    ]
+                    .concat();
                     self.db.rcts.add(&[&dg_key], &couple)?;
                 }
             }
@@ -908,7 +947,7 @@ impl<'db> Kevery<'db> {
         // TODO: Implement proper escrow functionality
         Ok(())
     }
-        /// Escrow unverified witness receipt
+    /// Escrow unverified witness receipt
     fn escrow_uw_receipt(
         &self,
         _serder: &SerderKERI,
@@ -946,53 +985,93 @@ impl<'db> Kevery<'db> {
     ) -> Result<(), KERIError> {
         let ked = serder.ked();
 
-        let ilk = ked.get("t")
+        let ilk = ked
+            .get("t")
             .ok_or_else(|| KERIError::ValueError("Missing ilk (t) in query".to_string()))?
             .as_str()
             .ok_or_else(|| KERIError::ValueError("Ilk (t) field is not a string".to_string()))?;
 
-        let route = ked.get("r")
+        let route = ked
+            .get("r")
             .ok_or_else(|| KERIError::ValueError("Missing route (r) in query".to_string()))?
             .as_str()
             .ok_or_else(|| KERIError::ValueError("Route (r) field is not a string".to_string()))?;
 
-        let qry = ked.get("q")
+        let qry = ked
+            .get("q")
             .ok_or_else(|| KERIError::ValueError("Missing query data (q) in query".to_string()))?
             .as_object()
-            .ok_or_else(|| KERIError::ValueError("Query data (q) field is not an object".to_string()))?;
+            .ok_or_else(|| {
+                KERIError::ValueError("Query data (q) field is not an object".to_string())
+            })?;
 
         // Determine the destination for replies
         let dest = match (&source, &cigars) {
             (None, Some(cigars)) if !cigars.is_empty() => cigars[0].clone().verfer.unwrap().qb64(),
             (Some(source), _) => source.qb64(),
-            _ => return Err(KERIError::ValueError("No valid destination for reply".to_string()).into()),
+            _ => {
+                return Err(
+                    KERIError::ValueError("No valid destination for reply".to_string()).into(),
+                )
+            }
         };
 
         match route {
             "logs" => {
                 // Extract query parameters
-                let pre = qry.get("i")
-                    .ok_or_else(|| KERIError::ValueError("Missing identifier (i) in query".to_string()))?
+                let pre = qry
+                    .get("i")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing identifier (i) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Identifier (i) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Identifier (i) field is not a string".to_string())
+                    })?;
 
-                let src = qry.get("src")
-                    .ok_or_else(|| KERIError::ValueError("Missing source (src) in query".to_string()))?
+                let src = qry
+                    .get("src")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing source (src) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Source (src) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Source (src) field is not a string".to_string())
+                    })?;
 
                 // Optional parameters
                 let anchor = qry.get("a").and_then(|v| v.as_str());
-                let sn = qry.get("s").and_then(|v| v.as_str()).map(|s| i64::from_str_radix(s, 16))
-                    .transpose().map_err(|_| KERIError::ValueError("Invalid sequence number format".to_string()))?;
-                let fn_num = qry.get("fn").and_then(|v| v.as_str()).map(|s| i64::from_str_radix(s, 16))
-                    .transpose().map_err(|_| KERIError::ValueError("Invalid first seen number format".to_string()))?
+                let sn = qry
+                    .get("s")
+                    .and_then(|v| v.as_str())
+                    .map(|s| i64::from_str_radix(s, 16))
+                    .transpose()
+                    .map_err(|_| {
+                        KERIError::ValueError("Invalid sequence number format".to_string())
+                    })?;
+                let fn_num = qry
+                    .get("fn")
+                    .and_then(|v| v.as_str())
+                    .map(|s| i64::from_str_radix(s, 16))
+                    .transpose()
+                    .map_err(|_| {
+                        KERIError::ValueError("Invalid first seen number format".to_string())
+                    })?
                     .unwrap_or(0);
 
                 // Check if we have the identifier
                 if !self.kevers.contains_key(pre) {
-                    self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                    let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                    self.escrow_query_not_found_event(
+                        &serder,
+                        source.as_ref(),
+                        sigers.as_deref(),
+                        cigars.as_deref(),
+                    )?;
+                    let msg = format!(
+                        "Query not found error on event route={} SAID={}",
+                        route,
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("{}", msg);
                     debug!("Query Body=\n{}\n", serder.pretty(None));
                     return Err(KERIError::QueryNotFoundError(msg).into());
@@ -1003,8 +1082,17 @@ impl<'db> Kevery<'db> {
                 // Check anchor if provided
                 if let Some(anchor) = anchor {
                     if !self.db.fetch_all_sealing_event_by_event_seal(pre, anchor)? {
-                        self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                        let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                        self.escrow_query_not_found_event(
+                            &serder,
+                            source.as_ref(),
+                            sigers.as_deref(),
+                            cigars.as_deref(),
+                        )?;
+                        let msg = format!(
+                            "Query not found error on event route={} SAID={}",
+                            route,
+                            serder.said().unwrap_or_default()
+                        );
                         debug!("{}", msg);
                         debug!("Query Body=\n{}\n", serder.pretty(None));
                         return Err(KERIError::QueryNotFoundError(msg).into());
@@ -1014,8 +1102,17 @@ impl<'db> Kevery<'db> {
                 else if let Some(sn) = sn {
                     let current_sn = kever.sner().map(|s| s.num()).unwrap_or_default();
                     if current_sn < sn as u128 || !self.fully_witnessed(&kever.serder().unwrap()) {
-                        self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                        let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                        self.escrow_query_not_found_event(
+                            &serder,
+                            source.as_ref(),
+                            sigers.as_deref(),
+                            cigars.as_deref(),
+                        )?;
+                        let msg = format!(
+                            "Query not found error on event route={} SAID={}",
+                            route,
+                            serder.said().unwrap_or_default()
+                        );
                         debug!("{}", msg);
                         debug!("Query Body=\n{}\n", serder.pretty(None));
                         return Err(KERIError::QueryNotFoundError(msg).into());
@@ -1039,27 +1136,49 @@ impl<'db> Kevery<'db> {
 
                 // If we have messages to send, add a replay cue
                 if !msgs.is_empty() {
-                    let cue = Cue{ kin: "replay".to_string(), serder };
+                    let cue = Cue {
+                        kin: "replay".to_string(),
+                        serder,
+                    };
                     self.cues.push_back(cue);
                 }
-            },
+            }
 
             "ksn" => {
                 // Extract query parameters
-                let pre = qry.get("i")
-                    .ok_or_else(|| KERIError::ValueError("Missing identifier (i) in query".to_string()))?
+                let pre = qry
+                    .get("i")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing identifier (i) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Identifier (i) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Identifier (i) field is not a string".to_string())
+                    })?;
 
-                let src = qry.get("src")
-                    .ok_or_else(|| KERIError::ValueError("Missing source (src) in query".to_string()))?
+                let src = qry
+                    .get("src")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing source (src) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Source (src) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Source (src) field is not a string".to_string())
+                    })?;
 
                 // Check if we have the identifier
                 if !self.kevers.contains_key(pre) {
-                    self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                    let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                    self.escrow_query_not_found_event(
+                        &serder,
+                        source.as_ref(),
+                        sigers.as_deref(),
+                        cigars.as_deref(),
+                    )?;
+                    let msg = format!(
+                        "Query not found error on event route={} SAID={}",
+                        route,
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("{}", msg);
                     debug!("Query Body=\n{}\n", serder.pretty(None));
                     return Err(KERIError::QueryNotFoundError(msg).into());
@@ -1070,15 +1189,25 @@ impl<'db> Kevery<'db> {
                 // Get list of witness signatures to ensure we are presenting a fully witnessed event
                 let dg_key = dg_key(pre, &kever.serder().unwrap().said().unwrap_or_default());
                 let wigs = self.db.wigs.get_item_iter(&[&dg_key], false)?;
-                let wigers: Vec<Siger> = wigs.iter()
+                let wigers: Vec<Siger> = wigs
+                    .iter()
                     .map(|(_, wig)| Siger::from_qb64(&String::from_utf8_lossy(wig), None))
                     .collect::<Result<Vec<Siger>, _>>()?;
 
                 // Check if we have enough witness signatures
                 if let Some(toader) = kever.toader() {
                     if wigers.len() < toader.num() as usize {
-                        self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                        let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                        self.escrow_query_not_found_event(
+                            &serder,
+                            source.as_ref(),
+                            sigers.as_deref(),
+                            cigars.as_deref(),
+                        )?;
+                        let msg = format!(
+                            "Query not found error on event route={} SAID={}",
+                            route,
+                            serder.said().unwrap_or_default()
+                        );
                         debug!("{}", msg);
                         debug!("Query Body=\n{}\n", serder.pretty(None));
                         return Err(KERIError::QueryNotFoundError(msg).into());
@@ -1087,53 +1216,90 @@ impl<'db> Kevery<'db> {
 
                 // Create reply with key state
                 let _state = kever.state();
-                let rserder = ReplyEventBuilder::new().with_route(format!("/ksn/{}", src)).build()?;
+                let rserder = ReplyEventBuilder::new()
+                    .with_route(format!("/ksn/{}", src))
+                    .build()?;
                 // Add reply cue
-                let cue = Cue{ kin: "reply".to_string(), serder: rserder };
+                let cue = Cue {
+                    kin: "reply".to_string(),
+                    serder: rserder,
+                };
                 self.cues.push_back(cue);
-            },
+            }
 
             "mbx" => {
                 // Extract query parameters
-                let pre = qry.get("i")
-                    .ok_or_else(|| KERIError::ValueError("Missing identifier (i) in query".to_string()))?
+                let pre = qry
+                    .get("i")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing identifier (i) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Identifier (i) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Identifier (i) field is not a string".to_string())
+                    })?;
 
-                let src = qry.get("src")
-                    .ok_or_else(|| KERIError::ValueError("Missing source (src) in query".to_string()))?
+                let src = qry
+                    .get("src")
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Missing source (src) in query".to_string())
+                    })?
                     .as_str()
-                    .ok_or_else(|| KERIError::ValueError("Source (src) field is not a string".to_string()))?;
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Source (src) field is not a string".to_string())
+                    })?;
 
-                let topics = qry.get("topics")
+                let topics = qry
+                    .get("topics")
                     .ok_or_else(|| KERIError::ValueError("Missing topics in query".to_string()))?
                     .as_array()
-                    .ok_or_else(|| KERIError::ValueError("Topics field is not an array".to_string()))?
+                    .ok_or_else(|| {
+                        KERIError::ValueError("Topics field is not an array".to_string())
+                    })?
                     .iter()
                     .map(|v| v.as_str().unwrap_or_default().to_string())
                     .collect::<Vec<String>>();
 
                 // Check if we have the identifier
                 if !self.kevers.contains_key(pre) {
-                    self.escrow_query_not_found_event(&serder, source.as_ref(), sigers.as_deref(), cigars.as_deref())?;
-                    let msg = format!("Query not found error on event route={} SAID={}", route, serder.said().unwrap_or_default());
+                    self.escrow_query_not_found_event(
+                        &serder,
+                        source.as_ref(),
+                        sigers.as_deref(),
+                        cigars.as_deref(),
+                    )?;
+                    let msg = format!(
+                        "Query not found error on event route={} SAID={}",
+                        route,
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("{}", msg);
                     debug!("Query Body=\n{}\n", serder.pretty(None));
                     return Err(KERIError::QueryNotFoundError(msg).into());
                 }
 
                 // Add stream cue
-                let cue = Cue{ kin: "stream".to_string(), serder };
+                let cue = Cue {
+                    kin: "stream".to_string(),
+                    serder,
+                };
                 self.cues.push_back(cue);
-            },
+            }
 
             _ => {
                 // Invalid route
-                let cue = Cue{ kin: "route".to_string(), serder: serder.clone() };
+                let cue = Cue {
+                    kin: "route".to_string(),
+                    serder: serder.clone(),
+                };
                 self.cues.push_back(cue);
 
-                let msg = format!("Invalid query message {} for event route={} SAID={}",
-                                  ilk, route, serder.said().unwrap_or_default());
+                let msg = format!(
+                    "Invalid query message {} for event route={} SAID={}",
+                    ilk,
+                    route,
+                    serder.said().unwrap_or_default()
+                );
                 info!("{}", msg);
                 debug!("Query Body=\n{}\n", serder.pretty(None));
 
@@ -1143,20 +1309,20 @@ impl<'db> Kevery<'db> {
 
         Ok(())
     }
-    
+
     pub fn fully_witnessed(&self, serder: &SerderKERI) -> bool {
         let preb = serder.preb().unwrap_or_default();
         let said = serder.said().unwrap_or_default();
-        
+
         let key = dg_key(preb, said);
         match self.db.wigs.get::<_, Vec<u8>>(&[&key]) {
-            Ok(wigs) => { 
+            Ok(wigs) => {
                 let pre = serder.pre().unwrap();
                 let kever = &self.kevers[&pre];
                 let toad = kever.toader().unwrap().num();
                 !wigs.len() < toad as usize
             }
-            Err(_) => { false }
+            Err(_) => false,
         }
     }
 
@@ -1173,12 +1339,14 @@ impl<'db> Kevery<'db> {
         // when the requested event becomes available
 
         // For now we'll just log it
-        debug!("Escrowing query not found event with SAID: {}", serder.said().unwrap_or_default());
+        debug!(
+            "Escrowing query not found event with SAID: {}",
+            serder.said().unwrap_or_default()
+        );
 
         // TODO: Implement proper escrow functionality
         Ok(())
     }
-
 }
 
 /// Builder pattern for Kevery to make initialization more ergonomic

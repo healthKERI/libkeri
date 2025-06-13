@@ -2208,10 +2208,16 @@ fn code_b64_to_b2(c: u8) -> u8 {
 /// representation and maps them to the same hardness values
 pub fn get_bards() -> HashMap<u8, i32> {
     let hards = hards();
-    hards
+    let mut bards: HashMap<u8, i32> = hards
         .iter()
         .map(|(&c, &hs)| (code_b64_to_b2(c), hs))
-        .collect()
+        .collect();
+
+    // Add specific mapping for SALT_128 code which starts with '0'
+    // The binary sextet representation of '0' in qb2 format is 0xd0 (208)
+    bards.insert(0xd0, 2); // '0' has a hard size of 2
+
+    bards
 }
 
 /// Matter is a trait for fully qualified cryptographic material.
@@ -2268,6 +2274,14 @@ pub struct BaseMatter {
     code: String,
     soft: String,
     raw: Vec<u8>,
+}
+
+impl TryFrom<Vec<u8>> for BaseMatter {
+    type Error = MatterError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        BaseMatter::from_qb64b(&mut value.clone(), None)
+    }
 }
 
 impl BaseMatter {

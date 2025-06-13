@@ -1,13 +1,13 @@
 use crate::cesr::b64_to_int;
 use crate::cesr::{int_to_b64, Versionage};
 use crate::errors::MatterError;
+use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::KomerError;
 use crate::keri::db::subing::SuberError;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt;
 use thiserror::Error;
-use crate::keri::db::errors::DBError;
 
 pub mod app;
 pub mod core;
@@ -121,7 +121,7 @@ pub enum KERIError {
 
     #[error("IO Error")]
     Io(#[from] std::io::Error),
-    
+
     #[error("DBError")]
     DBError(#[from] DBError),
 
