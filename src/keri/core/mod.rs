@@ -1,5 +1,6 @@
 pub mod errors;
 pub mod eventing;
+pub mod routing;
 pub mod filing;
 pub mod parsing;
 pub mod serdering;

@@ -6,12 +6,12 @@ use crate::cesr::num_dex;
 use crate::cesr::number::Number;
 use crate::keri::core::eventing::Kever;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
-use crate::keri::core::serdering::{Serder, SerderKERI};
 use crate::keri::db::dbing::keys::dg_key;
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::{Komer, SerialKind};
 use crate::keri::db::subing::cesr::CesrSuber;
+use crate::keri::db::subing::catcesr::CatCesrSuber;
 use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
@@ -27,6 +27,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use crate::keri::core::serdering::{Serder, SerderKERI};
+use crate::keri::db::subing::serder::SerderSuber;
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -150,6 +152,11 @@ pub struct Baser<'db> {
     ///      Value is ISO 8601 datetime stamp bytes
     pub dtss: DupSuber<'db>,
 
+
+    pub sdts: CesrSuber<'db, Dater>,
+    pub rpys: SerderSuber<'db, SerderKERI>,
+    // pub scgs: CatCesrIoSetSuber
+
     /// .aess is named sub DB of authorizing event source seal couples
     ///      that map digest to seal source couple of authorizer's
     ///      (delegator or issuer) event. Each couple is a concatenation of full
@@ -267,6 +274,12 @@ impl<'db> Baser<'db> {
             // Initialize the dtss sub database
             dtss: DupSuber::new(lmdber.clone(), "dtss.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            rpys: SerderSuber::new(lmdber.clone(), "rpys", None, false).
+                map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            sdts: CesrSuber::new(lmdber.clone(), "sdts", None, false).
+                map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the aess sub database
             aess: Suber::new(lmdber.clone(), "aess.", None, false)
