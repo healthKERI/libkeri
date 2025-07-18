@@ -9,10 +9,10 @@ use crate::keri::core::serdering::{Serder, SerderKERI};
 
 mod incept;
 mod interact;
-mod kever;
+pub mod kever;
 mod kevery;
 mod query;
-mod receipt;
+pub mod receipt;
 mod reply;
 mod rotate;
 mod state;
