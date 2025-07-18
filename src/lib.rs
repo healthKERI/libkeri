@@ -17,7 +17,6 @@ pub use crate::cesr::verfer::Verfer;
 pub use crate::cesr::Matter;
 
 // Core KERI exports for witness functionality
-pub use crate::keri::app::configing::{ConfigFormat, Configer};
 pub use crate::keri::app::keeping::{Keeper, Manager};
 pub use crate::keri::core::eventing::kever::KeverBuilder;
 pub use crate::keri::core::eventing::messagize;
