@@ -1,15 +1,19 @@
 mod key_state_record;
-
-use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
-use crate::cesr::dater::Dater;
 use crate::cesr::num_dex;
-use crate::cesr::number::Number;
 use crate::keri::core::eventing::Kever;
+use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
+use crate::cesr::number::Number;
+use crate::cesr::dater::Dater;
+use crate::cesr::indexing::siger::Siger;
+use crate::cesr::saider::Saider;
+use crate::cesr::verfer::Verfer;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
 use crate::keri::db::dbing::keys::dg_key;
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::{Komer, SerialKind};
+use crate::keri::db::subing::catcesrioset::CatCesrIoSetSuber;
+use crate::keri::db::subing::cesrioset::CesrIoSetSuber;
 use crate::keri::db::subing::cesr::CesrSuber;
 use crate::keri::db::subing::catcesr::CatCesrSuber;
 use crate::keri::db::subing::dup::DupSuber;
@@ -152,10 +156,41 @@ pub struct Baser<'db> {
     ///      Value is ISO 8601 datetime stamp bytes
     pub dtss: DupSuber<'db>,
 
-
+    /// .sdts (sad date-time-stamp) named subDB instance of CesrSuber that
+    ///     maps SAD SAID to Dater instance's CESR serialization of
+    ///     ISO-8601 datetime
+    ///     key = said (bytes) of sad, val = dater.qb64b
     pub sdts: CesrSuber<'db, Dater>,
+
+    /// .rpys (replys) named subDB instance of SerderSuber that maps said of
+    ///     reply message (versioned SAD) to serialization of that reply message.
+    ///     key is said bytes, val is Serder.raw bytes of reply 'rpy' message
     pub rpys: SerderSuber<'db, SerderKERI>,
-    // pub scgs: CatCesrIoSetSuber
+
+    /// .ssgs (sad trans indexed sigs) named subDB instance of CesrIoSetSuber
+    ///     that maps keys quadruple (saider.qb64, prefixer.qb64, seqner.q64,
+    ///     diger.qb64) to val Siger of trans id signature. Where: saider is
+    ///     said of SAD and prefixer, seqner, and diger indicate the key state
+    ///     est event for signer or reply SAD. Each key may
+    ///     have a set of vals in insertion order one for each signer of the sad.
+    ///     key = join (saider.qb64b, prefixer.qb64b, seqner.qb64b, diger.qb64b)
+    ///     (bytes)  val = siger.qb64b
+    pub ssgs: CatCesrIoSetSuber<'db, Siger>,
+
+    /// .scgs (sad nontrans cigs) named subDB instance of CatCesrIoSetSuber
+    ///     that maps said of SAD to couple (Verfer, Cigar) for nontrans signer.
+    ///     For nontrans qb64 of Verfer is same as Prefixer.
+    ///     Each key may have a set of vals in insertion order one for each
+    ///     nontrans signer of the sad.
+    ///     key = said (bytes) of SAD, val = cat of (verfer.qb64, cigar.qb64b)
+    pub scgs: CatCesrIoSetSuber<'db, Verfer>,
+
+    /// .rpes (reply escrows) named subDB instance of CesrIoSetSuber that
+    ///     maps routes of reply (versioned SAD) to single Saider of that
+    ///     reply msg.
+    ///     Routes such as '/end/role/' and '/loc/scheme'
+    ///     key is route bytes, vals = saider.qb64b of reply 'rpy' msg
+    pub rpes: CesrIoSetSuber<'db, Saider>,
 
     /// .aess is named sub DB of authorizing event source seal couples
     ///      that map digest to seal source couple of authorizer's
@@ -280,6 +315,27 @@ impl<'db> Baser<'db> {
 
             sdts: CesrSuber::new(lmdber.clone(), "sdts", None, false).
                 map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            ssgs: CatCesrIoSetSuber::new(
+                lmdber.clone(),
+                "ssgs.",
+                vec!["siger".to_string()],
+                None,
+                false,
+            )
+            .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            scgs: CatCesrIoSetSuber::new(
+                lmdber.clone(),
+                "scgs.",
+                vec!["verfer".to_string(), "cigar".to_string()],
+                None,
+                false,
+            )
+            .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            rpes: CesrIoSetSuber::new(lmdber.clone(), "rpes.", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             // Initialize the aess sub database
             aess: Suber::new(lmdber.clone(), "aess.", None, false)

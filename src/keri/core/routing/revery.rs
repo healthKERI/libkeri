@@ -4,10 +4,10 @@ use crate::cesr::indexing::siger::Siger;
 use crate::cesr::prefixer::Prefixer;
 use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
-use crate::cesr::Matter;
 use crate::cesr::verfer::Verfer;
+use crate::cesr::Matter;
 use crate::keri::core::eventing;
-use crate::keri::core::serdering::{SerderKERI, Serder};
+use crate::keri::core::serdering::{Rawifiable, Serder, SerderKERI};
 use crate::keri::db::basing::Baser;
 use crate::keri::db::dbing::keys::{dg_key, sn_key};
 use crate::keri::KERIError;
@@ -21,7 +21,7 @@ pub const TIMEOUT_RPE: u64 = 3600;
 /// Reply message event processor
 pub struct Revery<'db> {
     /// Timeout for reply message escrows (in seconds)
-    
+
     /// Database instance
     pub db: Arc<&'db Baser<'db>>,
 
@@ -92,27 +92,23 @@ impl<'db> Revery<'db> {
         let saider = Saider::from_qb64(
             ked.get("d")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| KERIError::ValueError("Missing 'd' field in reply".to_string()))?
+                .ok_or_else(|| KERIError::ValueError("Missing 'd' field in reply".to_string()))?,
         )?;
 
         // Use the correct verify method signature
         if !saider.verify(&ked, true, false, None, "d", None) {
-            return Err(KERIError::ValidationError(
-                format!("Invalid said = {} for reply msg", saider.qb64())
-            ));
+            return Err(KERIError::ValidationError(format!(
+                "Invalid said = {} for reply msg",
+                saider.qb64()
+            )));
         }
 
         // Dispatch to appropriate route handler
-        self.rtr.dispatch(
-            &serder,
-            &saider,
-            cigars.as_deref(),
-            tsgs.as_deref(),
-        )?;
+        self.rtr
+            .dispatch(&serder, &saider, cigars.as_deref(), tsgs.as_deref())?;
 
         Ok(())
     }
-
 
     /// Apply Best Available Data Acceptance policy to reply and signatures
     ///
@@ -129,7 +125,7 @@ impl<'db> Revery<'db> {
     /// * `tsgs` - Transferable signature groups
     #[allow(clippy::too_many_arguments)]
     pub fn accept_reply(
-        &self,
+        &mut self,
         serder: &SerderKERI,
         saider: &Saider,
         route: &str,
@@ -144,10 +140,11 @@ impl<'db> Revery<'db> {
 
         // Get date-time for BADA comparison
         let dater = Dater::from_dts(
-            serder.ked()
+            serder
+                .ked()
                 .get("dt")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| KERIError::ValueError("Missing 'dt' field in reply".to_string()))?
+                .ok_or_else(|| KERIError::ValueError("Missing 'dt' field in reply".to_string()))?,
         )?;
 
         let odater = if let Some(osaider) = osaider {
@@ -161,22 +158,27 @@ impl<'db> Revery<'db> {
             let verfer = match cigar.verfer() {
                 Some(v) => v,
                 None => {
-                    info!("Revery: skipped cigar with no verfer on reply said = {}", serder.said().unwrap_or_default());
+                    info!(
+                        "Revery: skipped cigar with no verfer on reply said = {}",
+                        serder.said().unwrap_or_default()
+                    );
                     continue;
                 }
             };
 
             if verfer.is_transferable() {
-                info!("Revery: skipped invalid transferable verfer on reply said = {}", serder.said().unwrap_or_default());
+                info!(
+                    "Revery: skipped invalid transferable verfer on reply said = {}",
+                    serder.said().unwrap_or_default()
+                );
                 continue;
             }
-
 
             if !self.lax && self.prefixes().contains(&verfer.qb64()) {
                 if !self.local {
                     info!(
                 "Revery: skipped own attachment for AID {} on non-local reply at route = {}",
-                aid, 
+                aid,
                 serder.ked().get("r").and_then(|v| v.as_str()).unwrap_or("unknown")
             );
                     debug!("Reply Body=\n{}\n", serder.pretty(None));
@@ -184,15 +186,19 @@ impl<'db> Revery<'db> {
                 }
             }
 
-
             if aid != verfer.qb64() {
-                info!("Revery: skipped cigar not from aid={} on reply at route {}", aid, 
-                    serder.ked().get("r").and_then(|v| v.as_str()).unwrap_or("unknown")
+                info!(
+                    "Revery: skipped cigar not from aid={} on reply at route {}",
+                    aid,
+                    serder
+                        .ked()
+                        .get("r")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
                 );
                 debug!("Reply Body=\n{}\n", serder.pretty(None));
                 continue;
             }
-
 
             // Check if this is later than previous version
             if let Some(ref odater) = odater {
@@ -200,7 +206,11 @@ impl<'db> Revery<'db> {
                     trace!(
                         "Revery: skipped stale update from {} of reply at route = {}",
                         aid,
-                        serder.ked().get("r").and_then(|v| v.as_str()).unwrap_or("unknown")
+                        serder
+                            .ked()
+                            .get("r")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
                     );
                     trace!("Reply Body=\n{}\n", serder.pretty(None));
                     continue;
@@ -212,7 +222,11 @@ impl<'db> Revery<'db> {
                 info!(
                     "Revery: skipped non-verifying cigar from {} on reply at route = {}",
                     verfer.qb64(),
-                    serder.ked().get("r").and_then(|v| v.as_str()).unwrap_or("unknown")
+                    serder
+                        .ked()
+                        .get("r")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
                 );
                 debug!("Reply Body=\n{}\n", serder.pretty(None));
                 continue;
@@ -231,7 +245,10 @@ impl<'db> Revery<'db> {
         for (prefixer, seqner, ssaider, sigers) in tsgs {
             if !self.lax && self.prefixes().contains(&prefixer.qb64()) {
                 if !self.local {
-                    debug!("Revery: skipped own attachment on nonlocal reply said={}", serder.said().unwrap_or_default());
+                    debug!(
+                        "Revery: skipped own attachment on nonlocal reply said={}",
+                        serder.said().unwrap_or_default()
+                    );
                     debug!("event=\n{}\n", serder.pretty(None));
                     continue;
                 }
@@ -241,7 +258,7 @@ impl<'db> Revery<'db> {
             if aid != spre {
                 info!(
                     "Revery: skipped signature not from aid={} on reply said={}",
-                    aid, 
+                    aid,
                     serder.said().unwrap_or_default()
                 );
                 debug!("event=\n{}\n", serder.pretty(None));
@@ -278,15 +295,23 @@ impl<'db> Revery<'db> {
             }
 
             // Retrieve last event at sequence number for signer
-            let sdig = self.db.kels.get_last::<_, Vec<u8>>(&[&sn_key(spre, seqner.sn())])?;
+            let sdig = self
+                .db
+                .kels
+                .get_last::<_, Vec<u8>>(&[&sn_key(spre, seqner.sn())])?;
 
             let sdig = match sdig {
                 Some(dig_bytes) => String::from_utf8(dig_bytes)
                     .map_err(|_| KERIError::ValueError("Invalid UTF-8 in digest".to_string()))?,
                 None => {
                     // Escrow if signer's establishment event not yet available
-                    info!("Revery: escrowing without key state for signer on reply said={}", serder.said().unwrap_or_default());
-                    self.escrow_reply(serder, saider, &dater, route, prefixer, seqner, ssaider, sigers)?;
+                    info!(
+                        "Revery: escrowing without key state for signer on reply said={}",
+                        serder.said().unwrap_or_default()
+                    );
+                    self.escrow_reply(
+                        serder, saider, &dater, route, prefixer, seqner, ssaider, sigers,
+                    )?;
 
                     // Add cue to request key state
                     self.cues.push_back(ReplyMessageCue {
@@ -302,23 +327,33 @@ impl<'db> Revery<'db> {
             };
 
             // Retrieve the establishment event itself
-            let sraw = self.db.evts.get::<_, Vec<u8>>(&[&dg_key(spre, &sdig)])?
-                .ok_or_else(|| KERIError::ValueError(format!("Event not found for dig={}", sdig)))?;
+            let sraw = self
+                .db
+                .evts
+                .get::<_, Vec<u8>>(&[&dg_key(spre, &sdig)])?
+                .ok_or_else(|| {
+                    KERIError::ValueError(format!("Event not found for dig={}", sdig))
+                })?;
 
             let sserder = SerderKERI::from_raw(&sraw, None)?;
 
             if sserder.said().unwrap_or_default() != ssaider.qb64() {
-                return Err(KERIError::ValidationError(
-                    format!("Bad trans indexed sig group at sn = {} for reply", seqner.sn())
-                ));
+                return Err(KERIError::ValidationError(format!(
+                    "Bad trans indexed sig group at sn = {} for reply",
+                    seqner.sn()
+                )));
             }
 
             // Verify signatures
-            let sverfers = sserder.verfers()
-                .ok_or_else(|| KERIError::ValidationError(
-                    format!("Invalid reply from signer={}, no keys at signer's est. event sn={}", spre, seqner.sn())
-                ))?;
+            let sverfers = sserder.verfers().ok_or_else(|| {
+                KERIError::ValidationError(format!(
+                    "Invalid reply from signer={}, no keys at signer's est. event sn={}",
+                    spre,
+                    seqner.sn()
+                ))
+            })?;
 
+            // Fetch any escrowed signatures and combine with current ones
             // Fetch any escrowed signatures and combine with current ones
             let mut all_sigers = sigers.clone();
             let quad_keys = (
@@ -328,12 +363,32 @@ impl<'db> Revery<'db> {
                 ssaider.qb64(),
             );
 
-            if let Some(esigers) = self.db.ssgs.get::<_, Vec<Siger>>(&[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3])? {
-                all_sigers.extend(esigers);
+            // Fix: Handle the Result and Vec<Vec<Box<dyn Matter>>> return type
+            let esigers_result =
+                self.db
+                    .ssgs
+                    .get(&[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3])?;
+            if !esigers_result.is_empty() {
+                // Convert Vec<Box<dyn Matter>> to Vec<Siger>
+                for matter_vec in esigers_result {
+                    for matter in matter_vec {
+                        if let Some(siger) = matter.as_any().downcast_ref::<Siger>() {
+                            all_sigers.push(siger.clone());
+                        }
+                    }
+                }
             }
 
             // Validate signatures against thresholds
-            let (valid_sigers, valid) = eventing::validate_sigs(serder, &all_sigers, &sverfers, sserder.tholder())?;
+            let tholder = sserder.tholder().ok_or_else(|| {
+                KERIError::ValidationError(format!(
+                    "No tholder available for establishment event at sn={}",
+                    seqner.sn()
+                ))
+            })?;
+
+            let (valid_sigers, valid) =
+                eventing::validate_sigs(serder, all_sigers, &sverfers, &tholder)?;
 
             if valid {
                 // All constraints satisfied, update the reply
@@ -345,7 +400,7 @@ impl<'db> Revery<'db> {
                     Some(prefixer),
                     Some(seqner),
                     Some(ssaider),
-                    Some(&valid_sigers)
+                    Some(&valid_sigers),
                 )?;
 
                 if let Some(osaider) = osaider {
@@ -355,10 +410,19 @@ impl<'db> Revery<'db> {
                 // Remove stale signatures
                 if let Some(tsgs_to_trim) = self.fetch_tsgs(saider)? {
                     for (prr, snr, dgr, _) in tsgs_to_trim {
-                        if snr.sn() < seqner.sn() ||
-                            (snr.sn() == seqner.sn() && dgr.qb64() != ssaider.qb64()) {
-                            let trim_keys = (prr.qb64(), format!("{:032x}", snr.sn()), dgr.qb64());
-                            self.db.ssgs.trim(&[&trim_keys.0, &trim_keys.1, &trim_keys.2, ""])?;
+                        if snr.sn() < seqner.sn()
+                            || (snr.sn() == seqner.sn() && dgr.qb64() != ssaider.qb64())
+                        {
+                            let trim_keys = (
+                                prr.qb64(),
+                                format!("{:032x}", snr.sn()),
+                                dgr.qb64(),
+                                String::new(),
+                            );
+                            self.db.ssgs.trim(
+                                &[&trim_keys.0, &trim_keys.1, &trim_keys.2, &trim_keys.3],
+                                true,
+                            )?;
                         }
                     }
                 }
@@ -366,7 +430,9 @@ impl<'db> Revery<'db> {
                 accepted = true;
             } else {
                 // Not meeting threshold, escrow
-                self.escrow_reply(serder, saider, &dater, route, prefixer, seqner, ssaider, sigers)?;
+                self.escrow_reply(
+                    serder, saider, &dater, route, prefixer, seqner, ssaider, sigers,
+                )?;
             }
         }
 
@@ -393,7 +459,9 @@ impl<'db> Revery<'db> {
         self.db.rpys.put(&keys, serder)?;
 
         if let Some(cigar) = cigar {
-            self.db.scgs.put(&keys, &[(cigar.verfer(), cigar)])?;
+            if let Some(verfer) = cigar.verfer() {
+                self.db.scgs.put(&keys, &[&verfer, cigar])?;
+            }
         }
 
         if let Some(sigers) = sigers {
@@ -404,7 +472,12 @@ impl<'db> Revery<'db> {
                     format!("{:032x}", seqner.sn()),
                     diger.qb64(),
                 );
-                self.db.ssgs.put(&[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3], sigers)?;
+                let sigers_as_matter: Vec<&dyn Matter> =
+                    sigers.iter().map(|s| s as &dyn Matter).collect();
+                self.db.ssgs.put(
+                    &[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3],
+                    &sigers_as_matter,
+                )?;
             }
         }
 
@@ -416,8 +489,9 @@ impl<'db> Revery<'db> {
         let keys = [saider.qb64()];
 
         // Remove all related data
-        self.db.ssgs.trim(&[&saider.qb64(), ""])?; // Remove whole branch
-        self.db.scgs.rem(&keys)?;
+        let saider_b64 = saider.qb64();
+        self.db.ssgs.trim(&[saider_b64.as_ref(), ""], true)?; // Remove whole branch
+        self.db.scgs.rem(&keys, None)?;
         self.db.rpys.rem(&keys)?;
         self.db.sdts.rem(&keys)?;
 
@@ -453,7 +527,11 @@ impl<'db> Revery<'db> {
             format!("{:032x}", seqner.sn()),
             ssaider.qb64(),
         );
-        self.db.ssgs.put(&[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3], sigers)?;
+        let sigers_as_matter: Vec<&dyn Matter> = sigers.iter().map(|s| s as &dyn Matter).collect();
+        self.db.ssgs.put(
+            &[&quad_keys.0, &quad_keys.1, &quad_keys.2, &quad_keys.3],
+            &sigers_as_matter,
+        )?;
 
         // Add to reply escrow
         self.db.rpes.put(&[route], &[saider])?;
@@ -468,32 +546,34 @@ impl<'db> Revery<'db> {
         let mut items_to_process = Vec::new();
 
         // Collect items to process to avoid borrowing issues
-        for result in self.db.rpes.get_item_iter(&[""])? {
-            match result {
-                Ok((keys, saider)) => {
-                    if let (Some(route), Some(saider)) = (keys.get(0), saider) {
-                        items_to_process.push((route.clone(), saider.clone()));
-                    }
-                }
-                Err(e) => {
-                    warn!("Error iterating escrow items: {}", e);
-                    continue;
-                }
+        let iter_results = self.db.rpes.get_item_iter(&[""], true)?;
+        for (keys, saider) in iter_results {
+            if let Some(route) = keys.get(0) {
+                items_to_process.push((route.clone(), saider.clone()));
             }
         }
 
         for (route, saider) in items_to_process {
-            match self.process_single_escrow(&route, &saider) {
+            // Convert Vec<u8> to String
+            let route_str = match String::from_utf8(route) {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("Invalid UTF-8 in route: {}", e);
+                    continue;
+                }
+            };
+
+            match self.process_single_escrow(&route_str, &saider) {
                 Ok(success) => {
                     if success {
                         // Remove from escrow on success
-                        self.db.rpes.rem(&[&route])?;
+                        self.db.rpes.rem(&[&route_str.as_bytes()], None)?;
                         info!("Revery unescrow succeeded for reply said={}", saider.qb64());
                     }
                 }
                 Err(e) => {
                     // Remove failed escrow
-                    self.db.rpes.rem(&[&route])?;
+                    self.db.rpes.rem(&[&route_str.as_bytes()], None)?;
                     self.remove_reply(&saider)?;
                     debug!("Revery unescrowed due to error: {}", e);
                 }
@@ -507,22 +587,41 @@ impl<'db> Revery<'db> {
     fn process_single_escrow(&self, route: &str, saider: &Saider) -> Result<bool, KERIError> {
         let keys = [saider.qb64()];
 
-        let dater = self.db.sdts.get::<_, Dater>(&keys)?
+        let dater = self
+            .db
+            .sdts
+            .get::<_>(&keys)?
             .ok_or_else(|| KERIError::ValueError("Missing escrow datetime".to_string()))?;
 
-        let serder = self.db.rpys.get::<_, SerderKERI>(&keys)?
+        let serder = self
+            .db
+            .rpys
+            .get::<_>(&keys)?
             .ok_or_else(|| KERIError::ValueError("Missing escrow serder".to_string()))?;
 
         let tsgs = self.fetch_tsgs(saider)?;
 
         // Check for stale escrow
-        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map_err(|e| KERIError::ValueError(format!("System time error: {}", e)))?;
-        let escrow_age = now.saturating_sub(Duration::from_secs(dater.datetime().timestamp() as u64));
+
+        let escrow_datetime = dater
+            .dt()
+            .map_err(|e| KERIError::ValueError(format!("Invalid datetime format: {:?}", e)))?;
+
+        let escrow_age =
+            now.saturating_sub(Duration::from_secs(escrow_datetime.timestamp() as u64));
 
         if escrow_age > Duration::from_secs(TIMEOUT_RPE) {
-            info!("Revery unescrow error: Stale reply escrow at route = {}", route);
-            return Err(KERIError::ValidationError(format!("Stale reply escrow at route = {}", route)));
+            info!(
+                "Revery unescrow error: Stale reply escrow at route = {}",
+                route
+            );
+            return Err(KERIError::ValidationError(format!(
+                "Stale reply escrow at route = {}",
+                route
+            )));
         }
 
         // Try to process the escrowed reply
@@ -532,7 +631,10 @@ impl<'db> Revery<'db> {
     }
 
     /// Fetch transferable signature groups for a saider
-    fn fetch_tsgs(&self, saider: &Saider) -> Result<Option<Vec<(Prefixer, Seqner, Saider, Vec<Siger>)>>, KERIError> {
+    fn fetch_tsgs(
+        &self,
+        saider: &Saider,
+    ) -> Result<Option<Vec<(Prefixer, Seqner, Saider, Vec<Siger>)>>, KERIError> {
         // This would implement the logic to fetch TSGs from the database
         // For now, return None as a placeholder
         // TODO: Implement proper TSG fetching
@@ -553,16 +655,10 @@ mod tests {
             .build()
             .map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let db = Baser::new(Arc::new(lmdber))
-            .map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
+        let db =
+            Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let revery = Revery::new(
-            Arc::new(&db),
-            None,
-            None,
-            Some(true),
-            Some(false),
-        );
+        let revery = Revery::new(Arc::new(&db), None, None, Some(true), Some(false));
 
         assert!(revery.lax);
         assert!(!revery.local);

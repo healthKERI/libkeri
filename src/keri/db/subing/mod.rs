@@ -1,7 +1,7 @@
 pub mod catcesr;
 pub mod catcesrioset;
 pub mod cesr;
-mod cesrioset;
+pub mod cesrioset;
 pub mod dup;
 pub mod iodup;
 pub mod ioset;

@@ -24,7 +24,7 @@ impl Dater {
         let base = BaseMatter::new(Some(&raw), Some(mtr_dex::DATE_TIME), None, None).unwrap();
         Dater { base }
     }
-    
+
     pub fn from_dts(dts: &str) -> Result<Self, MatterError> {
         let raw = dts.as_bytes();
         let base = BaseMatter::new(Some(raw), Some(mtr_dex::DATE_TIME), None, None)?;

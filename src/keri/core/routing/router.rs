@@ -1,10 +1,10 @@
-use super::route::{Route, RouteResource, compile_uri_template};
-use crate::cesr::Matter;
-use crate::keri::core::serdering::Serder;
+use super::route::{compile_uri_template, Route, RouteResource};
 use crate::cesr::indexing::siger::Siger;
 use crate::cesr::prefixer::Prefixer;
 use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
+use crate::cesr::Matter;
+use crate::keri::core::serdering::Serder;
 use crate::keri::core::serdering::SerderKERI;
 use crate::keri::KERIError;
 use std::collections::HashMap;
@@ -36,7 +36,7 @@ impl Router {
     /// * `route_template` - A route template to use for the resource
     /// * `resource` - The resource instance to associate with the route template
     /// * `suffix` - Optional responder name suffix for this route. If a suffix is provided,
-    ///             Router will map reply routes to processReply{suffix}(). In this way, 
+    ///             Router will map reply routes to processReply{suffix}(). In this way,
     ///             multiple closely-related routes can be mapped to the same resource.
     pub fn add_route(
         &mut self,
@@ -45,7 +45,8 @@ impl Router {
         suffix: Option<String>,
     ) -> Result<(), KERIError> {
         let (fields, regex) = compile_uri_template(route_template)?;
-        self.routes.push(Route::new(regex, fields, resource, suffix));
+        self.routes
+            .push(Route::new(regex, fields, resource, suffix));
         Ok(())
     }
 
@@ -66,7 +67,8 @@ impl Router {
         let ked = serder.ked();
 
         // Get route from the message
-        let route = ked.get("r")
+        let route = ked
+            .get("r")
             .and_then(|v| v.as_str())
             .ok_or_else(|| KERIError::ValueError("Missing route 'r' in message".to_string()))?;
 
@@ -77,16 +79,10 @@ impl Router {
         let params = captured_params.unwrap_or_default();
 
         // Call the appropriate handler method
-        matched_route.resource.process_reply(
-            serder,
-            saider,
-            route,
-            cigars,
-            tsgs,
-            params,
-        )
+        matched_route
+            .resource
+            .process_reply(serder, saider, route, cigars, tsgs, params)
     }
-
 
     /// Linear search through added routes, returning the first one that matches
     ///
@@ -99,24 +95,28 @@ impl Router {
     /// # Returns
     /// * The Route object with the resource that is registered to process this reply message
     /// * The regular expression match that contains the grouping of matched parameters
-    fn find_route(&self, route: &str) -> Result<(&Route, Option<HashMap<String, String>>), KERIError> {
+    fn find_route(
+        &self,
+        route: &str,
+    ) -> Result<(&Route, Option<HashMap<String, String>>), KERIError> {
         for registered_route in &self.routes {
             if let Some(captures) = registered_route.regex.captures(route) {
                 let mut captured_params = HashMap::new();
                 for field_name in &registered_route.fields {
                     if let Some(matched_value) = captures.name(field_name) {
-                        captured_params.insert(field_name.clone(), matched_value.as_str().to_string());
+                        captured_params
+                            .insert(field_name.clone(), matched_value.as_str().to_string());
                     }
                 }
                 return Ok((registered_route, Some(captured_params)));
             }
         }
 
-        Err(KERIError::ValidationError(
-            format!("No resource is registered to handle route {}", route)
-        ))
+        Err(KERIError::ValidationError(format!(
+            "No resource is registered to handle route {}",
+            route
+        )))
     }
-
 
     /// Get the number of registered routes
     pub fn route_count(&self) -> usize {

@@ -45,7 +45,14 @@ pub trait RouteResource: Send + Sync {
         saider: &crate::cesr::saider::Saider,
         route: &str,
         cigars: Option<&[crate::cesr::indexing::siger::Siger]>,
-        tsgs: Option<&[(crate::cesr::prefixer::Prefixer, crate::cesr::seqner::Seqner, crate::cesr::saider::Saider, Vec<crate::cesr::indexing::siger::Siger>)]>,
+        tsgs: Option<
+            &[(
+                crate::cesr::prefixer::Prefixer,
+                crate::cesr::seqner::Seqner,
+                crate::cesr::saider::Saider,
+                Vec<crate::cesr::indexing::siger::Siger>,
+            )],
+        >,
         params: std::collections::HashMap<String, String>,
     ) -> Result<(), crate::keri::KERIError>;
 
@@ -56,12 +63,20 @@ pub trait RouteResource: Send + Sync {
         saider: &crate::cesr::saider::Saider,
         route: &str,
         cigars: Option<&[crate::cesr::indexing::siger::Siger]>,
-        tsgs: Option<&[(crate::cesr::prefixer::Prefixer, crate::cesr::seqner::Seqner, crate::cesr::saider::Saider, Vec<crate::cesr::indexing::siger::Siger>)]>,
+        tsgs: Option<
+            &[(
+                crate::cesr::prefixer::Prefixer,
+                crate::cesr::seqner::Seqner,
+                crate::cesr::saider::Saider,
+                Vec<crate::cesr::indexing::siger::Siger>,
+            )],
+        >,
         params: std::collections::HashMap<String, String>,
     ) -> Result<(), crate::keri::KERIError> {
-        Err(crate::keri::KERIError::ValueError(
-            format!("Resource registered for route {} does not contain the correct processReply method", route)
-        ))
+        Err(crate::keri::KERIError::ValueError(format!(
+            "Resource registered for route {} does not contain the correct processReply method",
+            route
+        )))
     }
 }
 
@@ -78,13 +93,13 @@ pub trait RouteResource: Send + Sync {
 /// syntax used in the default router. Only simple paths with bracketed
 /// field expressions are recognized. For example:
 ///
-/// 
+///
 /// /
 /// /books
 /// /books/{isbn}
 /// /books/{isbn}/characters
 /// /books/{isbn}/characters/{name}
-/// 
+///
 ///
 /// Also, note that if the template contains a trailing slash character,
 /// it will be stripped in order to normalize the routing logic.
@@ -95,16 +110,18 @@ pub trait RouteResource: Send + Sync {
 ///
 /// # Returns
 /// * `(template_field_names, template_regex)`
-pub fn compile_uri_template(template: &str) -> Result<(HashSet<String>, Regex), crate::keri::KERIError> {
+pub fn compile_uri_template(
+    template: &str,
+) -> Result<(HashSet<String>, Regex), crate::keri::KERIError> {
     if !template.starts_with('/') {
         return Err(crate::keri::KERIError::ValueError(
-            "uri_template must start with '/'".to_string()
+            "uri_template must start with '/'".to_string(),
         ));
     }
 
     if template.contains("//") {
         return Err(crate::keri::KERIError::ValueError(
-            "uri_template may not contain '//'".to_string()
+            "uri_template may not contain '//'".to_string(),
         ));
     }
 
@@ -142,8 +159,9 @@ pub fn compile_uri_template(template: &str) -> Result<(HashSet<String>, Regex), 
     let pattern = expression_pattern.replace_all(&escaped, r"(?P<$1>[^/]+)");
     let final_pattern = format!(r"^{}$", pattern);
 
-    let regex = Regex::new(&final_pattern)
-        .map_err(|e| crate::keri::KERIError::ValueError(format!("Invalid compiled regex: {}", e)))?;
+    let regex = Regex::new(&final_pattern).map_err(|e| {
+        crate::keri::KERIError::ValueError(format!("Invalid compiled regex: {}", e))
+    })?;
 
     Ok((fields, regex))
 }

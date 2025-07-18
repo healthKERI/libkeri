@@ -7,19 +7,20 @@ use crate::cesr::non_trans_dex;
 use crate::cesr::seqner::Seqner;
 use crate::keri::core::serdering::{Serder, SerderKERI};
 
-mod incept;
-mod interact;
-mod kever;
-mod kevery;
-mod query;
-mod receipt;
-mod reply;
-mod rotate;
-mod state;
+pub mod incept;
+pub mod interact;
+pub mod kever;
+pub mod kevery;
+pub mod query;
+pub mod receipt;
+pub mod reply;
+pub mod rotate;
+pub mod state;
 
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
 use crate::cesr::indexing::siger::Siger;
 use crate::cesr::indexing::Indexer;
+use crate::cesr::tholder::Tholder;
 use crate::cesr::verfer::Verfer;
 use crate::keri::KERIError;
 pub use incept::*;
@@ -109,6 +110,40 @@ pub enum Seal {
 /// # Errors
 ///
 /// Returns an error if there are no signatures attached or if there are invalid attachment sizes
+pub fn validate_sigs(
+    serder: &SerderKERI,
+    sigers: Vec<Siger>,
+    verfers: &[Verfer],
+    tholder: &Tholder,
+) -> Result<(Vec<Siger>, bool), KERIError> {
+    // Check if we have enough verfers for the threshold
+    if verfers.len() < tholder.size() {
+        let verfer_qb64s: Vec<String> = verfers.iter().map(|v| v.qb64()).collect();
+        return Err(KERIError::ValidationError(format!(
+            "Invalid sith = {} for keys = {:?}",
+            tholder.sith(),
+            verfer_qb64s
+        )));
+    }
+
+    // Get unique verified sigers and indices lists from sigers list
+    let (verified_sigers, indices) = verify_sigs(serder.raw(), sigers, verfers)?;
+    // verified_sigers now have .verfer assigned
+
+    // Check if we have at least one verified signature
+    if indices.is_empty() {
+        return Err(KERIError::ValidationError(format!(
+            "No verified signatures for message={:?}",
+            serder.ked()
+        )));
+    }
+
+    // Check if satisfies threshold for fully signed
+    let valid = tholder.satisfy(&indices);
+
+    Ok((verified_sigers, valid))
+}
+
 pub fn messagize(
     serder: &SerderKERI,
     sigers: Option<&[Siger]>,

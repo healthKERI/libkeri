@@ -175,6 +175,10 @@ impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
         self.base.get(keys)
     }
 
+    pub fn rem<K: AsRef<[u8]>>(&self, keys: &[K]) -> Result<bool, SuberError> {
+        self.base.rem(keys)
+    }
+
     pub fn trim<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Result<bool, SuberError> {
         self.base.trim(keys, topive)
     }
