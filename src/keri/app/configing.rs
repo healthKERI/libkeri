@@ -1,5 +1,5 @@
 //! Configuration management for KERI applications
-//! 
+//!
 //! This module provides the `Configer` trait and implementations for managing
 //! configuration data with support for multiple serialization formats including
 //! JSON, MessagePack, and CBOR.
@@ -46,16 +46,16 @@ impl ConfigFormat {
 /// Configuration management trait
 pub trait Configer {
     /// Store configuration data to file
-    /// 
+    ///
     /// # Arguments
     /// * `data` - The configuration data to store
-    /// 
+    ///
     /// # Returns
     /// * `Result<(), MatterError>` - Success or error
     fn put(&mut self, data: &HashMap<String, serde_json::Value>) -> Result<(), MatterError>;
 
     /// Retrieve configuration data from file
-    /// 
+    ///
     /// # Returns
     /// * `Result<HashMap<String, serde_json::Value>, MatterError>` - Configuration data or error
     fn get(&mut self) -> Result<HashMap<String, serde_json::Value>, MatterError>;
@@ -104,7 +104,7 @@ impl std::fmt::Debug for FileConfiger {
 
 impl FileConfiger {
     /// Create a new FileConfiger
-    /// 
+    ///
     /// # Arguments
     /// * `name` - Configuration file name (default: "conf")
     /// * `base` - Base directory segment (default: "main")
@@ -112,7 +112,7 @@ impl FileConfiger {
     /// * `human` - Use human-readable JSON format (default: true)
     /// * `temp` - Use temporary directory (default: false)
     /// * `clean` - Use clean directory variant (default: false)
-    /// 
+    ///
     /// # Returns
     /// * `Result<FileConfiger, MatterError>` - New configer or error
     pub fn new(
@@ -135,18 +135,19 @@ impl FileConfiger {
             name,
             base,
             temp,
-            None, // Use default head directory path
-            None, // Use default permissions
-            true, // Reopen immediately
-            false, // Don't clear on reopen
-            true,  // Reuse existing path
-            clean, // Use clean variant if requested
-            true,  // This is a file, not directory
-            false, // Don't add extension to directory
-            Some("w+".to_string()), // Read/write mode
+            None,                                 // Use default head directory path
+            None,                                 // Use default permissions
+            true,                                 // Reopen immediately
+            false,                                // Don't clear on reopen
+            true,                                 // Reuse existing path
+            clean,                                // Use clean variant if requested
+            true,                                 // This is a file, not directory
+            false,                                // Don't add extension to directory
+            Some("w+".to_string()),               // Read/write mode
             Some(format.extension().to_string()), // Use format extension
-            None, // Use default settings
-        ).map_err(|e| MatterError::IOError(format!("Failed to create filer: {}", e)))?;
+            None,                                 // Use default settings
+        )
+        .map_err(|e| MatterError::IOError(format!("Failed to create filer: {}", e)))?;
 
         Ok(FileConfiger {
             filer,
@@ -186,18 +187,18 @@ impl FileConfiger {
     }
 
     /// Import configuration from an external file into the config directory
-    /// 
+    ///
     /// This method reads a configuration file from an external path and recreates it
     /// in the appropriate libkeri config directory structure under the `cf` directory.
     /// The format is auto-detected from the source file extension.
-    /// 
+    ///
     /// # Arguments
     /// * `source_path` - Path to the external configuration file to import
     /// * `name` - Optional name for the config in the cf directory (default: source filename)
     /// * `base` - Optional base directory segment (default: "cf")
     /// * `temp` - Use temporary directory (default: false)
     /// * `clean` - Use clean directory variant (default: false)
-    /// 
+    ///
     /// # Returns
     /// * `Result<FileConfiger, MatterError>` - New configer with imported data
     pub fn import_from_file(
@@ -231,12 +232,13 @@ impl FileConfiger {
         });
 
         // Read the source file
-        let source_data = std::fs::read(source_path)
-            .map_err(|e| MatterError::IOError(format!(
+        let source_data = std::fs::read(source_path).map_err(|e| {
+            MatterError::IOError(format!(
                 "Failed to read source file {}: {}",
                 source_path.display(),
                 e
-            )))?;
+            ))
+        })?;
 
         // Create new configer
         let mut configer = Self::new(
@@ -250,39 +252,43 @@ impl FileConfiger {
 
         // Parse the source data based on format
         let parsed_data: HashMap<String, serde_json::Value> = match format {
-            ConfigFormat::Json => {
-                serde_json::from_slice(&source_data)
-                    .map_err(|e| MatterError::DeserializationError(format!(
-                        "Failed to parse JSON from source file: {}", e
-                    )))?
-            }
+            ConfigFormat::Json => serde_json::from_slice(&source_data).map_err(|e| {
+                MatterError::DeserializationError(format!(
+                    "Failed to parse JSON from source file: {}",
+                    e
+                ))
+            })?,
             ConfigFormat::MessagePack => {
                 #[cfg(feature = "msgpack")]
                 {
-                    rmp_serde::from_slice(&source_data)
-                        .map_err(|e| MatterError::DeserializationError(format!(
-                            "Failed to parse MessagePack from source file: {}", e
-                        )))?
+                    rmp_serde::from_slice(&source_data).map_err(|e| {
+                        MatterError::DeserializationError(format!(
+                            "Failed to parse MessagePack from source file: {}",
+                            e
+                        ))
+                    })?
                 }
                 #[cfg(not(feature = "msgpack"))]
                 {
                     return Err(MatterError::DeserializationError(
-                        "MessagePack support not enabled".to_string()
+                        "MessagePack support not enabled".to_string(),
                     ));
                 }
             }
             ConfigFormat::Cbor => {
                 #[cfg(feature = "cbor")]
                 {
-                    serde_cbor::from_slice(&source_data)
-                        .map_err(|e| MatterError::DeserializationError(format!(
-                            "Failed to parse CBOR from source file: {}", e
-                        )))?
+                    serde_cbor::from_slice(&source_data).map_err(|e| {
+                        MatterError::DeserializationError(format!(
+                            "Failed to parse CBOR from source file: {}",
+                            e
+                        ))
+                    })?
                 }
                 #[cfg(not(feature = "cbor"))]
                 {
                     return Err(MatterError::DeserializationError(
-                        "CBOR support not enabled".to_string()
+                        "CBOR support not enabled".to_string(),
                     ));
                 }
             }
@@ -300,33 +306,44 @@ impl FileConfiger {
             ConfigFormat::Json => {
                 if self.human {
                     // Use pretty-printed JSON for human readability
-                    serde_json::to_vec_pretty(data)
-                        .map_err(|e| MatterError::SerializationError(format!("JSON serialization failed: {}", e)))
+                    serde_json::to_vec_pretty(data).map_err(|e| {
+                        MatterError::SerializationError(format!("JSON serialization failed: {}", e))
+                    })
                 } else {
-                    serde_json::to_vec(data)
-                        .map_err(|e| MatterError::SerializationError(format!("JSON serialization failed: {}", e)))
+                    serde_json::to_vec(data).map_err(|e| {
+                        MatterError::SerializationError(format!("JSON serialization failed: {}", e))
+                    })
                 }
             }
             ConfigFormat::MessagePack => {
                 #[cfg(feature = "msgpack")]
                 {
-                    rmp_serde::to_vec(data)
-                        .map_err(|e| MatterError::SerializationError(format!("MessagePack serialization failed: {}", e)))
+                    rmp_serde::to_vec(data).map_err(|e| {
+                        MatterError::SerializationError(format!(
+                            "MessagePack serialization failed: {}",
+                            e
+                        ))
+                    })
                 }
                 #[cfg(not(feature = "msgpack"))]
                 {
-                    Err(MatterError::SerializationError("MessagePack support not enabled".to_string()))
+                    Err(MatterError::SerializationError(
+                        "MessagePack support not enabled".to_string(),
+                    ))
                 }
             }
             ConfigFormat::Cbor => {
                 #[cfg(feature = "cbor")]
                 {
-                    serde_cbor::to_vec(data)
-                        .map_err(|e| MatterError::SerializationError(format!("CBOR serialization failed: {}", e)))
+                    serde_cbor::to_vec(data).map_err(|e| {
+                        MatterError::SerializationError(format!("CBOR serialization failed: {}", e))
+                    })
                 }
                 #[cfg(not(feature = "cbor"))]
                 {
-                    Err(MatterError::SerializationError("CBOR support not enabled".to_string()))
+                    Err(MatterError::SerializationError(
+                        "CBOR support not enabled".to_string(),
+                    ))
                 }
             }
         }
@@ -339,30 +356,41 @@ impl FileConfiger {
         }
 
         match self.format {
-            ConfigFormat::Json => {
-                serde_json::from_slice(data)
-                    .map_err(|e| MatterError::DeserializationError(format!("JSON deserialization failed: {}", e)))
-            }
+            ConfigFormat::Json => serde_json::from_slice(data).map_err(|e| {
+                MatterError::DeserializationError(format!("JSON deserialization failed: {}", e))
+            }),
             ConfigFormat::MessagePack => {
                 #[cfg(feature = "msgpack")]
                 {
-                    rmp_serde::from_slice(data)
-                        .map_err(|e| MatterError::DeserializationError(format!("MessagePack deserialization failed: {}", e)))
+                    rmp_serde::from_slice(data).map_err(|e| {
+                        MatterError::DeserializationError(format!(
+                            "MessagePack deserialization failed: {}",
+                            e
+                        ))
+                    })
                 }
                 #[cfg(not(feature = "msgpack"))]
                 {
-                    Err(MatterError::DeserializationError("MessagePack support not enabled".to_string()))
+                    Err(MatterError::DeserializationError(
+                        "MessagePack support not enabled".to_string(),
+                    ))
                 }
             }
             ConfigFormat::Cbor => {
                 #[cfg(feature = "cbor")]
                 {
-                    serde_cbor::from_slice(data)
-                        .map_err(|e| MatterError::DeserializationError(format!("CBOR deserialization failed: {}", e)))
+                    serde_cbor::from_slice(data).map_err(|e| {
+                        MatterError::DeserializationError(format!(
+                            "CBOR deserialization failed: {}",
+                            e
+                        ))
+                    })
                 }
                 #[cfg(not(feature = "cbor"))]
                 {
-                    Err(MatterError::DeserializationError("CBOR support not enabled".to_string()))
+                    Err(MatterError::DeserializationError(
+                        "CBOR support not enabled".to_string(),
+                    ))
                 }
             }
         }
@@ -374,7 +402,9 @@ impl Configer for FileConfiger {
         let serialized = self.serialize(data)?;
 
         // Get the file handle from the filer
-        let file = self.filer.get_file_mut()
+        let file = self
+            .filer
+            .get_file_mut()
             .ok_or_else(|| MatterError::IOError("File not opened".to_string()))?;
 
         // Truncate the file to clear existing content
@@ -398,9 +428,11 @@ impl Configer for FileConfiger {
 
     fn get(&mut self) -> Result<HashMap<String, serde_json::Value>, MatterError> {
         // Check if file exists using filer
-        let path = self.filer.get_path()
+        let path = self
+            .filer
+            .get_path()
             .ok_or_else(|| MatterError::IOError("No path available".to_string()))?;
-        
+
         if !path.exists() {
             return Ok(HashMap::new());
         }
@@ -442,22 +474,22 @@ pub fn configer_with_format(format: ConfigFormat) -> Result<FileConfiger, Matter
 }
 
 /// Import configuration from an external file into the config directory
-/// 
-/// This convenience function reads a configuration file from an external path and 
+///
+/// This convenience function reads a configuration file from an external path and
 /// recreates it in the libkeri config directory structure under the `cf` directory.
-/// 
+///
 /// # Arguments
 /// * `source_path` - Path to the external configuration file to import
 /// * `name` - Optional name for the config in the cf directory (default: source filename)
-/// 
+///
 /// # Returns
 /// * `Result<FileConfiger, MatterError>` - New configer with imported data
-/// 
+///
 /// # Example
 /// ```rust
 /// use std::path::Path;
 /// use libkeri::configer_import_file;
-/// 
+///
 /// // Import a JSON config file
 /// let configer = configer_import_file(Path::new("/path/to/my_config.json"), None)?;
 /// ```
@@ -475,7 +507,10 @@ mod tests {
     #[test]
     fn test_config_format_from_extension() {
         assert_eq!(ConfigFormat::from_extension("json"), ConfigFormat::Json);
-        assert_eq!(ConfigFormat::from_extension("mgpk"), ConfigFormat::MessagePack);
+        assert_eq!(
+            ConfigFormat::from_extension("mgpk"),
+            ConfigFormat::MessagePack
+        );
         assert_eq!(ConfigFormat::from_extension("cbor"), ConfigFormat::Cbor);
         assert_eq!(ConfigFormat::from_extension("unknown"), ConfigFormat::Json);
     }
@@ -494,9 +529,10 @@ mod tests {
             Some("base"),
             Some(ConfigFormat::Json),
             Some(true),
-            Some(true), // Use temp directory
+            Some(true),  // Use temp directory
             Some(false), // Don't use clean variant
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(configer.format, ConfigFormat::Json);
         assert_eq!(configer.human, true);
@@ -512,13 +548,20 @@ mod tests {
             Some("base"),
             Some(ConfigFormat::Json),
             Some(true),
-            Some(true), // Use temp directory
+            Some(true),  // Use temp directory
             Some(false), // Don't use clean variant
-        ).unwrap();
+        )
+        .unwrap();
 
         let mut data = HashMap::new();
-        data.insert("key1".to_string(), serde_json::Value::String("value1".to_string()));
-        data.insert("key2".to_string(), serde_json::Value::Number(serde_json::Number::from(42)));
+        data.insert(
+            "key1".to_string(),
+            serde_json::Value::String("value1".to_string()),
+        );
+        data.insert(
+            "key2".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(42)),
+        );
 
         // Put data
         configer.put(&data).unwrap();
@@ -529,8 +572,14 @@ mod tests {
         // Get data back
         let retrieved = configer.get().unwrap();
         assert_eq!(retrieved.len(), 2);
-        assert_eq!(retrieved.get("key1").unwrap(), &serde_json::Value::String("value1".to_string()));
-        assert_eq!(retrieved.get("key2").unwrap(), &serde_json::Value::Number(serde_json::Number::from(42)));
+        assert_eq!(
+            retrieved.get("key1").unwrap(),
+            &serde_json::Value::String("value1".to_string())
+        );
+        assert_eq!(
+            retrieved.get("key2").unwrap(),
+            &serde_json::Value::Number(serde_json::Number::from(42))
+        );
     }
 
     #[test]
@@ -540,9 +589,10 @@ mod tests {
             Some("base"),
             Some(ConfigFormat::Json),
             Some(true),
-            Some(true), // Use temp directory
+            Some(true),  // Use temp directory
             Some(false), // Don't use clean variant
-        ).unwrap();
+        )
+        .unwrap();
 
         // Get from newly created file should return empty map
         let data = configer.get().unwrap();
@@ -589,9 +639,10 @@ mod tests {
             &source_file_path,
             Some("imported_test"),
             Some("test_base"),
-            Some(true), // Use temp directory
+            Some(true),  // Use temp directory
             Some(false), // Don't use clean variant
-        ).unwrap();
+        )
+        .unwrap();
 
         // Verify the data was imported correctly
         let retrieved_data = configer.get().unwrap();
@@ -609,7 +660,8 @@ mod tests {
         }
 
         // Test the convenience function as well
-        let mut configer2 = configer_import_file(&source_file_path, Some("convenience_test")).unwrap();
+        let mut configer2 =
+            configer_import_file(&source_file_path, Some("convenience_test")).unwrap();
         let retrieved_data2 = configer2.get().unwrap();
         assert_eq!(retrieved_data, retrieved_data2);
 
@@ -647,7 +699,8 @@ mod tests {
                 None,
                 Some(true), // Use temp directory
                 None,
-            ).unwrap();
+            )
+            .unwrap();
 
             assert_eq!(configer.format(), &expected_format);
         }
@@ -655,51 +708,47 @@ mod tests {
         // Test MessagePack format detection (but only attempt import if feature is enabled)
         let mgpk_file_path = temp_path.join("config.mgpk");
         fs::write(&mgpk_file_path, source_config).unwrap();
-        
-        let mgpk_result = FileConfiger::import_from_file(
-            &mgpk_file_path,
-            None,
-            None,
-            Some(true),
-            None,
-        );
-        
+
+        let mgpk_result =
+            FileConfiger::import_from_file(&mgpk_file_path, None, None, Some(true), None);
+
         #[cfg(feature = "msgpack")]
         {
             let configer = mgpk_result.unwrap();
             assert_eq!(configer.format(), &ConfigFormat::MessagePack);
         }
-        
+
         #[cfg(not(feature = "msgpack"))]
         {
             // Should fail with MessagePack not enabled error
             assert!(mgpk_result.is_err());
-            assert!(mgpk_result.unwrap_err().to_string().contains("MessagePack support not enabled"));
+            assert!(mgpk_result
+                .unwrap_err()
+                .to_string()
+                .contains("MessagePack support not enabled"));
         }
 
         // Test CBOR format detection (but only attempt import if feature is enabled)
         let cbor_file_path = temp_path.join("config.cbor");
         fs::write(&cbor_file_path, source_config).unwrap();
-        
-        let cbor_result = FileConfiger::import_from_file(
-            &cbor_file_path,
-            None,
-            None,
-            Some(true),
-            None,
-        );
-        
+
+        let cbor_result =
+            FileConfiger::import_from_file(&cbor_file_path, None, None, Some(true), None);
+
         #[cfg(feature = "cbor")]
         {
             let configer = cbor_result.unwrap();
             assert_eq!(configer.format(), &ConfigFormat::Cbor);
         }
-        
+
         #[cfg(not(feature = "cbor"))]
         {
             // Should fail with CBOR not enabled error
             assert!(cbor_result.is_err());
-            assert!(cbor_result.unwrap_err().to_string().contains("CBOR support not enabled"));
+            assert!(cbor_result
+                .unwrap_err()
+                .to_string()
+                .contains("CBOR support not enabled"));
         }
     }
 
@@ -709,14 +758,12 @@ mod tests {
 
         // Test with non-existent file
         let non_existent_path = PathBuf::from("/path/that/does/not/exist.json");
-        let result = FileConfiger::import_from_file(
-            &non_existent_path,
-            None,
-            None,
-            Some(true),
-            None,
-        );
+        let result =
+            FileConfiger::import_from_file(&non_existent_path, None, None, Some(true), None);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Source file does not exist"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Source file does not exist"));
     }
 }
