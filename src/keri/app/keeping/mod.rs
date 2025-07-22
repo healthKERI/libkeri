@@ -1,5 +1,5 @@
 pub mod creators;
-mod keeper;
+pub mod keeper;
 mod manager;
 
 pub use keeper::Keeper;

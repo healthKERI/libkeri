@@ -348,6 +348,46 @@ impl<'db> Drop for Keeper<'db> {
     }
 }
 
+/// Trait for key pair storage and cryptographic key management
+pub trait KeeperTrait: Send + Sync {
+    /// Check if database is opened
+    fn opened(&self) -> bool;
+
+    /// Get name of database
+    fn name(&self) -> String;
+
+    /// Get database path
+    fn path(&self) -> Option<PathBuf>;
+
+    /// Check if database is temporary
+    fn temp(&self) -> bool;
+
+    /// Create a key to access the pubs database with prefix and rotation index
+    fn ri_key(&self, pre: &str, ri: u64) -> String;
+}
+
+impl<'db> KeeperTrait for Keeper<'db> {
+    fn opened(&self) -> bool {
+        self.lmdber.opened()
+    }
+
+    fn name(&self) -> String {
+        self.lmdber.name()
+    }
+
+    fn path(&self) -> Option<PathBuf> {
+        self.lmdber.path()
+    }
+
+    fn temp(&self) -> bool {
+        self.lmdber.temp()
+    }
+
+    fn ri_key(&self, pre: &str, ri: u64) -> String {
+        Self::ri_key(pre, ri)  // Calling the static method
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

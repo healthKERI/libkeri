@@ -1,14 +1,16 @@
 mod key_state_record;
+mod habitat_record;
+
 use crate::cesr::num_dex;
 use crate::keri::core::eventing::Kever;
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
-use crate::cesr::number::Number;
 use crate::cesr::dater::Dater;
 use crate::cesr::indexing::siger::Siger;
+use crate::cesr::number::Number;
 use crate::cesr::saider::Saider;
 use crate::cesr::verfer::Verfer;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
-use crate::keri::db::dbing::keys::dg_key;
+use crate::keri::core::serdering::{Serder, SerderKERI};
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::{Komer, SerialKind};
@@ -20,10 +22,13 @@ use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
 use crate::keri::db::subing::oniodup::OnIoDupSuber;
+use crate::keri::db::subing::serder::SerderSuber;
 use crate::keri::db::subing::{Suber, Utf8Codec};
+use crate::keri::db::dbing::keys::dg_key;
 use crate::Matter;
 use chrono::DateTime;
 use indexmap::IndexSet;
+pub use habitat_record::HabitatRecord;
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
 use num_bigint::BigUint;
@@ -31,8 +36,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use crate::keri::core::serdering::{Serder, SerderKERI};
-use crate::keri::db::subing::serder::SerderSuber;
+use crate::keri::KERIError;
+
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -90,6 +95,13 @@ pub struct Baser<'db> {
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,
     pub kevers: HashMap<String, Kever<'db>>,
+
+
+    /// habitat application state keyed by habitat name, includes prefix
+    pub habs: Komer<'db, HabitatRecord>,
+
+    /// habitat name database mapping (domain,name) as key to Prefixer
+    pub names: Suber<'db>,
 
     /// .evts is named sub DB whose values are serialized key events
     ///     dgKey
@@ -364,10 +376,49 @@ impl<'db> Baser<'db> {
             // Initialize the states sub database
             states: Komer::new(lmdber.clone(), "stts.", SerialKind::Json)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            habs: Komer::new(lmdber.clone(), "habs.", SerialKind::Json)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            names: Suber::new(lmdber.clone(), "names.", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
         };
 
         Ok(baser)
     }
+    pub fn get_ke_last<K>(&self, key: K) -> Result<Option<String>, KERIError>
+    where
+        K: AsRef<[u8]>,
+    {
+        // Use the kels OnIoDupSuber to get the last inserted duplicate value
+        match self.kels.get_io_dup_val_last::<K, Vec<u8>>(&[key]) {
+            Ok(Some(val_bytes)) => {
+                // Convert bytes to String (assuming UTF-8 encoded digest)
+                match String::from_utf8(val_bytes) {
+                    Ok(digest) => Ok(Some(digest)),
+                    Err(e) => Err(KERIError::DeserializationError(format!("Failed to decode digest as UTF-8: {}", e))),
+                }
+            },
+            Ok(None) => Ok(None),
+            Err(e) => {
+                // Convert SuberError to DBError - adjust this based on your DBError enum
+                Err(KERIError::DatabaseError(format!("SuberError: {}", e)))
+            }
+        }
+    }
+
+    pub fn get_evt<K>(&self, key: K) -> Result<Option<Vec<u8>>, KERIError>
+    where
+        K: AsRef<[u8]>,
+    {
+        // Convert the key to the format expected by the evts database
+        let db_key = self.evts.to_key(&[key], false);
+
+        // Call the LMDBer's get_val method directly
+        self.lmdber.get_val(&self.evts.base.sdb, &db_key)
+            .map_err(|e| KERIError::DatabaseError(format!("LMDBer error: {}", e)))
+    }
+
 
     /// Check if database is opened
     pub fn opened(&self) -> bool {

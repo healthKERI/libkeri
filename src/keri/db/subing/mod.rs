@@ -93,7 +93,7 @@ impl ValueCodec for Utf8Codec {
 // The base struct for sub-database functionality
 pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
     db: Arc<&'db LMDBer>,   // The base LMDB database
-    sdb: BytesDatabase,     // The sub-database
+    pub sdb: BytesDatabase,     // The sub-database
     sep: u8,                // Separator for combining keys
     verify: bool,           // Whether to verify data when deserializing
     dupsort: bool,          // Whether the database allows duplicates
@@ -222,7 +222,7 @@ impl<'db, C: ValueCodec> SuberBase<'db, C> {
 
 // Suber - a subclass of SuberBase that doesn't allow duplicates
 pub struct Suber<'a, C: ValueCodec = Utf8Codec> {
-    base: SuberBase<'a, C>,
+    pub base: SuberBase<'a, C>,
 }
 
 impl<'db, C: ValueCodec> Suber<'db, C> {
@@ -297,6 +297,10 @@ impl<'db, C: ValueCodec> Suber<'db, C> {
         topive: bool,
     ) -> Result<Vec<(Vec<Vec<u8>>, Vec<u8>)>, SuberError> {
         self.base.get_item_iter(keys, topive)
+    }
+
+    pub fn to_key<K: AsRef<[u8]>>(&self, keys: &[K], topive: bool) -> Vec<u8> {
+        self.base.to_key(keys, topive)
     }
 
     pub fn cnt_all(&self) -> Result<usize, SuberError> {

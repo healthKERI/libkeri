@@ -172,6 +172,19 @@ pub enum KERIError {
 
     #[error("Query not found error: {0}")]
     QueryNotFoundError(String),
+
+    #[error("Error configuring or initing KERI component (Controller etc)")]
+    ConfigurationError(String),
+
+    #[error("Error Missing entry or entry not found in database")]
+    MissingEntryError(String),
+
+    #[error("Missing signature on KERI event")]
+    MissingSignatureError(String),
+
+    #[error("Missing signature on KERI event")]
+    MissingWitnessError(String),
+
 }
 
 impl From<MatterError> for KERIError {
@@ -601,6 +614,106 @@ impl fmt::Display for Ilk {
         write!(f, "{}", self.as_str())
     }
 }
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Roles {
+    Controller,
+    Witness,
+    Registrar,
+    Gateway,
+    Watcher,
+    Judge,
+    Juror,
+    Peer,
+    Mailbox,
+    Agent,
+    Indexer,
+}
+
+impl Roles {
+    /// Returns the string representation of the role
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Roles::Controller => "controller",
+            Roles::Witness => "witness",
+            Roles::Registrar => "registrar",
+            Roles::Gateway => "gateway",
+            Roles::Watcher => "watcher",
+            Roles::Judge => "judge",
+            Roles::Juror => "juror",
+            Roles::Peer => "peer",
+            Roles::Mailbox => "mailbox",
+            Roles::Agent => "agent",
+            Roles::Indexer => "indexer",
+        }
+    }
+}
+
+impl std::fmt::Display for Roles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Roles {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "controller" => Ok(Roles::Controller),
+            "witness" => Ok(Roles::Witness),
+            "registrar" => Ok(Roles::Registrar),
+            "gateway" => Ok(Roles::Gateway),
+            "watcher" => Ok(Roles::Watcher),
+            "judge" => Ok(Roles::Judge),
+            "juror" => Ok(Roles::Juror),
+            "peer" => Ok(Roles::Peer),
+            "mailbox" => Ok(Roles::Mailbox),
+            "agent" => Ok(Roles::Agent),
+            "indexer" => Ok(Roles::Indexer),
+            _ => Err(format!("Unknown role: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Schemes {
+    Tcp,
+    Http,
+    Https,
+}
+
+impl Schemes {
+    /// Returns the string representation of the scheme
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Schemes::Tcp => "tcp",
+            Schemes::Http => "http",
+            Schemes::Https => "https",
+        }
+    }
+}
+
+impl std::fmt::Display for Schemes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for Schemes {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "tcp" => Ok(Schemes::Tcp),
+            "http" => Ok(Schemes::Http),
+            "https" => Ok(Schemes::Https),
+            _ => Err(format!("Unknown scheme: {}", s)),
+        }
+    }
+}
+
 
 /// SAID field labels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

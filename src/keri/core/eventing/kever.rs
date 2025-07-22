@@ -33,22 +33,22 @@ pub struct Kever<'db> {
     pub db: Arc<&'db Baser<'db>>,
     version: String,        // Version of KERI protocol
     ilk: Ilk,               // Event type ilk
-    delpre: Option<String>, // Delegator prefix if any
+    pub delpre: Option<String>, // Delegator prefix if any
     delegated: bool,        // True if delegated event, False otherwise
     fner: Option<Number>,   // First seen ordinal number
     dater: Option<Dater>,   // First seen timestamp
 
     // Fields needed for inception
-    sner: Option<Number>,
-    verfers: Option<Vec<Verfer>>,
+    pub(crate) sner: Option<Number>,
+    pub verfers: Option<Vec<Verfer>>,
     tholder: Option<Tholder>,
-    prefixer: Option<Prefixer>,
-    serder: Option<SerderKERI>,
-    ndigers: Option<Vec<Diger>>,
-    ntholder: Option<Tholder>,
+    pub(crate) prefixer: Option<Prefixer>,
+    pub(crate) serder: Option<SerderKERI>,
+    pub ndigers: Option<Vec<Diger>>,
+    pub(crate) ntholder: Option<Tholder>,
     cuts: Option<Vec<String>>,
     adds: Option<Vec<String>>,
-    wits: Option<Vec<String>>,
+    pub(crate) wits: Option<Vec<String>>,
     toader: Option<Number>,
     last_est: Option<LastEstLoc>,
 
@@ -1845,7 +1845,7 @@ impl<'db> Kever<'db> {
         self.toader.clone()
     }
 
-    fn wits(&self) -> Vec<String> {
+    pub fn wits(&self) -> Vec<String> {
         self.wits.clone().unwrap_or_else(Vec::new)
     }
 

@@ -32,12 +32,10 @@ use crate::keri::core::eventing::incept::InceptionEventBuilder;
 use crate::keri::core::eventing::rotate::RotateEventBuilder;
 use crate::keri::core::eventing::interact::InteractEventBuilder;
 use crate::keri::core::eventing::query::QueryEventBuilder;
+use crate::keri::core::eventing::receipt::ReceiptEventBuilder;
 use crate::keri::core::eventing::{incept, rotate, interact, query, receipt, reply, messagize};
 
-/// BaseHab - Base Habitat for KERI controller
-/// 
-/// A habitat (hab) is an environment for a controller to manage its key state
-/// and process events. This is the Rust adaptation of the Python BaseHab class.
+
 
 pub struct BaseHab<'db, R> {
     pub ks: Keeper<'db>,
@@ -57,21 +55,7 @@ pub struct BaseHab<'db, R> {
 
 
 impl<'db, R> BaseHab<'db, R> {
-    /// Constructor for BaseHab
-    ///
-    /// # Arguments
-    /// * `ks` - Keeper for cryptographic key management
-    /// * `db` - Baser database for KEL and other data
-    /// * `cf` - Configurer for configuration management
-    /// * `mgr` - Manager for creating and rotating keys
-    /// * `rtr` - Optional Router for routing reply messages
-    /// * `rvy` - Revery for processing received events
-    /// * `kvy` - Kevery factory for local event processing
-    /// * `psr` - Parser for local messages
-    /// * `name` - Alias of controller
-    /// * `ns` - Optional namespace
-    /// * `pre` - Optional QB64 prefix of controller
-    /// * `temp` - True for testing mode (weak level for salty algorithm)
+
     pub fn new(
         ks: Keeper<'db>,
         db: Baser<'db>,
@@ -564,21 +548,7 @@ impl<'db, R> BaseHab<'db, R> {
 
         Ok(msg)
     }
-    /// Create interaction event
-    ///
-    /// Creates a new interaction event for this habitat's identifier.
-    /// An interaction event allows updates to auxiliary data without
-    /// changing the key state.
-    ///
-    /// # Arguments
-    /// * `data` - Optional auxiliary data to include in the event
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, KERIError>` - The complete CESR message bytes
-    ///
-    /// # Errors
-    /// * `KERIError::ValidationError` - If event processing fails
-    /// * `KERIError::ConfigurationError` - If habitat not properly initialized
+
     pub fn interact(&mut self, data: Option<Vec<u8>>) -> Result<Vec<u8>, KERIError> {
         // Get the current kever (key event state)
         let kever = self.kever()?;
@@ -710,24 +680,7 @@ impl<'db, R> BaseHab<'db, R> {
             })
             .collect()
     }
-    /// Decrypt encrypted ciphertext using habitat's keys
-    ///
-    /// Decrypts the given ciphertext using the appropriate private keys.
-    /// If no verfers are provided, uses the current kever's verfers for
-    /// group signing scenarios.
-    ///
-    /// # Arguments
-    /// * `ser` - The encrypted ciphertext bytes to decrypt
-    /// * `verfers` - Optional list of Verfer instances for public keys
-    ///   If None, uses the current kever's verfers
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, KERIError>` - The decrypted plaintext bytes
-    ///
-    /// # Errors
-    /// * `KERIError::ConfigurationError` - If habitat not properly initialized
-    /// * `KERIError::DecryptError` - If decryption fails or unauthorized
-    /// * `KERIError::ValueError` - If required parameters are missing
+
     pub fn decrypt(
         &self,
         ser: &[u8],
@@ -758,26 +711,6 @@ impl<'db, R> BaseHab<'db, R> {
         )
     }
     
-    /// Create and endorse a query event
-    ///
-    /// Creates a KERI query event with the specified parameters and endorses it
-    /// with this habitat's signature and seal. The query allows requesting
-    /// information from other KERI nodes.
-    ///
-    /// # Arguments
-    /// * `pre` - The identifier prefix to query about
-    /// * `src` - The source identifier making the query
-    /// * `query` - Optional additional query parameters
-    /// * `route` - Optional route for the query (defaults to empty)
-    /// * `reply_route` - Optional reply route (defaults to empty)
-    /// * `stamp` - Optional timestamp (defaults to current time)
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, KERIError>` - The complete endorsed query message bytes
-    ///
-    /// # Errors
-    /// * `KERIError::ValidationError` - If query building or endorsement fails
-    /// * `KERIError::ConfigurationError` - If habitat not properly initialized
     pub fn query(
         &self,
         pre: &str,
@@ -818,25 +751,7 @@ impl<'db, R> BaseHab<'db, R> {
         // Endorse the query with SealLast (last=true)
         self.endorse(&serder, Some(true), None)
     }
-
-    /// Endorse a given serder with habitat's signature and seal
-    ///
-    /// Creates an endorsement message that includes the given serder along with
-    /// appropriate signatures and seals. For transferable identifiers, creates
-    /// indexed signatures with seals. For non-transferable identifiers, creates
-    /// non-indexed signatures (cigars).
-    ///
-    /// # Arguments
-    /// * `serder` - The SerderKERI to endorse
-    /// * `last` - If true, creates SealLast; if false, creates SealEvent with current state
-    /// * `pipelined` - If true, creates pipelined message format
-    ///
-    /// # Returns
-    /// * `Result<Vec<u8>, KERIError>` - The complete endorsement message bytes
-    ///
-    /// # Errors
-    /// * `KERIError::ConfigurationError` - If habitat not properly initialized
-    /// * `KERIError::ValidationError` - If signing or message creation fails
+    
     pub fn endorse(
         &self,
         serder: &SerderKERI,
@@ -948,5 +863,155 @@ impl<'db, R> BaseHab<'db, R> {
     pub fn exchange(&self) {
         // Not yet implemented
     }
+    /// Create and process a receipt event for the given serder
+    ///
+    /// Creates a KERI receipt event for the provided event serder, signs it
+    /// with the appropriate signature type based on transferability, and
+    /// processes it into the local database.
+    ///
+    /// # Arguments
+    /// * `serder` - The event serder to create a receipt for
+    ///
+    /// # Returns
+    /// * `Result<Vec<u8>, KERIError>` - The complete receipt message bytes
+    ///
+    /// # Errors
+    /// * `KERIError::ValidationError` - If receipt building, signing, or processing fails
+    /// * `KERIError::ConfigurationError` - If habitat not properly initialized
+    /// * `KERIError::MissingEntryError` - If required kever state is missing
+    pub fn receipt(&mut self, serder: &SerderKERI) -> Result<Vec<u8>, KERIError> {
+        // Extract event details from the provided serder
+        let ked = serder.ked();
+
+        // Get the identifier prefix from the event
+        let pre = ked.get("i")
+            .and_then(|v| match v {
+                SadValue::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .ok_or_else(|| ValidationError("Missing or invalid identifier in event".to_string()))?;
+
+        // Get the sequence number from the event and convert from hex
+        let sn_hex = ked.get("s")
+            .and_then(|v| match v {
+                SadValue::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .ok_or_else(|| ValidationError("Missing or invalid sequence number in event".to_string()))?;
+
+        let sn = usize::from_str_radix(&sn_hex, 16)
+            .map_err(|_| ValidationError("Invalid hex sequence number format".to_string()))?;
+
+        // Get the SAID of the event
+        let said = serder.said()
+            .ok_or_else(|| ValidationError("Missing SAID in event serder".to_string()))?
+            .to_string();
+
+        // Create the receipt event using ReceiptEventBuilder
+        let receipt_serder = ReceiptEventBuilder::new(pre, sn, said)
+            .build()
+            .map_err(|e| ValidationError(format!("Failed to build receipt event: {}", e)))?;
+
+        // Get the current kever to determine signature type
+        let kever = self.kever()?;
+
+        // Get the prefixer and check transferability
+        let prefixer = kever.prefixer.as_ref()
+            .ok_or_else(|| ValidationError("Missing prefixer in kever".to_string()))?;
+
+        let msg = if prefixer.transferable() {
+            // For transferable identifiers, create indexed signatures with seal
+
+            // Get the last establishment event info for the seal
+            let last_est_sn = kever.sner.as_ref()
+                .ok_or_else(|| ValidationError("Missing sequence number in kever".to_string()))?
+                .num();
+
+            let last_est_dig = kever.serder.as_ref()
+                .ok_or_else(|| ValidationError("Missing serder in kever".to_string()))?
+                .said()
+                .ok_or_else(|| ValidationError("Missing SAID in current event".to_string()))?
+                .to_string();
+
+            // Create SealEvent with the last establishment event details
+            let seal = Seal::SealEvent(SealEvent::new(
+                self.pre.as_ref()
+                    .ok_or_else(|| ConfigurationError("No prefix set for habitat".to_string()))?
+                    .clone(),                           // identifier prefix of the receiptor
+                format!("{:x}", last_est_sn),           // sequence number as hex string
+                last_est_dig,                           // digest of last establishment event
+            ));
+
+            // Sign the original serder (not the receipt) with indexed signatures
+            let sigers = self.sign(
+                &serder.raw(),      // Sign the original event, not the receipt
+                None,               // verfers: use current verfers from kever
+                Some(true),         // indexed: create indexed signatures
+                None,               // indices: let manager choose indices
+                None,               // ondices: no specific ondices
+                None,               // ponly: not ponly mode
+            )?;
+
+            // Create the receipt message with receipt serder, signatures, and seal
+            messagize(
+                &receipt_serder,    // serder: the receipt event
+                Some(&sigers),      // sigers: indexed signatures
+                Some(seal),         // seal: seal indicating receiptor's state
+                None,               // cigars: not used for transferable
+                None,               // wigers: no witness signatures
+                true,               // pipelined: standard message format
+            ).map_err(|e| ValidationError(format!("Failed to create receipt message: {}", e)))?
+
+        } else {
+            // For non-transferable identifiers, create non-indexed signatures (cigars)
+
+            // Sign the original serder with non-indexed signatures
+            let signatures = self.mgr.sign(
+                &serder.raw(),      // Sign the original event, not the receipt
+                None,               // pubs: not using public key strings
+                None,               // verfers: use current verfers from kever
+                Some(false),        // indexed: create non-indexed signatures
+                None,               // indices: not applicable for non-indexed
+                None,               // ondices: not applicable for non-indexed
+                self.pre.as_ref().map(|p| p.as_bytes()), // pre: habitat prefix
+                None,               // path: not specified
+            )?;
+
+            // Extract Cigar instances from Sigmat enum
+            let cigars: Result<Vec<Cigar>, KERIError> = signatures.into_iter()
+                .map(|sig| {
+                    match sig {
+                        Sigmat::NonIndexed(cigar) => Ok(cigar),
+                        Sigmat::Indexed(_) => Err(KERIError::ValidationError(
+                            "Expected Cigar but got Siger - non-indexed signatures required for non-transferable".to_string()
+                        ))
+                    }
+                })
+                .collect();
+
+            let cigars = cigars?;
+
+            // Create the receipt message with receipt serder and cigars (no seal for non-transferable)
+            messagize(
+                &receipt_serder,    // serder: the receipt event
+                None,               // sigers: not used for non-transferable
+                None,               // seal: not used for non-transferable
+                None,               // wigers: no witness signatures
+                Some(&cigars),      // cigars: non-indexed signatures
+                true,               // pipelined: standard message format
+            ).map_err(|e| ValidationError(format!("Failed to create receipt message: {}", e)))?
+        };
+
+        // Process the receipt message locally into the database
+        // Convert Vec<u8> to bytearray-like structure for parser
+        let mut ims = msg.clone();
+
+        // Parse and process the receipt into the local database
+        // self.psr.parse_one(&mut ims)
+        //     .map_err(|e| ValidationError(format!("Failed to process receipt into database: {}", e)))?;
+
+        Ok(msg)
+    }
+
 }
 

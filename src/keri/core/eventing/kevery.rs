@@ -12,10 +12,12 @@ use crate::keri::core::parsing::Trqs;
 use crate::keri::core::serdering::{Rawifiable, SadValue, Serder, SerderKERI};
 use crate::keri::db::basing::Baser;
 use crate::keri::db::dbing::keys::{dg_key, sn_key};
+use crate::keri::db::subing::SuberError;
 use crate::keri::{Ilk, KERIError};
 use crate::Matter;
 use indexmap::IndexSet;
 use std::collections::{HashMap, VecDeque};
+use std::string::FromUtf8Error;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -58,7 +60,7 @@ pub struct Kevery<'db> {
     pub check: bool,
 
     /// Cache of kevers indexed by prefix
-    kevers: HashMap<String, Kever<'db>>,
+    pub kevers: HashMap<String, Kever<'db>>,
 }
 
 /// Cue represents a notice of an event needing receipt or a request needing response
@@ -124,6 +126,11 @@ impl<'db> Kevery<'db> {
     /// Get a reference to the kevers dictionary
     pub fn kevers(&self) -> &HashMap<String, Kever<'db>> {
         &self.kevers
+    }
+
+    /// Get a mutable reference to the kevers dictionary
+    pub fn kevers_mut(&mut self) -> &mut HashMap<String, Kever<'db>> {
+        &mut self.kevers
     }
 
     /// Get the prefixes as an ordered set
