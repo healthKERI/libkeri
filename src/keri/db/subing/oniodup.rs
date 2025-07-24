@@ -482,14 +482,19 @@ impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
         let key = self.on_base._tokey(keys);
 
         // Call the underlying get_io_dup_val_last method from LMDBer
-        match self.on_base.base.db.get_io_dup_val_last(&self.on_base.base.sdb, &key) {
+        match self
+            .on_base
+            .base
+            .db
+            .get_io_dup_val_last(&self.on_base.base.sdb, &key)
+        {
             Ok(Some(val_bytes)) => {
                 // Deserialize the value using the codec
                 match self.on_base._des(&val_bytes) {
                     Ok(deserialized) => Ok(Some(deserialized)),
                     Err(e) => Err(e),
                 }
-            },
+            }
             Ok(None) => Ok(None),
             Err(e) => Err(SuberError::DBError(e)),
         }
@@ -501,7 +506,6 @@ impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
     {
         self.io_dup_suber.get(keys)
     }
-
 
     pub fn is_dupsort(&self) -> bool {
         self.on_base.base.is_dupsort()

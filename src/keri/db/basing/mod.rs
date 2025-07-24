@@ -1,34 +1,38 @@
-mod key_state_record;
 mod habitat_record;
+mod key_state_record;
 
-use crate::cesr::num_dex;
-use crate::keri::core::eventing::Kever;
 use crate::cesr::counting::{ctr_dex_1_0, BaseCounter, Counter};
 use crate::cesr::dater::Dater;
+use crate::cesr::diger::Diger;
 use crate::cesr::indexing::siger::Siger;
+use crate::cesr::num_dex;
 use crate::cesr::number::Number;
+use crate::cesr::prefixer::Prefixer;
 use crate::cesr::saider::Saider;
+use crate::cesr::seqner::Seqner;
 use crate::cesr::verfer::Verfer;
+use crate::keri::core::eventing::Kever;
 use crate::keri::core::filing::{BaseFiler, Filer, FilerDefaults};
 use crate::keri::core::serdering::{Serder, SerderKERI};
+use crate::keri::db::dbing::keys::dg_key;
 use crate::keri::db::dbing::LMDBer;
 use crate::keri::db::errors::DBError;
 use crate::keri::db::koming::{Komer, SerialKind};
-use crate::keri::db::subing::catcesrioset::CatCesrIoSetSuber;
-use crate::keri::db::subing::cesrioset::CesrIoSetSuber;
-use crate::keri::db::subing::cesr::CesrSuber;
 use crate::keri::db::subing::catcesr::CatCesrSuber;
+use crate::keri::db::subing::catcesrioset::CatCesrIoSetSuber;
+use crate::keri::db::subing::cesr::CesrSuber;
+use crate::keri::db::subing::cesrioset::CesrIoSetSuber;
 use crate::keri::db::subing::dup::DupSuber;
 use crate::keri::db::subing::iodup::IoDupSuber;
 use crate::keri::db::subing::on::OnSuber;
 use crate::keri::db::subing::oniodup::OnIoDupSuber;
 use crate::keri::db::subing::serder::SerderSuber;
 use crate::keri::db::subing::{Suber, Utf8Codec};
-use crate::keri::db::dbing::keys::dg_key;
+use crate::keri::KERIError;
 use crate::Matter;
 use chrono::DateTime;
-use indexmap::IndexSet;
 pub use habitat_record::HabitatRecord;
+use indexmap::IndexSet;
 pub use key_state_record::KeyStateRecord;
 pub use key_state_record::StateEERecord;
 use num_bigint::BigUint;
@@ -36,8 +40,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use crate::keri::KERIError;
-
 
 /// EventSourceRecord tracks the source of an event (local or remote)
 /// Keyed by dig (said) of serder of event
@@ -86,6 +88,181 @@ impl IntoIterator for EventSourceRecord {
     }
 }
 
+/// Service Endpoint Record with url for endpoint of a given scheme
+///
+/// The eid is usually a nontransferable identifier when its used for roles
+/// witness or watcher but may be transferable for other roles such as controller,
+/// judge, juror, public watcher, or registrar.
+///
+/// Database Keys are (eid, scheme) where eid is service endpoint identifier
+/// (qb64 prefix) and scheme is the url protocol scheme (tcp, https).
+///
+/// A loc reply message is required from which the values of this
+/// database record are extracted. route is /loc/scheme Uses enact-anul model
+/// To nullify endpoint set url field to empty.
+///
+/// An end authorization reply message is also required to authorize the eid as
+/// endpoint provider for cid at role. See EndpointRecord
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LocationRecord {
+    /// Full url including host:port/path?query scheme is optional
+    pub url: String,
+}
+
+impl LocationRecord {
+    /// Create a new LocationRecord
+    pub fn new(url: String) -> Self {
+        Self { url }
+    }
+
+    /// Check if the endpoint is nullified (empty url)
+    pub fn is_nullified(&self) -> bool {
+        self.url.is_empty()
+    }
+
+    /// Convert to HashMap for iteration/serialization compatibility
+    pub fn to_map(&self) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        map.insert("url".to_string(), self.url.clone());
+        map
+    }
+}
+
+impl IntoIterator for LocationRecord {
+    type Item = (String, String);
+    type IntoIter = std::collections::hash_map::IntoIter<String, String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.to_map().into_iter()
+    }
+}
+
+/// Service Endpoint ID (SEID) Record with fields and keys to manage endpoints by
+/// cid, role, and eid. Serves as aggregation mechanism for authorization and other
+/// functions such as UX naming with regards the endpoint.
+///
+/// The namespace is a tree of branches with each leaf at a
+/// specific (cid, role, eid). Retrieval by branch returns groups of leaves as
+/// appropriate for a cid branch or cid.role branch.
+/// Database Keys are (cid, role, eid) where cid is attributable controller identifier
+/// (qb64 prefix) that has role(s) such as watcher, witness etc and eid is the
+/// identifier of the controller acting in a role i.e. watcher identifier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EndpointRecord {
+    /// AuthZ via reply message
+    /// - `Some(true)` means eid is allowed as controller of endpoint in role
+    /// - `Some(false)` means eid is disallowed as controller of endpoint in role  
+    /// - `None` means eid is neither allowed or disallowed (no reply msg)
+    pub allowed: Option<bool>,
+
+    /// AuthZ via expose message
+    /// - `Some(true)` means eid is enabled as controller of endpoint in role
+    /// - `Some(false)` means eid is disabled as controller of endpoint in role
+    /// - `None` means eid is neither enabled or disabled (no expose msg)
+    pub enabled: Option<bool>,
+
+    /// Optional user friendly name for eid in role
+    pub name: String,
+}
+
+impl EndpointRecord {
+    /// Create a new EndpointRecord with default values
+    pub fn new() -> Self {
+        Self {
+            allowed: None,
+            enabled: None,
+            name: String::new(),
+        }
+    }
+
+    /// Create a new EndpointRecord with specified values
+    pub fn with_values(allowed: Option<bool>, enabled: Option<bool>, name: String) -> Self {
+        Self {
+            allowed,
+            enabled,
+            name,
+        }
+    }
+
+    /// Check if endpoint is allowed (authorized via reply message)
+    pub fn is_allowed(&self) -> Option<bool> {
+        self.allowed
+    }
+
+    /// Check if endpoint is enabled (authorized via expose message)
+    pub fn is_enabled(&self) -> Option<bool> {
+        self.enabled
+    }
+
+    /// Set allowed status (add/cut model)
+    pub fn set_allowed(&mut self, allowed: bool) {
+        self.allowed = Some(allowed);
+    }
+
+    /// Set enabled status  
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = Some(enabled);
+    }
+
+    /// Set user friendly name
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    /// Convert to HashMap for iteration/serialization compatibility
+    pub fn to_map(&self) -> HashMap<String, serde_json::Value> {
+        let mut map = HashMap::new();
+        map.insert("allowed".to_string(), serde_json::Value::from(self.allowed));
+        map.insert("enabled".to_string(), serde_json::Value::from(self.enabled));
+        map.insert(
+            "name".to_string(),
+            serde_json::Value::String(self.name.clone()),
+        );
+        map
+    }
+}
+
+impl Default for EndpointRecord {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IntoIterator for EndpointRecord {
+    type Item = (String, serde_json::Value);
+    type IntoIter = std::collections::hash_map::IntoIter<String, serde_json::Value>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.to_map().into_iter()
+    }
+}
+
+// Database key types for organizing records
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LocationKey {
+    pub eid: String,    // service endpoint identifier (qb64 prefix)
+    pub scheme: String, // url protocol scheme (tcp, https)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct EndpointKey {
+    pub cid: String,  // attributable controller identifier (qb64 prefix)
+    pub role: String, // role such as watcher, witness
+    pub eid: String,  // identifier of the controller acting in role
+}
+
+impl LocationKey {
+    pub fn new(eid: String, scheme: String) -> Self {
+        Self { eid, scheme }
+    }
+}
+
+impl EndpointKey {
+    pub fn new(cid: String, role: String, eid: String) -> Self {
+        Self { cid, role, eid }
+    }
+}
+
 /// Baser struct for key event log and escrow storage (DB)
 /// Sets up named sub databases for key event logs and escrow storage.
 pub struct Baser<'db> {
@@ -95,7 +272,6 @@ pub struct Baser<'db> {
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,
     pub kevers: HashMap<String, Kever<'db>>,
-
 
     /// habitat application state keyed by habitat name, includes prefix
     pub habs: Komer<'db, HabitatRecord>,
@@ -265,6 +441,16 @@ pub struct Baser<'db> {
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is serialized parameter dict of public key situation
     pub states: Komer<'db, KeyStateRecord>,
+
+    pub locs: Komer<'db, LocationRecord>,
+
+    pub ends: Komer<'db, EndpointRecord>,
+
+    pub eans: CesrSuber<'db, Saider>,
+
+    pub lans: CesrSuber<'db, Saider>,
+
+    pub pses: IoDupSuber<'db>,
 }
 
 impl<'db> Filer for Baser<'db> {
@@ -322,11 +508,11 @@ impl<'db> Baser<'db> {
             dtss: DupSuber::new(lmdber.clone(), "dtss.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
-            rpys: SerderSuber::new(lmdber.clone(), "rpys", None, false).
-                map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+            rpys: SerderSuber::new(lmdber.clone(), "rpys", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
-            sdts: CesrSuber::new(lmdber.clone(), "sdts", None, false).
-                map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+            sdts: CesrSuber::new(lmdber.clone(), "sdts", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             ssgs: CatCesrIoSetSuber::new(
                 lmdber.clone(),
@@ -377,10 +563,25 @@ impl<'db> Baser<'db> {
             states: Komer::new(lmdber.clone(), "stts.", SerialKind::Json)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
+            ends: Komer::new(lmdber.clone(), "stts.", SerialKind::Json)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            locs: Komer::new(lmdber.clone(), "stts.", SerialKind::Json)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
             habs: Komer::new(lmdber.clone(), "habs.", SerialKind::Json)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
 
             names: Suber::new(lmdber.clone(), "names.", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            eans: CesrSuber::new(lmdber.clone(), "eans.", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            lans: CesrSuber::new(lmdber.clone(), "lans.", None, false)
+                .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
+
+            pses: IoDupSuber::new(lmdber.clone(), "pses.", None, false)
                 .map_err(|e| DBError::DatabaseError(format!("SuberError: {}", e)))?,
         };
 
@@ -396,9 +597,12 @@ impl<'db> Baser<'db> {
                 // Convert bytes to String (assuming UTF-8 encoded digest)
                 match String::from_utf8(val_bytes) {
                     Ok(digest) => Ok(Some(digest)),
-                    Err(e) => Err(KERIError::DeserializationError(format!("Failed to decode digest as UTF-8: {}", e))),
+                    Err(e) => Err(KERIError::DeserializationError(format!(
+                        "Failed to decode digest as UTF-8: {}",
+                        e
+                    ))),
                 }
-            },
+            }
             Ok(None) => Ok(None),
             Err(e) => {
                 // Convert SuberError to DBError - adjust this based on your DBError enum
@@ -415,10 +619,10 @@ impl<'db> Baser<'db> {
         let db_key = self.evts.to_key(&[key], false);
 
         // Call the LMDBer's get_val method directly
-        self.lmdber.get_val(&self.evts.base.sdb, &db_key)
+        self.lmdber
+            .get_val(&self.evts.base.sdb, &db_key)
             .map_err(|e| KERIError::DatabaseError(format!("LMDBer error: {}", e)))
     }
-
 
     /// Check if database is opened
     pub fn opened(&self) -> bool {
@@ -511,6 +715,36 @@ impl<'db> Baser<'db> {
             match self.clone_evt_msg(pre, fn_num, &dig) {
                 Ok(msg) => msgs.push(msg),
                 Err(_) => continue, // Skip this event if there's an error, as in Python implementation
+            }
+        }
+
+        Ok(msgs)
+    }
+    /// Recursively clone delegation chain from AID of Kever if one exists.
+    ///
+    /// This method yields messages in the correct order: first the delegator's
+    /// delegation chain (if any), then all events from the delegator's key event log.
+    ///
+    /// # Parameters
+    /// * `kever` - Kever from which to clone the delegator's AID
+    ///
+    /// # Returns
+    /// * `Result<Vec<Vec<u8>>, DBError>` - Collection of messages representing the delegation chain
+    pub fn clone_delegation(&self, kever: &Kever<'db>) -> Result<Vec<Vec<u8>>, DBError> {
+        let mut msgs = Vec::new();
+
+        // Check if this kever is delegated and has a delegator in our kevers
+        if kever.delegated {
+            if let Some(ref delpre) = kever.delpre {
+                if let Some(dkever) = self.kevers.get(delpre) {
+                    // Recursively clone the delegator's delegation chain first
+                    let delegator_msgs = self.clone_delegation(dkever)?;
+                    msgs.extend(delegator_msgs);
+
+                    // Then clone all events from the delegator's prefix starting from fn=0
+                    let delegator_events = self.clone_pre_iter(delpre, Some(0))?;
+                    msgs.extend(delegator_events);
+                }
             }
         }
 
@@ -685,6 +919,204 @@ impl<'db> Baser<'db> {
         msg.extend_from_slice(&atc);
 
         Ok(msg)
+    }
+
+    /// Returns iterator of all (pre, fn, dig) triples in first seen order for
+    /// all events for all prefixes in database. Items are sorted by
+    /// fnKey(pre, fn) where fn is first seen order number int.
+    /// Returns all First Seen Event Logs FELs.
+    ///
+    /// Returned items are triples of (pre, fn, dig): Where pre is identifier prefix,
+    /// fn is first seen order number int and dig is event digest for lookup
+    /// in .evts sub db.
+    ///
+    /// # Returns
+    /// * `Result<Vec<(String, u64, String)>, DBError>` - Collection of (prefix, fn, digest) triples
+    pub fn get_fel_item_all_pre_iter(&self) -> Result<Vec<(String, u64, String)>, DBError> {
+        let mut items = Vec::new();
+        // Get all items from the fels database starting from the beginning (empty key)
+        let on_items: Vec<(Vec<Vec<u8>>, u64, Vec<u8>)> = self
+            .fels
+            .get_on_item_iter(&[b""], 0)
+            .map_err(|e| DBError::DatabaseError(format!("Error getting all FEL items: {}", e)))?;
+
+        for (ckey, cn, cval) in on_items {
+            // Extract the prefix from the composite key
+            // The key format is typically [prefix_bytes, fn_bytes]
+            // We need to extract just the prefix part
+            if let Some(prefix_bytes) = ckey.first() {
+                let pre = String::from_utf8_lossy(prefix_bytes).to_string();
+                let fn_num = cn;
+                let dig = String::from_utf8_lossy(&cval).to_string();
+
+                items.push((pre, fn_num, dig));
+            }
+        }
+
+        // Sort by first seen order number to ensure proper ordering
+        items.sort_by(|a, b| a.1.cmp(&b.1));
+
+        Ok(items)
+    }
+
+    /// Returns iterator of first seen event messages with attachments for all
+    /// identifier prefixes starting at the beginning of the database.
+    /// Essentially a replay in first seen order with attachments of entire
+    /// set of FELs (First Seen Event Logs).
+    ///
+    /// # Returns
+    /// * `Result<Vec<Vec<u8>>, DBError>` - Collection of all event messages with attachments
+    pub fn clone_all_pre_iter(&self) -> Result<Vec<Vec<u8>>, DBError> {
+        let mut msgs = Vec::new();
+
+        // Get all (pre, fn, dig) triples from the FEL database
+        let fel_items = self.get_fel_item_all_pre_iter()?;
+
+        // For each item, try to clone the event message
+        for (pre, fn_num, dig) in fel_items {
+            match self.clone_evt_msg(&pre, fn_num, &dig) {
+                Ok(msg) => msgs.push(msg),
+                Err(_) => continue, // Skip this event if there's an error, as in Python implementation
+            }
+        }
+
+        Ok(msgs)
+    }
+    /// Return count of signatures at key.
+    /// Uses dgKey format for the key.
+    /// Returns zero if no entry at key.
+    ///
+    /// # Parameters
+    /// * `key` - The key to count signatures for (should be in dgKey format)
+    ///
+    /// # Returns
+    /// * `Result<usize, DBError>` - Count of signatures, zero if no entry
+    pub fn cnt_sigs(&self, key: &[u8]) -> Result<usize, DBError> {
+        self.sigs
+            .cnt(&[key])
+            .map_err(|e| DBError::DatabaseError(format!("Error counting signatures: {}", e)))
+    }
+    pub fn get_sigs_iter(
+        &self,
+        key: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Vec<u8>, DBError>>, DBError> {
+        let iter = self.sigs.get_iter::<_, Vec<u8>>(&[key]).map_err(|e| {
+            DBError::DatabaseError(format!("Error getting signatures iterator: {}", e))
+        })?;
+
+        // Collect into a Vec to avoid lifetime issues with the mapped iterator
+        let results: Vec<Result<Vec<u8>, DBError>> = iter
+            .map(|result| {
+                result.map_err(|e| {
+                    DBError::DatabaseError(format!("Error deserializing signature: {}", e))
+                })
+            })
+            .collect();
+
+        Ok(results.into_iter())
+    }
+
+    /// Fetch transferable signature groups from the ssgs database
+    ///
+    /// # Parameters
+    /// * `saider` - SAID for the reply to which signatures are attached
+    /// * `snh` - Optional sequence number hex string for filtering
+    ///
+    /// # Returns
+    /// * `Ok(Vec<(Prefixer, Seqner, Diger, Vec<Siger>)>)` - List of signature groups
+    /// * `Err(KERIError)` - On database error or parsing failure
+    pub fn fetch_tsgs(
+        &self,
+        saider: Saider,
+        snh: Option<&str>,
+    ) -> Result<Vec<(Prefixer, Seqner, Diger, Vec<Siger>)>, KERIError> {
+        let mut tsgs = Vec::new();
+        let mut sigers = Vec::new();
+        let mut old: Option<Vec<Vec<u8>>> = None;
+
+        // Get items from ssgs database
+        let items = self
+            .ssgs
+            .get_item_iter(&[saider.qb64().as_bytes(), b""], false)
+            .map_err(|e| {
+                KERIError::DatabaseError(format!("Failed to get signature items: {}", e))
+            })?;
+
+        for (keys, siger_matters) in items {
+            if keys.len() < 2 {
+                continue;
+            }
+
+            let triple = keys[1..].to_vec(); // Skip the saider key, take the triple
+
+            if Some(&triple) != old.as_ref() {
+                // New signature group
+                if let Some(snh) = snh {
+                    if triple.len() >= 2 {
+                        let seq_str = String::from_utf8_lossy(&triple[1]);
+                        if seq_str.as_ref() > snh {
+                            // Use .as_ref() to convert Cow to &str
+                            break; // Only process lower sequence numbers
+                        }
+                    }
+                }
+
+                if !sigers.is_empty() && old.is_some() {
+                    // Append the previous signature group
+                    if let Some(old_triple) = &old {
+                        let (prefixer, seqner, diger) = self.klasify_triple(old_triple)?;
+                        tsgs.push((prefixer, seqner, diger, sigers.clone()));
+                        sigers.clear();
+                    }
+                }
+                old = Some(triple);
+            }
+
+            // Convert Matter instances to Siger
+            for siger_matter in siger_matters {
+                if let Some(siger) = siger_matter.as_any().downcast_ref::<Siger>() {
+                    sigers.push(siger.clone());
+                }
+            }
+        }
+
+        // Handle the last group
+        if !sigers.is_empty() && old.is_some() {
+            if let Some(old_triple) = &old {
+                let (prefixer, seqner, diger) = self.klasify_triple(old_triple)?;
+                tsgs.push((prefixer, seqner, diger, sigers));
+            }
+        }
+
+        Ok(tsgs)
+    }
+
+    /// Convert a triple of serialized values to Prefixer, Seqner, Diger instances
+    /// Rust implementation of the klasify function for the specific case of (Prefixer, Seqner, Diger)
+    ///
+    /// # Parameters
+    /// * `triple` - Vector of byte vectors representing [prefixer, seqner, diger]
+    ///
+    /// # Returns
+    /// * `Ok((Prefixer, Seqner, Diger))` - Converted instances
+    /// * `Err(KERIError)` - On conversion failure
+    fn klasify_triple(&self, triple: &[Vec<u8>]) -> Result<(Prefixer, Seqner, Diger), KERIError> {
+        if triple.len() != 3 {
+            return Err(KERIError::ValidationError(
+                "Expected triple of values".to_string(),
+            ));
+        }
+
+        let prefixer = Prefixer::from_qb64(&String::from_utf8_lossy(&triple[0]))
+            .map_err(|e| KERIError::ValidationError(format!("Failed to create Prefixer: {}", e)))?;
+
+        let seqner = Seqner::from_snh(&String::from_utf8_lossy(&triple[1]))
+            .map_err(|e| KERIError::ValidationError(format!("Failed to create Seqner: {}", e)))?;
+
+        let diger = Diger::from_qb64(&String::from_utf8_lossy(&triple[2]))
+            .map_err(|e| KERIError::ValidationError(format!("Failed to create Diger: {}", e)))?;
+
+        Ok((prefixer, seqner, diger))
     }
 }
 

@@ -31,12 +31,12 @@ pub struct LastEstLoc {
 
 pub struct Kever<'db> {
     pub db: Arc<&'db Baser<'db>>,
-    version: String,        // Version of KERI protocol
-    ilk: Ilk,               // Event type ilk
+    version: String,            // Version of KERI protocol
+    ilk: Ilk,                   // Event type ilk
     pub delpre: Option<String>, // Delegator prefix if any
-    delegated: bool,        // True if delegated event, False otherwise
-    fner: Option<Number>,   // First seen ordinal number
-    dater: Option<Dater>,   // First seen timestamp
+    pub(crate) delegated: bool, // True if delegated event, False otherwise
+    fner: Option<Number>,       // First seen ordinal number
+    dater: Option<Dater>,       // First seen timestamp
 
     // Fields needed for inception
     pub(crate) sner: Option<Number>,

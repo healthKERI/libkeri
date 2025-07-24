@@ -37,6 +37,7 @@ rmp-serde = "1.3.0"
 serde_cbor = "0.11.2"
 indexmap = { version = "2.9.0", features = ["serde"] }
 lazy_static = "1.5.0"
+futures = "0.3.30"
 
 
 [lib]

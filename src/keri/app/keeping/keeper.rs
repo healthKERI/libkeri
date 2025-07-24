@@ -384,7 +384,7 @@ impl<'db> KeeperTrait for Keeper<'db> {
     }
 
     fn ri_key(&self, pre: &str, ri: u64) -> String {
-        Self::ri_key(pre, ri)  // Calling the static method
+        Self::ri_key(pre, ri) // Calling the static method
     }
 }
 

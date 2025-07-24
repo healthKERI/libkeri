@@ -134,10 +134,10 @@ pub enum KERIError {
     #[error("Manager Error: {0}")]
     ManagerError(String),
 
-    #[error("Database Error: {0}")]
+    #[error("Authorization Error: {0}")]
     AuthError(String),
 
-    #[error("Database Error: {0}")]
+    #[error("Decryption Error: {0}")]
     DecryptError(String),
 
     #[error("Unsupported Message Version")]
@@ -185,6 +185,8 @@ pub enum KERIError {
     #[error("Missing signature on KERI event")]
     MissingWitnessError(String),
 
+    #[error("Counter error")]
+    CounterError(String),
 }
 
 impl From<MatterError> for KERIError {
@@ -615,7 +617,6 @@ impl fmt::Display for Ilk {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Roles {
     Controller,
@@ -713,7 +714,6 @@ impl std::str::FromStr for Schemes {
         }
     }
 }
-
 
 /// SAID field labels
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -224,167 +224,125 @@ pub struct Handlers<'a> {
     pub local: bool,
 }
 
-impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
-    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers<'a>) -> Self {
-        Self {
-            reader,
-            buffer: Vec::new(),
-            framed,
-            pipeline,
-            handlers,
-            attachment_processing: true,
-            current_serder: None,
-            serdery: Serdery::new(),
+impl<'a, R> Parser<'a, R> {
+    /// Parse one message from a byte array synchronously
+    /// This is the Rust equivalent of Python's parseOne method
+    pub fn parse_one(&mut self, ims: &[u8]) -> Result<(), KERIError> {
+        // Create a temporary buffer with the input message
+        let mut temp_buffer = ims.to_vec();
+
+        // Store current buffer state
+        let original_buffer = std::mem::replace(&mut self.buffer, temp_buffer);
+
+        // Process the message
+        let result = self.try_parse_one_message();
+
+        // Restore original buffer state
+        self.buffer = original_buffer;
+
+        result
+    }
+
+    /// Internal method to process one complete message from the current buffer
+    fn try_parse_one_message(&mut self) -> Result<(), KERIError> {
+        // Parse one message from the buffer
+        match self.try_parse_message() {
+            Ok((message, consumed)) => {
+                // Remove consumed bytes from buffer
+                self.buffer.drain(..consumed);
+
+                // Process the parsed message
+                self.process_parsed_message(message)?;
+
+                Ok(())
+            }
+            Err(MatterError::NeedMoreDataError(_)) => {
+                // For parseOne, we expect complete messages, so this is an error
+                Err(KERIError::Parsing(
+                    "Incomplete message in parseOne".to_string(),
+                ))
+            }
+            Err(e) => Err(KERIError::Parsing(format!(
+                "Failed to parse message: {}",
+                e
+            ))),
         }
     }
-    pub async fn parse_stream(&mut self, once: Option<bool>) -> Result<(), KERIError> {
-        let mut first_read = true;
-        let mut loop_count = 0;
-        let max_duration = Duration::from_secs(30); // 30 second timeout
-        let start_time = Instant::now();
 
-        // Track if we need to force a read due to incomplete message
-        let mut force_read = false;
-        // Track EOF status
-        let mut reached_eof = false;
+    /// Process a parsed message through the appropriate handlers
+    fn process_parsed_message(&mut self, message: Message) -> Result<(), KERIError> {
+        match message {
+            Message::KeyEvent {
+                serder,
+                sigers,
+                wigers,
+                cigars,
+                ..
+            } => {
+                // Process event through kevery if available
+                let mut kevery_guard = self.handlers.kevery.lock().unwrap();
+                let result = kevery_guard.process_event(
+                    *serder,
+                    sigers.unwrap_or_default(),
+                    wigers,
+                    None, // delseqner
+                    None, // delsaider
+                    None, // firner
+                    None, // dater
+                    None, // local
+                    None, // seqner
+                );
 
-        loop {
-            if start_time.elapsed() > max_duration {
-                return Err(KERIError::Parsing("Parser operation timed out".to_string()));
-            }
-
-            loop_count += 1;
-            if loop_count > 1000 {
-                return Err(KERIError::Parsing(
-                    "Possible infinite loop detected".to_string(),
-                ));
-            }
-
-            // Read more data if:
-            // 1. This is the first read, or
-            // 2. Buffer is below threshold, or
-            // 3. We need to force a read due to incomplete message
-            if first_read || self.buffer.len() < 100 || force_read {
-                first_read = false;
-                force_read = false; // Reset force_read flag
-
-                // Read data asynchronously into buffer
-                let mut chunk = vec![0u8; 8192]; // Increased from 4096 to handle larger messages
-
-                let n = self.reader.read(&mut chunk).await?;
-                if n == 0 {
-                    // We've reached EOF
-                    reached_eof = true;
-
-                    if self.buffer.is_empty() {
-                        break;
+                // Handle kevery processing errors appropriately
+                match result {
+                    Ok(_) => {}
+                    Err(KERIError::MissingSignatureError(_)) => {
+                        // Missing signatures are acceptable in some scenarios
                     }
-                    // If we have data in buffer but hit EOF, we'll try to parse once more
-                } else {
-                    // Successfully read more data
-                    self.buffer.extend_from_slice(&chunk[..n]);
+                    Err(e) => return Err(e),
                 }
+                Ok(())
             }
-
-            let mut made_progress = false;
-            loop {
-                // Check if we're in the middle of processing attachments
-                if self.attachment_processing && self.buffer.get(0) == Some(&45) {
-                    // We need to use the stored serder and attachment state
-                    if self.current_serder.is_none() {
-                        self.attachment_processing = false;
-                    }
-                }
-
-                match self.try_parse_message() {
-                    Ok((msg, _size)) => {
-                        made_progress = true;
-
-                        // Reset attachment processing state
-                        self.attachment_processing = false;
-                        self.current_serder = None;
-
-                        // Try to dispatch the message but ignore validation errors
-                        if let Err(e) = self.dispatch_message(msg).await {
-                            match e {
-                                // Only ignore ValidationErrors, propagate other errors
-                                KERIError::ValidationError(_) => {}
-                                KERIError::OutOfOrderError(msg) => {
-                                    // For diagnostic purposes, continue processing despite out-of-order events
-                                    if !msg.contains("Diagnostic") {}
-                                }
-                                _ => {
-                                    return Err(e);
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        // Check if we need more data
-                        if let MatterError::NeedMoreDataError(msg) = &e {
-                            // Check if this is an attachment processing error
-                            if msg.contains("Not enough data for attachments")
-                                && !self.buffer.is_empty()
-                                && self.buffer[0] == 45
-                            {
-                                // Set attachment processing flag
-                                self.attachment_processing = true;
-                            }
-
-                            if reached_eof {
-                                // If we're at EOF but need more data, we have an incomplete message
-                                // Reset attachment processing state since we're at EOF
-                                self.attachment_processing = false;
-                                self.current_serder = None;
-
-                                // At EOF with incomplete message - clear buffer and break
-                                self.buffer.clear();
-                                break;
-                            } else {
-                                // We need more data and haven't hit EOF yet - force another read
-                                force_read = true;
-                                break;
-                            }
-                        } else {
-                            // Some other parsing error
-                            // Reset attachment processing state on general errors
-                            self.attachment_processing = false;
-                            self.current_serder = None;
-                            return Err(KERIError::MatterError(e.to_string()));
-                        }
-                    }
-                }
-
-                if self.buffer.is_empty() {
-                    // Reset attachment processing state when buffer is empty
-                    self.attachment_processing = false;
-                    self.current_serder = None;
-
-                    if once.unwrap_or(false) {
-                        return Ok(());
-                    }
-                    break;
-                }
+            Message::Receipt { serder, cigars, .. } => {
+                // Process receipt through kevery
+                let mut kevery_guard = self.handlers.kevery.lock().unwrap();
+                kevery_guard.process_receipt(*serder, cigars, None)?;
+                Ok(())
             }
-
-            if self.buffer.is_empty() {
-                break;
+            Message::WitnessReceipt { serder, wigers, .. } => {
+                // Process witness receipt through kevery
+                let mut kevery_guard = self.handlers.kevery.lock().unwrap();
+                kevery_guard.process_receipt_witness(*serder, wigers, None)?;
+                Ok(())
             }
-
-            if reached_eof && !made_progress && !force_read {
-                // Reset attachment processing state at EOF
-                self.attachment_processing = false;
-                self.current_serder = None;
-
-                // Clear any remaining buffer at EOF
-                if !self.buffer.is_empty() {
-                    self.buffer.clear();
-                }
-                break;
+            Message::Query {
+                serder,
+                source,
+                sigers,
+                cigar,
+            } => {
+                // Process query through kevery
+                let mut kevery_guard = self.handlers.kevery.lock().unwrap();
+                kevery_guard.process_query(*serder, source, sigers, cigar)?;
+                Ok(())
+            }
+            Message::ReplyNonTrans { serder, cigars } => {
+                // Process non-transferable reply through revery handler
+                let msg = Message::ReplyNonTrans { serder, cigars };
+                futures::executor::block_on(self.handlers.revery.handle(msg))?;
+                Ok(())
+            }
+            Message::ReplyTrans { serder, tsgs } => {
+                // Process transferable reply through revery handler
+                let msg = Message::ReplyTrans { serder, tsgs };
+                futures::executor::block_on(self.handlers.revery.handle(msg))?;
+                Ok(())
+            }
+            _ => {
+                // Other message types - for now just acknowledge
+                Ok(())
             }
         }
-
-        Ok(())
     }
 
     fn try_parse_message(&mut self) -> Result<(Message, usize), MatterError> {
@@ -844,6 +802,18 @@ impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
         let total_processed = serder_size + attachment_size;
 
         Ok((msg, total_processed))
+    }
+    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers<'a>) -> Self {
+        Self {
+            reader,
+            buffer: Vec::new(),
+            framed,
+            pipeline,
+            handlers,
+            attachment_processing: true,
+            current_serder: None,
+            serdery: Serdery::new(),
+        }
     }
 
     // Helper method to process a single counter and its data
@@ -1758,6 +1728,158 @@ impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
         }
 
         Ok(cigars)
+    }
+}
+
+impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
+    pub async fn parse_stream(&mut self, once: Option<bool>) -> Result<(), KERIError> {
+        let mut first_read = true;
+        let mut loop_count = 0;
+        let max_duration = Duration::from_secs(30); // 30 second timeout
+        let start_time = Instant::now();
+
+        // Track if we need to force a read due to incomplete message
+        let mut force_read = false;
+        // Track EOF status
+        let mut reached_eof = false;
+
+        loop {
+            if start_time.elapsed() > max_duration {
+                return Err(KERIError::Parsing("Parser operation timed out".to_string()));
+            }
+
+            loop_count += 1;
+            if loop_count > 1000 {
+                return Err(KERIError::Parsing(
+                    "Possible infinite loop detected".to_string(),
+                ));
+            }
+
+            // Read more data if:
+            // 1. This is the first read, or
+            // 2. Buffer is below threshold, or
+            // 3. We need to force a read due to incomplete message
+            if first_read || self.buffer.len() < 100 || force_read {
+                first_read = false;
+                force_read = false; // Reset force_read flag
+
+                // Read data asynchronously into buffer
+                let mut chunk = vec![0u8; 8192]; // Increased from 4096 to handle larger messages
+
+                let n = self.reader.read(&mut chunk).await?;
+                if n == 0 {
+                    // We've reached EOF
+                    reached_eof = true;
+
+                    if self.buffer.is_empty() {
+                        break;
+                    }
+                    // If we have data in buffer but hit EOF, we'll try to parse once more
+                } else {
+                    // Successfully read more data
+                    self.buffer.extend_from_slice(&chunk[..n]);
+                }
+            }
+
+            let mut made_progress = false;
+            loop {
+                // Check if we're in the middle of processing attachments
+                if self.attachment_processing && self.buffer.get(0) == Some(&45) {
+                    // We need to use the stored serder and attachment state
+                    if self.current_serder.is_none() {
+                        self.attachment_processing = false;
+                    }
+                }
+
+                match self.try_parse_message() {
+                    Ok((msg, _size)) => {
+                        made_progress = true;
+
+                        // Reset attachment processing state
+                        self.attachment_processing = false;
+                        self.current_serder = None;
+
+                        // Try to dispatch the message but ignore validation errors
+                        if let Err(e) = self.dispatch_message(msg).await {
+                            match e {
+                                // Only ignore ValidationErrors, propagate other errors
+                                KERIError::ValidationError(_) => {}
+                                KERIError::OutOfOrderError(msg) => {
+                                    // For diagnostic purposes, continue processing despite out-of-order events
+                                    if !msg.contains("Diagnostic") {}
+                                }
+                                _ => {
+                                    return Err(e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Check if we need more data
+                        if let MatterError::NeedMoreDataError(msg) = &e {
+                            // Check if this is an attachment processing error
+                            if msg.contains("Not enough data for attachments")
+                                && !self.buffer.is_empty()
+                                && self.buffer[0] == 45
+                            {
+                                // Set attachment processing flag
+                                self.attachment_processing = true;
+                            }
+
+                            if reached_eof {
+                                // If we're at EOF but need more data, we have an incomplete message
+                                // Reset attachment processing state since we're at EOF
+                                self.attachment_processing = false;
+                                self.current_serder = None;
+
+                                // At EOF with incomplete message - clear buffer and break
+                                self.buffer.clear();
+                                break;
+                            } else {
+                                // We need more data and haven't hit EOF yet - force another read
+                                force_read = true;
+                                break;
+                            }
+                        } else {
+                            // Some other parsing error
+                            // Reset attachment processing state on general errors
+                            self.attachment_processing = false;
+                            self.current_serder = None;
+                            return Err(KERIError::MatterError(e.to_string()));
+                        }
+                    }
+                }
+
+                if self.buffer.is_empty() {
+                    // Reset attachment processing state when buffer is empty
+                    self.attachment_processing = false;
+                    self.current_serder = None;
+
+                    if once.unwrap_or(false) {
+                        return Ok(());
+                    }
+                    break;
+                }
+            }
+
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            if reached_eof && !made_progress && !force_read {
+                // Reset attachment processing state at EOF
+                self.attachment_processing = false;
+                self.current_serder = None;
+
+                // Clear any remaining buffer at EOF
+                if !self.buffer.is_empty() {
+                    self.buffer.clear();
+                }
+                break;
+            }
+        }
+
+        Ok(())
     }
 }
 

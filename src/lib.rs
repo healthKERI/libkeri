@@ -7,6 +7,7 @@ mod errors;
 pub use crate::errors::Error;
 
 mod cesr;
+mod hio;
 mod keri;
 
 pub use crate::cesr::Matter;

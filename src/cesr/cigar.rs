@@ -42,8 +42,19 @@ impl Cigar {
         Ok(Cigar { base, verfer })
     }
 
-    pub fn verfer(&self) -> &Verfer {
-        self.verfer.as_ref().unwrap()
+    /// Get the verfer
+    pub fn verfer(&self) -> Option<&Verfer> {
+        self.verfer.as_ref()
+    }
+
+    /// Set the verfer
+    pub fn set_verfer(&mut self, verfer: Verfer) {
+        self.verfer = Some(verfer);
+    }
+
+    /// Clear the verfer
+    pub fn clear_verfer(&mut self) {
+        self.verfer = None;
     }
 }
 

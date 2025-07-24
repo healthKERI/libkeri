@@ -93,7 +93,7 @@ impl ValueCodec for Utf8Codec {
 // The base struct for sub-database functionality
 pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
     db: Arc<&'db LMDBer>,   // The base LMDB database
-    pub sdb: BytesDatabase,     // The sub-database
+    pub sdb: BytesDatabase, // The sub-database
     sep: u8,                // Separator for combining keys
     verify: bool,           // Whether to verify data when deserializing
     dupsort: bool,          // Whether the database allows duplicates

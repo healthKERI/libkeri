@@ -245,16 +245,16 @@ pub fn messagize(
 
             for cigar in cigars_slice {
                 // Check if non-transferable
-                if !non_trans_dex::TUPLE.contains(&cigar.verfer().code()) {
+                if !non_trans_dex::TUPLE.contains(&cigar.verfer().unwrap().code()) {
                     return Err(format!(
                         "Attempt to use tranferable prefix={} for receipt.",
-                        cigar.verfer().qb64()
+                        cigar.verfer().unwrap().qb64()
                     )
                     .into());
                 }
 
                 // Append verfer and signature
-                atc.extend(cigar.verfer().qb64b());
+                atc.extend(cigar.verfer().unwrap().qb64b());
                 atc.extend(cigar.qb64b());
             }
         }
