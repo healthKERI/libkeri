@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
 use crate::cesr::diger::Diger;
 use crate::cesr::prefixer::Prefixer;
-use crate::cesr::signing::{Decrypter, Encrypter, Salter, Sigmat};
+use crate::cesr::signing::{Decrypter, Encrypter, Salter, Sigmat, Signer};
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{mtr_dex, Parsable, Tiers};
 use crate::keri::app::keeping::creators::{Algos, Creatory};
@@ -10,6 +11,9 @@ use crate::keri::KERIError;
 use crate::Matter;
 use chrono::Utc;
 use sodiumoxide::crypto::sign::SecretKey;
+use crate::cesr::tholder::{Tholder, TholderSith};
+use crate::keri::app::ri_key;
+use crate::keri::help::helping::nowiso8601;
 
 /// Manager struct for key pair creation, storage, retrieval, and message signing
 ///
@@ -156,6 +160,436 @@ impl<'db> Manager<'db> {
         self.inited = true;
         Ok(())
     }
+    
+    /// Ingest secrecies as a list of lists of secrets organized in event order
+    /// to register the sets of secrets of associated externally generated keypair
+    /// lists into the database.
+    ///
+    /// Returns:
+    ///     (ipre, verferies) where:
+    ///         ipre is prefix index of ingested key pairs needed to fetch later for replay
+    ///         verferies is list of lists of all the verfers for the public keys
+    ///         from the private keys in secrecies in order of appearance.
+    ///
+    /// # Parameters
+    /// * `secrecies` - List of lists of fully qualified secrets (private keys)
+    /// * `iridx` - Initial ridx at which to set PubSit after ingestion
+    /// * `ncount` - Count of next public keys for next after end of secrecies
+    /// * `ncode` - Derivation code qb64 of all ncount next public keys after end of secrecies
+    /// * `dcode` - Derivation code qb64 of next digers after end of secrecies
+    /// * `algo` - Key creation algorithm code for next after end of secrecies
+    /// * `salt` - qb64 salt for randomization when salty algorithm used
+    /// * `stem` - Path modifier used with salt to derive private keys when using salty algorithms
+    /// * `tier` - Security criticality tier code when using salty algorithm
+    /// * `rooted` - True means derive incept salt from root salt when incept salt not provided
+    /// * `transferable` - True means each public key uses transferable derivation code
+    /// * `temp` - True is temporary for testing
+    pub fn ingest(
+        &mut self,
+        secrecies: Vec<Vec<String>>,
+        iridx: Option<usize>,
+        ncount: Option<usize>,
+        ncode: Option<&str>,
+        dcode: Option<&str>,
+        algo: Option<Algos>,
+        salt: Option<Vec<u8>>,
+        stem: Option<String>,
+        tier: Option<Tiers>,
+        rooted: Option<bool>,
+        transferable: Option<bool>,
+        temp: Option<bool>,
+    ) -> Result<(String, Vec<Vec<Verfer>>), KERIError> {
+        let iridx = iridx.unwrap_or(0);
+        let ncount = ncount.unwrap_or(1);
+        let ncode = ncode.unwrap_or(mtr_dex::ED25519_SEED);
+        let _dcode = dcode.unwrap_or(mtr_dex::BLAKE3_256);
+        let algo = algo.unwrap_or(Algos::Salty);
+        let rooted = rooted.unwrap_or(true);
+        let transferable = transferable.unwrap_or(true);
+        let temp = temp.unwrap_or(false);
+
+        if iridx > secrecies.len() {
+            return Err(KERIError::ValueError(format!(
+                "Initial ridx={} beyond last secrecy.", iridx
+            )));
+        }
+
+        // Configure parameters for creating new keys after ingested sequence
+        let salt = if rooted && salt.is_none() {
+            self.salt().unwrap_or_else(|| {
+                // Fallback to generating a new salt if none exists
+                Salter::new(None, None, None).unwrap().qb64b()
+            })
+        } else {
+            salt.unwrap_or_else(|| {
+                self.salt().unwrap_or_else(|| {
+                    // Fallback to generating a new salt if none exists
+                    Salter::new(None, None, None).unwrap().qb64b()
+                })
+            })
+        };
+
+        let tier = if rooted && tier.is_none() {
+            self.tier().unwrap_or(Tiers::LOW) // Use LOW as default fallback
+        } else {
+            tier.unwrap_or_else(|| {
+                self.tier().unwrap_or(Tiers::LOW) // Use LOW as default fallback
+            })
+        };
+
+
+        let pidx = self.pidx().unwrap_or(0);
+
+        // Create creator for generating new keys after ingested sequence
+        let creator = Creatory::new(algo);
+        let creator_instance = creator.make(
+            Some(&String::from_utf8_lossy(&salt)),
+            stem.as_deref(),
+            Some(tier.clone()),
+        )?;
+
+        let mut ipre = String::new();
+        let mut pubs = Vec::new();
+        let mut ridx = 0;
+        let mut kidx = 0;
+
+        let mut verferies: Vec<Vec<Verfer>> = Vec::new(); // list of lists of verfers
+        let mut first = true;
+        let mut secrecies = VecDeque::from(secrecies);
+
+        while let Some(csecrets) = secrecies.pop_front() {
+            // Create signers from current secrets
+            let mut csigners = Vec::new();
+            for secret in &csecrets {
+                let signer = Signer::new(
+                    Some(&base64::decode(secret).map_err(|e| {
+                        KERIError::ValueError(format!("Invalid base64 secret: {}", e))
+                    })?),
+                    None, // Use default code
+                    Some(transferable),
+                )?;
+                csigners.push(signer);
+            }
+
+            let csize = csigners.len();
+            verferies.push(csigners.iter().map(|s| s.verfer.clone()).collect());
+
+            if first {
+                // Secret to encrypt here
+                let pp = PrePrm {
+                    pidx,
+                    algo: format!("{:?}", algo).to_lowercase(),
+                    salt: if let Some(ref encrypter) = self.encrypter {
+                        encrypter.encrypt(Some(&salt), None, None)?.qb64()
+                    } else {
+                        String::from_utf8_lossy(&salt).to_string()
+                    },
+                    stem: stem.clone().unwrap_or_default(),
+                    tier: format!("{:?}", tier).to_lowercase(),
+                };
+
+                let pre = csigners[0].verfer.qb64b();
+                ipre = csigners[0].verfer.qb64();
+                
+                let mut pre_copy = pre.clone();
+                let prefixer = Prefixer::from_qb64b(&mut pre_copy, None)?;
+
+                if !self.ks.pres.put(&[&pre], &prefixer)? {
+                    return Err(KERIError::ValueError(format!(
+                        "Already incepted pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    )));
+                }
+
+                if !self.ks.prms.put(&[&pre], &pp)? {
+                    return Err(KERIError::ValueError(format!(
+                        "Already incepted prm for pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    )));
+                }
+
+                self.set_pidx(pidx + 1)?; // increment so unique
+                first = false;
+            }
+
+            // Store secrets (private key val keyed by public key)
+            let pre = csigners[0].verfer.qb64b();
+            for signer in &csigners {
+                self.ks.pris.put(
+                    &[&signer.verfer.qb64b()],
+                    signer,
+                    self.encrypter.clone()
+                )?;
+            }
+
+            pubs = csigners.iter().map(|s| s.verfer.qb64()).collect();
+            let pub_set = PubSet { pubs: pubs.clone() };
+            self.ks.pubs.put(&[&ri_key(&pre, ridx)], &pub_set)?;
+
+            let dt = nowiso8601();
+            if ridx == iridx.saturating_sub(1).max(0) {
+                // setup ps.old at this ridx
+                let old = if iridx == 0 {
+                    Some(PubLot::default()) // defaults ok
+                } else {
+                    let osith = format!("{:x}", (csize / 2).max(1));
+                    let _ost = Tholder::new(
+                        None,
+                        None,
+                        Some(TholderSith::HexString(osith))
+                    )?.sith();
+                    Some(PubLot {
+                        pubs: pubs.clone(),
+                        ridx,
+                        kidx,
+                        dt: dt.clone(),
+                    })
+                };
+
+                let ps = PreSit {
+                    old,
+                    new: PubLot::default(), // .new and .nxt are default
+                    nxt: PubLot::default(),
+                };
+
+                if !self.ks.sits.pin(&[&pre], &ps)? {
+                    return Err(KERIError::ValueError(format!(
+                        "Problem updating pubsit db for pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    )));
+                }
+            }
+
+            if ridx == iridx {
+                // setup ps.new at this ridx
+                let mut ps = self.ks.sits.get(&[&pre])?.ok_or_else(|| {
+                    KERIError::ValueError(format!(
+                        "Attempt to rotate nonexistent pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    ))
+                })?;
+
+                let new = PubLot {
+                    pubs: pubs.clone(),
+                    ridx,
+                    kidx,
+                    dt: dt.clone(),
+                };
+                ps.new = new;
+
+                if !self.ks.sits.pin(&[&pre], &ps)? {
+                    return Err(KERIError::ValueError(format!(
+                        "Problem updating pubsit db for pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    )));
+                }
+            }
+
+            if ridx == iridx + 1 {
+                // set up ps.nxt at this ridx
+                let mut ps = self.ks.sits.get(&[&pre])?.ok_or_else(|| {
+                    KERIError::ValueError(format!(
+                        "Attempt to rotate nonexistent pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    ))
+                })?;
+
+                let nxt = PubLot {
+                    pubs: pubs.clone(),
+                    ridx,
+                    kidx,
+                    dt: dt.clone(),
+                };
+                ps.nxt = nxt;
+
+                if !self.ks.sits.pin(&[&pre], &ps)? {
+                    return Err(KERIError::ValueError(format!(
+                        "Problem updating pubsit db for pre={}.",
+                        String::from_utf8_lossy(&pre)
+                    )));
+                }
+            }
+
+            ridx += 1; // next ridx
+            kidx += csize; // next kidx
+        }
+
+        // create nxt signers after ingested signers
+        let nsigners = creator_instance.create(
+            None,
+            Some(ncount),
+            Some(ncode),
+            Some(pidx),
+            Some(ridx),
+            Some(kidx),
+            Some(transferable),
+            Some(temp),
+        );
+
+        // Get pre from the first ingested signer
+        let pre = if !verferies.is_empty() && !verferies[0].is_empty() {
+            verferies[0][0].qb64b()
+        } else {
+            return Err(KERIError::ValueError("No signers were ingested".to_string()));
+        };
+
+        // store secrets (private key val keyed by public key)
+        for signer in &nsigners {
+            self.ks.pris.put(
+                &[&signer.verfer.qb64b()],
+                signer,
+                self.encrypter.clone()
+            )?;
+        }
+
+        pubs = nsigners.iter().map(|s| s.verfer.qb64()).collect();
+        let pub_set = PubSet { pubs: pubs.clone() };
+        self.ks.pubs.put(&[&ri_key(&pre, ridx)], &pub_set)?;
+
+        if ridx == iridx + 1 {
+            // want to set up ps.next at this ridx
+            let dt = nowiso8601();
+            let mut ps = self.ks.sits.get(&[&pre])?.ok_or_else(|| {
+                KERIError::ValueError(format!(
+                    "Attempt to rotate nonexistent pre={}.",
+                    String::from_utf8_lossy(&pre)
+                ))
+            })?;
+
+            let nxt = PubLot {
+                pubs: pubs.clone(),
+                ridx,
+                kidx,
+                dt,
+            };
+            ps.nxt = nxt;
+
+            if !self.ks.sits.pin(&[&pre], &ps)? {
+                return Err(KERIError::ValueError(format!(
+                    "Problem updating pubsit db for pre={}.",
+                    String::from_utf8_lossy(&pre)
+                )));
+            }
+        }
+
+        Ok((ipre, verferies))
+    }
+    
+    pub fn replay(
+        &mut self,
+        pre: &[u8],
+        dcode: Option<&str>,
+        advance: Option<bool>,
+        erase: Option<bool>,
+    ) -> Result<(Vec<Verfer>, Vec<Diger>), KERIError> {
+        let dcode = dcode.unwrap_or(mtr_dex::BLAKE3_256);
+        let advance = advance.unwrap_or(true);
+        let erase = erase.unwrap_or(true);
+
+        // Get prefix parameters
+        let pp = self.ks.prms.get(&[pre])?.ok_or_else(|| {
+            KERIError::ValueError(format!(
+                "Attempt to replay nonexistent pre={}.",
+                String::from_utf8_lossy(pre)
+            ))
+        })?;
+
+        // Get prefix situation
+        let mut ps = self.ks.sits.get(&[pre])?.ok_or_else(|| {
+            KERIError::ValueError(format!(
+                "Attempt to replay nonexistent pre={}.",
+                String::from_utf8_lossy(pre)
+            ))
+        })?;
+
+        // Declare old outside of the advance block so it's available later
+        let old_keys_to_erase = if advance {
+            // Save the old keys before updating
+            let old_keys = ps.old.clone();
+
+            ps.old = Some(ps.new.clone()); // move prior new to old so save previous one step
+            ps.new = ps.nxt.clone(); // move prior nxt to new which new is now current signer
+            let ridx = ps.new.ridx;
+            let kidx = ps.new.kidx;
+            let csize = ps.new.pubs.len();
+
+            // Usually when next keys are null then aid is effectively non-transferable
+            // but when replaying injected keys reaching null next pub keys or
+            // equivalently default empty is the sign that we have reached the
+            // end of the replay so need to raise an IndexError
+            let pubset = self.ks.pubs.get(&[&ri_key(pre, ridx + 1)])?.ok_or_else(|| {
+                KERIError::IndexError(format!(
+                    "Invalid replay attempt of pre={} at ridx={}.",
+                    String::from_utf8_lossy(pre),
+                    ridx
+                ))
+            })?;
+
+            let pubs = pubset.pubs.clone(); // create nxt from pubs
+            let dt = nowiso8601();
+            let nxt = PubLot {
+                pubs,
+                ridx: ridx + 1,
+                kidx: kidx + csize,
+                dt,
+            };
+            ps.nxt = nxt;
+
+            // Return the old keys to potentially erase later
+            old_keys
+        } else {
+            None
+        };
+
+        let mut verfers = Vec::new(); // assign verfers from current new was prior nxt
+        for pub_key in &ps.new.pubs {
+            if !self._seed.is_empty() && self.decrypter.is_none() {
+                return Err(KERIError::DecryptError(
+                    "Unauthorized decryption attempt. Aeid but no decrypter.".to_string(),
+                ));
+            }
+
+            let signer = self.ks.pris
+                .get(&[pub_key.as_bytes()], self.decrypter.clone())?
+                .ok_or_else(|| {
+                    KERIError::ValueError(format!(
+                        "Missing prikey in db for pubkey={}",
+                        pub_key
+                    ))
+                })?;
+
+            verfers.push(signer.verfer);
+        }
+
+        // Create digers from next public keys
+        let mut digers = Vec::new();
+        for pub_key in &ps.nxt.pubs {
+            let diger = Diger::from_ser(pub_key.as_bytes(), Some(dcode))?;
+            digers.push(diger);
+        }
+
+        if advance {
+            if !self.ks.sits.pin(&[pre], &ps)? {
+                return Err(KERIError::ValueError(format!(
+                    "Problem updating pubsit db for pre={}.",
+                    String::from_utf8_lossy(pre)
+                )));
+            }
+
+            // Now we can use old_keys_to_erase since it's in scope
+            if erase {
+                if let Some(old) = old_keys_to_erase {
+                    for pub_key in &old.pubs {
+                        self.ks.pris.rem(&[pub_key.as_bytes()])?;
+                    }
+                }
+            }
+        }
+
+        Ok((verfers, digers))
+    }
+
+
 
     /// Update the aeid (authentication and encryption identifier) and re-encrypt all secrets
     ///
@@ -1378,6 +1812,8 @@ impl<'db> Manager<'db> {
 
     // TODO: Implement ingest and reply from KERIpy implementations.
 }
+
+
 
 #[cfg(test)]
 mod tests {

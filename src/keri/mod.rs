@@ -12,6 +12,7 @@ use thiserror::Error;
 pub mod app;
 pub mod core;
 pub mod db;
+mod help;
 
 /// Format string for version
 pub const VERFMT: &str = "{}{:x}{:x}{}{:0{}x}_";
@@ -187,6 +188,12 @@ pub enum KERIError {
 
     #[error("Counter error")]
     CounterError(String),
+
+    #[error("Index error")]
+    IndexError(String),
+
+    #[error("Closed error")]
+    ClosedError(String),
 }
 
 impl From<MatterError> for KERIError {

@@ -7,7 +7,7 @@ use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
 use crate::cesr::signing::Sigmat;
 use crate::cesr::tholder::{Tholder, TholderSith};
-use crate::cesr::trait_dex;
+use crate::cesr::{mtr_dex, trait_dex, Tiers};
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{Matter, Parsable};
 use crate::hio::hicting::Mict;
@@ -33,9 +33,12 @@ use crate::keri::{Ilks, Roles};
 use indexmap::{IndexMap, IndexSet};
 use serde_json;
 use std::collections::{HashMap, VecDeque};
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
+use crate::keri::app::configing::Configer;
+use crate::keri::app::keeping::creators::Algos;
 
 pub struct BaseHab<'db, R> {
     pub ks: Keeper<'db>,
@@ -2686,5 +2689,449 @@ impl<'db, R> BaseHab<'db, R> {
                 "Expected object for IndexMap".to_string(),
             )),
         }
+    }
+}
+
+
+/// Hab class provides a given identifier controller's local resource environment
+/// i.e. hab or habitat. Includes dependency injection of database, keystore,
+/// configuration file as well as Kevery and key store Manager.
+///
+/// # Attributes (Injected)
+/// * `ks` - LMDB key store
+/// * `db` - LMDB data base for KEL etc
+/// * `cf` - Config file instance  
+/// * `mgr` - Creates and rotates keys in key store
+/// * `rtr` - Routes reply 'rpy' messages
+/// * `rvy` - Factory that processes reply 'rpy' messages
+/// * `kvy` - Factory for local processing of local event msgs
+/// * `psr` - Parses local messages for .kvy .rvy
+///
+/// # Attributes
+/// * `name` - Alias of controller
+/// * `pre` - qb64 prefix of own local controller or None if new
+/// * `temp` - True means testing: use weak level when salty algo for stretching
+///   in key creation for incept and rotate of keys for this hab.pre
+/// * `inited` - True means fully initialized wrt databases. False means not yet fully initialized
+/// * `delpre` - Delegator prefix if any else None
+///
+/// # Properties
+/// * `kever` - Instance of key state of local controller
+/// * `kevers` - Of eventing.Kever instances from KELs in local db keyed by qb64 prefix.
+///   Read through cache of kevers of states for KELs in db.states
+/// * `iserder` - Own inception event
+/// * `prefixes` - Local prefixes for .db
+/// * `accepted` - True means accepted into local KEL. False otherwise
+
+
+pub struct Hab<'db, R> {
+    /// Base habitat functionality
+    pub base: BaseHab<'db, R>,
+    /// Configuration file instance
+    pub cf: Option<Arc<Configer>>,
+}
+
+// Implement Deref to delegate read-only access to BaseHab
+impl<'db, R> Deref for Hab<'db, R> {
+    type Target = BaseHab<'db, R>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+// Implement DerefMut to delegate mutable access to BaseHab
+impl<'db, R> DerefMut for Hab<'db, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+
+impl<'db, R> Hab<'db, R> {
+    /// Create a new Hab instance
+    ///
+    /// # Parameters
+    /// * `ks` - Keeper instance for key management
+    /// * `db` - Baser database instance
+    /// * `mgr` - Manager for key operations
+    /// * `rtr` - Optional router for reply messages
+    /// * `rvy` - Revery for processing reply messages
+    /// * `kvy` - Kevery for processing event messages
+    /// * `psr` - Parser for message processing
+    /// * `cf` - Optional configuration file
+    /// * `name` - Alias name for the controller
+    /// * `ns` - Optional namespace
+    /// * `pre` - Optional existing prefix
+    /// * `temp` - Testing mode flag
+    /// * `delpre` - Optional delegator prefix
+    ///
+    /// # Returns
+    /// * `Result<Self, KERIError>` - New Hab instance or error
+    pub fn new(
+        ks: Keeper<'db>,
+        db: Baser<'db>,
+        mgr: Manager<'db>,
+        rtr: Option<Arc<Router>>,
+        rvy: Revery<'db>,
+        kvy: Kevery<'db>,
+        psr: Parser<'db, R>,
+        cf: Option<Arc<Configer>>,
+        name: String,
+        ns: Option<String>,
+        pre: Option<String>,
+        temp: bool,
+        delpre: Option<String>,
+    ) -> Result<Self, KERIError> {
+        let base = BaseHab::new(
+            ks,
+            db,
+            mgr,
+            rtr,
+            rvy,
+            kvy,
+            psr,
+            name,
+            ns,
+            pre,
+            temp,
+        )?;
+
+        let mut hab = Hab {
+            base,
+            cf,
+        };
+
+        // Set delegator prefix if provided
+        hab.base.delpre = delpre;
+
+        Ok(hab)
+    }
+
+    /// Create a new habitat with the given parameters.
+    /// This method handles both replay (from secrecies) and normal inception flows.
+    pub fn make(
+        &mut self,
+        secrecies: Option<Vec<Vec<String>>>,
+        iridx: Option<usize>,
+        code: Option<&str>,
+        dcode: Option<&str>,
+        icode: Option<&str>,
+        transferable: Option<bool>,
+        isith: Option<Tholder>,
+        icount: Option<usize>,
+        nsith: Option<Tholder>,
+        ncount: Option<usize>,
+        toad: Option<u32>,
+        wits: Option<Vec<String>>,
+        delpre: Option<String>,
+        est_only: Option<bool>,
+        d_n_d: Option<bool>,
+        hidden: Option<bool>,
+        data: Option<Vec<u8>>,
+        algo: Option<Algos>,
+        salt: Option<Vec<u8>>,
+        tier: Option<Tiers>,
+    ) -> Result<SerderKERI, KERIError> {
+        // Check if resources are opened
+        if !(self.ks.opened() && self.db.opened() && self.cf.as_ref().map_or(false, |cf| cf.opened)) {
+            return Err(KERIError::ClosedError(
+                "Attempt to make Hab with unopened resources.".to_string(),
+            ));
+        }
+
+        let transferable = transferable.unwrap_or(true);
+        let icount = icount.unwrap_or(1);
+        let mut ncount = ncount.unwrap_or(icount);
+        let mut nsith = nsith.unwrap_or_else(|| isith.clone().unwrap_or_default());
+        let mut code = code.unwrap_or(mtr_dex::BLAKE3_256);
+        let hidden = hidden.unwrap_or(false);
+        let iridx = iridx.unwrap_or(0);
+
+        // Handle non-transferable case
+        if !transferable {
+            ncount = 0;
+            nsith = Tholder::new(None, None, Some(TholderSith::HexString("0".to_string())))?;
+            code = mtr_dex::ED25519N;
+        }
+
+        // Create stem from name and namespace
+        let stem = if let Some(ref ns) = self.ns {
+            format!("{}{}", ns, self.name)
+        } else {
+            self.name.clone()
+        };
+        let temp_clone = self.temp.clone();
+        let (verfers, digers) = if let Some(secrecies) = secrecies {
+            // Replay flow
+            let (ipre, _) = self.mgr.ingest(
+                secrecies,
+                Some(iridx),
+                Some(ncount),
+                None, // ncode
+                None, // dcode
+                algo,
+                salt,
+                Some(stem),
+                tier,
+                None, // rooted
+                Some(transferable),
+                Some(temp_clone),
+            )?;
+
+            self.mgr.replay(
+                ipre.as_bytes(),
+                dcode,
+                Some(false), // advance = false
+                None,        // erase
+            )?
+        } else {
+            // Normal inception flow  
+            
+            self.mgr.incept(
+                None, // icodes
+                Some(icount),
+                icode,
+                None, // ncodes
+                Some(ncount),
+                None, // ncode
+                dcode.map(|s| s.to_string()),
+                algo,
+                salt,
+                Some(&stem),
+                tier,
+                None, // rooted
+                Some(transferable),
+                Some(temp_clone),
+            )?
+        };
+
+        // Call parent make method (BaseHab::make)
+        let serder = self.base.make(
+            d_n_d,
+            Some(code),
+            data,
+            delpre.clone(),
+            est_only,
+            isith,
+            verfers.clone(),
+            Some(nsith),
+            Some(digers),
+            toad,
+            wits,
+        )?;
+
+        // Set the new prefix from the serder - extract "i" field from ked
+        let ked = serder.ked();
+        if let Some(SadValue::String(pre)) = ked.get("i") {
+            self.pre = Some(pre.clone());
+        } else {
+            return Err(KERIError::ValueError(
+                "Invalid inception event: missing or invalid 'i' field".to_string(),
+            ));
+        }
+
+
+        // Move from old prefix to new prefix
+        if let Some(ref pre) = self.pre.clone() {
+            let opre = verfers[0].qb64(); // default zeroth original pre from key store
+            self.mgr.move_prefix(opre.as_bytes(), pre.as_bytes())?; // move to incept event pre
+
+            // Create habitat record
+            let habord = HabitatRecord {
+                hid: pre.clone(),
+                name: Some(self.name.clone()),
+                domain: self.ns.clone(),
+                ..Default::default()
+            };
+
+            // Must add self.pre to self.prefixes before calling processEvent so that
+            // Kever.locallyOwned or Kever.locallyDelegated or Kever.locallyWitnessed
+            // evaluates correctly when processing own inception event.
+            if !hidden {
+                self.save(habord)?;
+                self.db.prefixes.insert(pre.clone());
+            }
+
+            // Sign handles group hab with .mhab case
+            let sigers = self.sign(
+                serder.raw(),
+                Some(verfers),
+                None, // indexed (defaults to true)
+                None, // indices
+                None, // ondices
+                None, // ponly
+            )?;
+
+            // During delegation initialization of a habitat we ignore the MissingDelegationError and
+            // MissingSignatureError
+            match self.kvy.process_event(
+                serder.clone(),
+                sigers,
+                None, // wigers
+                None, // delseqner
+                None, // delsaider
+                None, // firner
+                None, // dater
+                None, // eager
+                None, // local (uses kvy.local default)
+            ) {
+                Ok(_) => {}
+                Err(KERIError::MissingSignatureError(_)) => {
+                    // This is acceptable during delegation initialization - just pass
+                }
+                Err(ex) => {
+                    return Err(KERIError::ConfigurationError(format!(
+                        "Improper Habitat inception for pre={}: {}",
+                        pre, ex
+                    )));
+                }
+            }
+
+            // Read in self.cf config file and process any oobis or endpoints
+            self.reconfigure(); // should we do this for new Habs not loaded from db
+
+            self.inited = true;
+            Ok(serder)
+        } else {
+            Err(KERIError::ValueError(
+                "Failed to set prefix after inception".to_string(),
+            ))
+        }
+    }
+
+
+    /// Save habitat record to database and register name
+    ///
+    /// # Parameters
+    /// * `habord` - HabitatRecord to save
+    ///
+    /// # Returns
+    /// * `Result<(), KERIError>` - Ok if successful, error otherwise
+    ///
+    /// # Errors
+    /// * Returns error if AID already exists with the given name
+    pub fn save(&mut self, habord: HabitatRecord) -> Result<(), KERIError> {
+        // Get the current prefix - should be set by this point
+        let pre = self.pre.as_ref().ok_or_else(|| {
+            KERIError::ValueError("Cannot save habitat: prefix not set".to_string())
+        })?;
+
+        // Save the habitat record keyed by prefix
+        self.db.habs.pin(&[pre.as_bytes()], &habord)
+            .map_err(|e| KERIError::DatabaseError(format!("Failed to save habitat record: {}", e)))?;
+
+        // Prepare namespace - empty string if None
+        let ns = self.ns.as_deref().unwrap_or("");
+
+        // Check if name already exists in this namespace
+        let existing: Option<Vec<u8>> = self.db.names.get(&[ns.as_bytes(), self.name.as_bytes()])
+            .map_err(|e| KERIError::DatabaseError(format!("Failed to check existing name: {}", e)))?;
+
+        let existing_string = existing.map(|bytes| String::from_utf8_lossy(&bytes).to_string());
+
+        if existing_string.is_some() {
+            return Err(KERIError::ValueError("AID already exists with that name".to_string()));
+        }
+        
+        // Save the name mapping (namespace, name) -> prefix
+        self.db.names.pin(&[ns.as_bytes(), self.name.as_bytes()], &pre.as_bytes())
+            .map_err(|e| KERIError::DatabaseError(format!("Failed to save name mapping: {}", e)))?;
+
+
+        Ok(())
+    }
+    /// Get the algorithm used for this habitat
+    ///
+    /// # Returns
+    /// * `Result<String, KERIError>` - The algorithm name or error
+    pub fn algo(&self) -> Result<String, KERIError> {
+        let pre = self.pre.as_ref().ok_or_else(|| {
+            KERIError::ValueError("Cannot get algo: prefix not set".to_string())
+        })?;
+
+        let pp = self.ks.prms.get(&[pre.as_bytes()])?
+            .ok_or_else(|| {
+                KERIError::ValueError(format!(
+                    "No parameters found for prefix: {}",
+                    pre
+                ))
+            })?;
+
+        Ok(pp.algo)
+    }
+
+    /// Perform rotation operation. Register rotation in database.
+    /// Returns rotation message with attached signatures.
+    ///
+    /// # Parameters
+    /// * `isith` - Current signing threshold 
+    /// * `nsith` - Next signing threshold
+    /// * `ncount` - Next number of signing keys
+    /// * `toad` - Witness threshold after cuts and adds
+    /// * `cuts` - List of witness prefixes to be removed from witness list
+    /// * `adds` - List of witness prefixes to be added to witness list
+    /// * `data` - List of committed data such as seals
+    ///
+    /// # Returns
+    /// * `Result<Vec<u8>, KERIError>` - Rotation message with signatures or error
+    pub fn rotate(
+        &mut self,
+        isith: Option<Tholder>,
+        nsith: Option<Tholder>,
+        ncount: Option<u32>,
+        toad: Option<u32>,
+        cuts: Option<Vec<String>>,
+        adds: Option<Vec<String>>,
+        data: Option<Vec<u8>>,
+    ) -> Result<Vec<u8>, KERIError> {
+        let pre = self.pre.clone().ok_or_else(|| {
+            KERIError::ValueError("Cannot rotate: prefix not set".to_string())
+        })?;
+
+        // Set defaults for counts - use len of prior next digers as default
+        let ncount = ncount.unwrap_or({
+            let kever = self.kever()?;
+            match kever.ndigers.as_ref() {
+                Some(digers) => digers.len() as u32,
+                None => 0,
+            }
+        });
+
+        // Try to replay first, fallback to rotate if IndexError
+        let (verfers, digers) = match self.mgr.replay(
+            pre.as_bytes(),
+            None,        // dcode
+            Some(true),  // advance
+            Some(true),  // erase
+        ) {
+            Ok((verfers, digers)) => (verfers, digers),
+            Err(KERIError::IndexError(_)) => {
+                // Old next is new current - need to rotate
+                self.mgr.rotate(
+                    pre.as_bytes(),
+                    None,                    // ncodes
+                    Some(ncount as usize),   // ncount
+                    None,                    // ncode - will use default ED25519
+                    None,                    // dcode - will use default BLAKE3_256
+                    Some(true),              // transferable
+                    Some(self.temp),         // temp
+                    Some(true),              // erase
+                )?
+            }
+            Err(e) => return Err(e),
+        };
+
+        // Call the parent rotate method from BaseHab
+        self.base.rotate(
+            None,    // count - not used in BaseHab::rotate
+            Some(ncount),
+            isith,
+            nsith,
+            toad,
+            cuts,
+            adds,
+            data,
+        )
     }
 }
