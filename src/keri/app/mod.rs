@@ -1,6 +1,6 @@
+mod configing;
 pub mod habbing;
 pub mod keeping;
-mod configing;
 
 /// Returns a bytes DB key from concatenation with '.' of qualified Base64 prefix
 /// bytes `pre` and int `ri` (rotation index) of key rotation.

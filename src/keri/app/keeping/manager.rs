@@ -1,19 +1,19 @@
-use std::collections::VecDeque;
 use crate::cesr::diger::Diger;
 use crate::cesr::prefixer::Prefixer;
 use crate::cesr::signing::{Decrypter, Encrypter, Salter, Sigmat, Signer};
+use crate::cesr::tholder::{Tholder, TholderSith};
 use crate::cesr::verfer::Verfer;
 use crate::cesr::{mtr_dex, Parsable, Tiers};
 use crate::keri::app::keeping::creators::{Algos, Creatory};
 use crate::keri::app::keeping::keeper::{PrePrm, PreSit, PubLot, PubSet};
 use crate::keri::app::keeping::Keeper;
+use crate::keri::app::ri_key;
+use crate::keri::help::helping::nowiso8601;
 use crate::keri::KERIError;
 use crate::Matter;
 use chrono::Utc;
 use sodiumoxide::crypto::sign::SecretKey;
-use crate::cesr::tholder::{Tholder, TholderSith};
-use crate::keri::app::ri_key;
-use crate::keri::help::helping::nowiso8601;
+use std::collections::VecDeque;
 
 /// Manager struct for key pair creation, storage, retrieval, and message signing
 ///
@@ -160,7 +160,7 @@ impl<'db> Manager<'db> {
         self.inited = true;
         Ok(())
     }
-    
+
     /// Ingest secrecies as a list of lists of secrets organized in event order
     /// to register the sets of secrets of associated externally generated keypair
     /// lists into the database.
@@ -210,7 +210,8 @@ impl<'db> Manager<'db> {
 
         if iridx > secrecies.len() {
             return Err(KERIError::ValueError(format!(
-                "Initial ridx={} beyond last secrecy.", iridx
+                "Initial ridx={} beyond last secrecy.",
+                iridx
             )));
         }
 
@@ -236,7 +237,6 @@ impl<'db> Manager<'db> {
                 self.tier().unwrap_or(Tiers::LOW) // Use LOW as default fallback
             })
         };
-
 
         let pidx = self.pidx().unwrap_or(0);
 
@@ -290,7 +290,7 @@ impl<'db> Manager<'db> {
 
                 let pre = csigners[0].verfer.qb64b();
                 ipre = csigners[0].verfer.qb64();
-                
+
                 let mut pre_copy = pre.clone();
                 let prefixer = Prefixer::from_qb64b(&mut pre_copy, None)?;
 
@@ -315,11 +315,9 @@ impl<'db> Manager<'db> {
             // Store secrets (private key val keyed by public key)
             let pre = csigners[0].verfer.qb64b();
             for signer in &csigners {
-                self.ks.pris.put(
-                    &[&signer.verfer.qb64b()],
-                    signer,
-                    self.encrypter.clone()
-                )?;
+                self.ks
+                    .pris
+                    .put(&[&signer.verfer.qb64b()], signer, self.encrypter.clone())?;
             }
 
             pubs = csigners.iter().map(|s| s.verfer.qb64()).collect();
@@ -333,11 +331,8 @@ impl<'db> Manager<'db> {
                     Some(PubLot::default()) // defaults ok
                 } else {
                     let osith = format!("{:x}", (csize / 2).max(1));
-                    let _ost = Tholder::new(
-                        None,
-                        None,
-                        Some(TholderSith::HexString(osith))
-                    )?.sith();
+                    let _ost =
+                        Tholder::new(None, None, Some(TholderSith::HexString(osith)))?.sith();
                     Some(PubLot {
                         pubs: pubs.clone(),
                         ridx,
@@ -430,16 +425,16 @@ impl<'db> Manager<'db> {
         let pre = if !verferies.is_empty() && !verferies[0].is_empty() {
             verferies[0][0].qb64b()
         } else {
-            return Err(KERIError::ValueError("No signers were ingested".to_string()));
+            return Err(KERIError::ValueError(
+                "No signers were ingested".to_string(),
+            ));
         };
 
         // store secrets (private key val keyed by public key)
         for signer in &nsigners {
-            self.ks.pris.put(
-                &[&signer.verfer.qb64b()],
-                signer,
-                self.encrypter.clone()
-            )?;
+            self.ks
+                .pris
+                .put(&[&signer.verfer.qb64b()], signer, self.encrypter.clone())?;
         }
 
         pubs = nsigners.iter().map(|s| s.verfer.qb64()).collect();
@@ -474,7 +469,7 @@ impl<'db> Manager<'db> {
 
         Ok((ipre, verferies))
     }
-    
+
     pub fn replay(
         &mut self,
         pre: &[u8],
@@ -517,13 +512,17 @@ impl<'db> Manager<'db> {
             // but when replaying injected keys reaching null next pub keys or
             // equivalently default empty is the sign that we have reached the
             // end of the replay so need to raise an IndexError
-            let pubset = self.ks.pubs.get(&[&ri_key(pre, ridx + 1)])?.ok_or_else(|| {
-                KERIError::IndexError(format!(
-                    "Invalid replay attempt of pre={} at ridx={}.",
-                    String::from_utf8_lossy(pre),
-                    ridx
-                ))
-            })?;
+            let pubset = self
+                .ks
+                .pubs
+                .get(&[&ri_key(pre, ridx + 1)])?
+                .ok_or_else(|| {
+                    KERIError::IndexError(format!(
+                        "Invalid replay attempt of pre={} at ridx={}.",
+                        String::from_utf8_lossy(pre),
+                        ridx
+                    ))
+                })?;
 
             let pubs = pubset.pubs.clone(); // create nxt from pubs
             let dt = nowiso8601();
@@ -549,13 +548,12 @@ impl<'db> Manager<'db> {
                 ));
             }
 
-            let signer = self.ks.pris
+            let signer = self
+                .ks
+                .pris
                 .get(&[pub_key.as_bytes()], self.decrypter.clone())?
                 .ok_or_else(|| {
-                    KERIError::ValueError(format!(
-                        "Missing prikey in db for pubkey={}",
-                        pub_key
-                    ))
+                    KERIError::ValueError(format!("Missing prikey in db for pubkey={}", pub_key))
                 })?;
 
             verfers.push(signer.verfer);
@@ -588,8 +586,6 @@ impl<'db> Manager<'db> {
 
         Ok((verfers, digers))
     }
-
-
 
     /// Update the aeid (authentication and encryption identifier) and re-encrypt all secrets
     ///
@@ -1812,8 +1808,6 @@ impl<'db> Manager<'db> {
 
     // TODO: Implement ingest and reply from KERIpy implementations.
 }
-
-
 
 #[cfg(test)]
 mod tests {

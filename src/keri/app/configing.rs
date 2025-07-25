@@ -2,13 +2,13 @@
 //!
 //! Configuration file management with multiple serialization formats
 
-use std::fs::File;
-use std::io::{Read, Write, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
-use serde::{Serialize, Deserialize};
-use serde_json;
 use rmp_serde as msgpack;
+use serde::{Deserialize, Serialize};
 use serde_cbor;
+use serde_json;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 use crate::hio::errors::HioError;
 use crate::hio::filing::{Filer, FilerContext};
@@ -30,8 +30,20 @@ pub fn open_cf(
     let human = human.unwrap_or(true);
 
     let configer = Configer::new(
-        name, base, temp, None, None, reopen, clear, None, None,  // Fixed: pass temp parameter
-        Some(filed), None, None, Some(fext), Some(human)
+        name,
+        base,
+        temp,
+        None,
+        None,
+        reopen,
+        clear,
+        None,
+        None, // Fixed: pass temp parameter
+        Some(filed),
+        None,
+        None,
+        Some(fext),
+        Some(human),
     )?;
 
     Ok(ConfigerContext::new(configer, clear.unwrap_or(false)))
@@ -140,10 +152,7 @@ impl Configer {
             )?;
         }
 
-        Ok(Configer {
-            filer,
-            human,
-        })
+        Ok(Configer { filer, human })
     }
 
     /// Serialize data dict and write to file given by path where serialization is
@@ -158,7 +167,10 @@ impl Configer {
     ///     HioError if unsupported file extension or file not opened
     pub fn put<T: Serialize>(&mut self, data: &T, human: Option<bool>) -> Result<bool, HioError> {
         if self.filer.file.is_none() {
-            return Err(HioError::FilerError(format!("File '{:?}' not opened.", self.filer.path)));
+            return Err(HioError::FilerError(format!(
+                "File '{:?}' not opened.",
+                self.filer.path
+            )));
         }
 
         let human = human.unwrap_or(self.human);
@@ -168,38 +180,34 @@ impl Configer {
         file.set_len(0).map_err(HioError::IoError)?; // Truncate
 
         let path = self.filer.path.as_ref().unwrap();
-        let ext = path.extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
-        let serialized = match ext {
-            "json" => {
-                if human {
-                    // For human-friendly JSON, use pretty printing
-                    serde_json::to_string_pretty(data)
-                        .map_err(|e| HioError::SerializationError(e.to_string()))?
-                        .into_bytes()
-                } else {
-                    // For compact JSON
-                    serde_json::to_string(data)
-                        .map_err(|e| HioError::SerializationError(e.to_string()))?
-                        .into_bytes()
+        let serialized =
+            match ext {
+                "json" => {
+                    if human {
+                        // For human-friendly JSON, use pretty printing
+                        serde_json::to_string_pretty(data)
+                            .map_err(|e| HioError::SerializationError(e.to_string()))?
+                            .into_bytes()
+                    } else {
+                        // For compact JSON
+                        serde_json::to_string(data)
+                            .map_err(|e| HioError::SerializationError(e.to_string()))?
+                            .into_bytes()
+                    }
                 }
-            },
-            "mgpk" => {
-                msgpack::to_vec(data)
-                    .map_err(|e| HioError::SerializationError(e.to_string()))?
-            },
-            "cbor" => {
-                serde_cbor::to_vec(data)
-                    .map_err(|e| HioError::SerializationError(e.to_string()))?
-            },
-            _ => {
-                return Err(HioError::FilerError(format!(
-                    "Invalid file path ext '{}' not '.json', '.mgpk', or '.cbor'.", ext
-                )));
-            }
-        };
+                "mgpk" => msgpack::to_vec(data)
+                    .map_err(|e| HioError::SerializationError(e.to_string()))?,
+                "cbor" => serde_cbor::to_vec(data)
+                    .map_err(|e| HioError::SerializationError(e.to_string()))?,
+                _ => {
+                    return Err(HioError::FilerError(format!(
+                        "Invalid file path ext '{}' not '.json', '.mgpk', or '.cbor'.",
+                        ext
+                    )));
+                }
+            };
 
         file.write_all(&serialized).map_err(HioError::IoError)?;
         file.flush().map_err(HioError::IoError)?;
@@ -221,7 +229,10 @@ impl Configer {
         T: for<'de> Deserialize<'de> + Default,
     {
         if self.filer.file.is_none() {
-            return Err(HioError::FilerError(format!("File '{:?}' not opened.", self.filer.path)));
+            return Err(HioError::FilerError(format!(
+                "File '{:?}' not opened.",
+                self.filer.path
+            )));
         }
 
         let human = human.unwrap_or(self.human);
@@ -236,9 +247,7 @@ impl Configer {
         }
 
         let path = self.filer.path.as_ref().unwrap();
-        let ext = path.extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
         let data = match ext {
             "json" => {
@@ -255,18 +264,15 @@ impl Configer {
                     serde_json::from_str(&text)
                         .map_err(|e| HioError::SerializationError(e.to_string()))?
                 }
-            },
-            "mgpk" => {
-                msgpack::from_slice(&contents)
-                    .map_err(|e| HioError::SerializationError(e.to_string()))?
-            },
-            "cbor" => {
-                serde_cbor::from_slice(&contents)
-                    .map_err(|e| HioError::SerializationError(e.to_string()))?
-            },
+            }
+            "mgpk" => msgpack::from_slice(&contents)
+                .map_err(|e| HioError::SerializationError(e.to_string()))?,
+            "cbor" => serde_cbor::from_slice(&contents)
+                .map_err(|e| HioError::SerializationError(e.to_string()))?,
             _ => {
                 return Err(HioError::FilerError(format!(
-                    "Invalid file path ext '{}' not '.json', '.mgpk', or '.cbor'.", ext
+                    "Invalid file path ext '{}' not '.json', '.mgpk', or '.cbor'.",
+                    ext
                 )));
             }
         };
@@ -291,7 +297,8 @@ impl Configer {
         mode: Option<String>,
         fext: Option<String>,
     ) -> Result<bool, HioError> {
-        self.filer.reopen(temp, head_dir_path, perm, clear, reuse, clean, mode, fext)
+        self.filer
+            .reopen(temp, head_dir_path, perm, clear, reuse, clean, mode, fext)
     }
 
     /// Check if config exists
@@ -305,7 +312,8 @@ impl Configer {
         extensioned: bool,
         fext: Option<&str>,
     ) -> Result<bool, HioError> {
-        self.filer.exists(name, base, head_dir_path, clean, filed, extensioned, fext)
+        self.filer
+            .exists(name, base, head_dir_path, clean, filed, extensioned, fext)
     }
 }
 
@@ -332,7 +340,10 @@ pub struct ConfigerContext {
 impl ConfigerContext {
     pub fn new(configer: Configer, clear: bool) -> Self {
         let clear_on_drop = configer.filer.temp || clear;
-        Self { configer, clear_on_drop }
+        Self {
+            configer,
+            clear_on_drop,
+        }
     }
 }
 
@@ -355,14 +366,13 @@ impl std::ops::DerefMut for ConfigerContext {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
+    use std::io::{Read, Seek, SeekFrom, Write};
     use std::sync::Mutex;
-    use std::io::{Read, Write, Seek, SeekFrom};
 
     // Force tests to run sequentially to avoid race conditions
     static TEST_MUTEX: Mutex<()> = Mutex::new(());
@@ -399,9 +409,7 @@ mod tests {
 
     fn cleanup_test_dirs() {
         // Clean up test directories
-        let dirs_to_clean = vec![
-            "/usr/local/var/keri",
-        ];
+        let dirs_to_clean = vec!["/usr/local/var/keri"];
 
         for dir in dirs_to_clean {
             let path = PathBuf::from(dir);
@@ -411,9 +419,7 @@ mod tests {
         }
 
         if let Some(home) = dirs::home_dir() {
-            let alt_dirs = vec![
-                home.join(".keri"),
-            ];
+            let alt_dirs = vec![home.join(".keri")];
 
             for dir in alt_dirs {
                 if dir.exists() {
@@ -438,12 +444,17 @@ mod tests {
             }
 
             let mut cfr = Configer::new(
-                None, None, None, None, None, None, None, None, None, None, None, None, None, None
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
             )?; // defaults
 
             // assert cfr.path == filepath
             // github runner does not allow /usr/local/var
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.opened);
             assert!(cfr.path.as_ref().unwrap().exists());
             assert!(cfr.file.is_some());
@@ -481,7 +492,12 @@ mod tests {
 
             cfr.close(false)?;
             assert!(!cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
 
             // Should error when trying to get from closed file
@@ -491,7 +507,12 @@ mod tests {
             // Test reopen with reuse=true
             cfr.reopen(None, None, None, false, true, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert_eq!(rdata, wdata); // not empty
@@ -499,7 +520,12 @@ mod tests {
             // Test reopen without reuse (remake but not clear)
             cfr.reopen(None, None, None, false, false, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert_eq!(rdata, wdata); // not empty
@@ -507,7 +533,12 @@ mod tests {
             // Test reopen with reuse=true, clear=true (should remake even with reuse)
             cfr.reopen(None, None, None, true, true, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert!(rdata.is_empty()); // empty due to clear
@@ -523,7 +554,12 @@ mod tests {
             // Test reopen with clear=true (should remake)
             cfr.reopen(None, None, None, true, false, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert!(rdata.is_empty()); // empty
@@ -546,7 +582,6 @@ mod tests {
         })
     }
 
-
     #[test]
     fn test_configer_human_false() -> Result<(), HioError> {
         with_test_lock(|| {
@@ -554,11 +589,28 @@ mod tests {
 
             // Test with plain json human==false
             let mut cfr = Configer::new(
-                None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
                 Some(false), // human=false
             )?;
 
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().ends_with("keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("keri/cf/main/conf.json"));
             assert!(cfr.opened);
             assert!(cfr.path.as_ref().unwrap().exists());
             assert!(cfr.file.is_some());
@@ -602,7 +654,6 @@ mod tests {
         })
     }
 
-
     #[test]
     fn test_configer_alt_path() -> Result<(), HioError> {
         with_test_lock(|| {
@@ -612,12 +663,28 @@ mod tests {
             let restricted_head = PathBuf::from("/root/keri");
 
             let mut cfr = Configer::new(
-                None, None, None,
+                None,
+                None,
+                None,
                 Some(restricted_head), // This should force alt path
-                None, None, None, None, None, None, None, None, None, None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
             )?;
 
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.opened);
             assert!(cfr.path.as_ref().unwrap().exists());
             assert!(cfr.file.is_some());
@@ -641,7 +708,12 @@ mod tests {
 
             cfr.close(false)?;
             assert!(!cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let result: Result<HashMap<String, String>, _> = cfr.get(None);
             assert!(matches!(result, Err(HioError::FilerError(_))));
@@ -649,21 +721,36 @@ mod tests {
             // Test various reopen scenarios
             cfr.reopen(None, None, None, false, true, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert_eq!(rdata, wdata); // not empty
 
             cfr.reopen(None, None, None, false, false, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert_eq!(rdata, wdata); // not empty
 
             cfr.reopen(None, None, None, true, true, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert!(rdata.is_empty()); // empty
@@ -678,7 +765,12 @@ mod tests {
 
             cfr.reopen(None, None, None, true, false, false, None, None)?;
             assert!(cfr.opened);
-            assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains(".keri/cf/main/conf.json"));
+            assert!(cfr
+                .path
+                .as_ref()
+                .unwrap()
+                .to_string_lossy()
+                .contains(".keri/cf/main/conf.json"));
             assert!(cfr.path.as_ref().unwrap().exists());
             let rdata: HashMap<String, String> = cfr.get(None)?;
             assert!(rdata.is_empty()); // empty
@@ -709,13 +801,27 @@ mod tests {
                 let mut cfr = open_cf(
                     Some("test".to_string()),
                     Some(true), // temp
-                    None, None, None, None, None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                     Some(true), // human
                 )?;
 
                 let temp_dir = std::env::temp_dir();
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("keri_"));
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("_test/keri/cf/main/test.json"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("keri_"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("_test/keri/cf/main/test.json"));
                 assert!(cfr.opened);
                 assert!(cfr.human);
                 assert!(cfr.path.as_ref().unwrap().exists());
@@ -742,12 +848,26 @@ mod tests {
                 let mut cfr = open_cf(
                     Some("test".to_string()),
                     Some(true), // temp
-                    None, None, None, None, None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                     Some(false), // human=false
                 )?;
 
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("keri_"));
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("_test/keri/cf/main/test.json"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("keri_"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("_test/keri/cf/main/test.json"));
                 assert!(cfr.opened);
                 assert!(!cfr.human);
                 assert!(cfr.path.as_ref().unwrap().exists());
@@ -774,13 +894,26 @@ mod tests {
                 let mut cfr = open_cf(
                     Some("test".to_string()),
                     Some(true), // temp
-                    None, None, None, None,
+                    None,
+                    None,
+                    None,
+                    None,
                     Some("mgpk".to_string()),
                     None,
                 )?;
 
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("keri_"));
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("_test/keri/cf/main/test.mgpk"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("keri_"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("_test/keri/cf/main/test.mgpk"));
                 assert!(cfr.opened);
                 assert!(cfr.path.as_ref().unwrap().exists());
                 assert!(cfr.file.is_some());
@@ -806,13 +939,26 @@ mod tests {
                 let mut cfr = open_cf(
                     Some("test".to_string()),
                     Some(true), // temp
-                    None, None, None, None,
+                    None,
+                    None,
+                    None,
+                    None,
                     Some("cbor".to_string()),
                     None,
                 )?;
 
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("keri_"));
-                assert!(cfr.path.as_ref().unwrap().to_string_lossy().contains("_test/keri/cf/main/test.cbor"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("keri_"));
+                assert!(cfr
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains("_test/keri/cf/main/test.cbor"));
                 assert!(cfr.opened);
                 assert!(cfr.path.as_ref().unwrap().exists());
                 assert!(cfr.file.is_some());
@@ -839,15 +985,22 @@ mod tests {
                 Some("test_invalid".to_string()),
                 Some("test".to_string()),
                 Some(true), // temp
-                None, None, None, None, None, None, None, None, None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
                 Some("invalid".to_string()), // Use invalid extension directly
                 None,
             )?;
 
             // Put some test data to the file first so it's not empty
-            let test_data: HashMap<String, String> = HashMap::from([
-                ("key".to_string(), "value".to_string()),
-            ]);
+            let test_data: HashMap<String, String> =
+                HashMap::from([("key".to_string(), "value".to_string())]);
 
             // Both put and get should fail with invalid extension
             let put_result = cfr.put(&test_data, None);
@@ -870,7 +1023,6 @@ mod tests {
             Ok(())
         })
     }
-
 
     #[test]
     fn test_configer_different_formats() -> Result<(), HioError> {
@@ -898,8 +1050,19 @@ mod tests {
             {
                 let mut cfr = Configer::new(
                     Some("test_complex_json".to_string()),
-                    None, Some(true), None, None, None, None, None, None, None, None, None,
-                    Some("json".to_string()), Some(true),
+                    None,
+                    Some(true),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("json".to_string()),
+                    Some(true),
                 )?;
                 cfr.put(&test_data, None)?;
                 let retrieved: ComplexData = cfr.get(None)?;
@@ -910,8 +1073,19 @@ mod tests {
             {
                 let mut cfr = Configer::new(
                     Some("test_complex_mgpk".to_string()),
-                    None, Some(true), None, None, None, None, None, None, None, None, None,
-                    Some("mgpk".to_string()), None,
+                    None,
+                    Some(true),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("mgpk".to_string()),
+                    None,
                 )?;
                 cfr.put(&test_data, None)?;
                 let retrieved: ComplexData = cfr.get(None)?;
@@ -922,8 +1096,19 @@ mod tests {
             {
                 let mut cfr = Configer::new(
                     Some("test_complex_cbor".to_string()),
-                    None, Some(true), None, None, None, None, None, None, None, None, None,
-                    Some("cbor".to_string()), None,
+                    None,
+                    Some(true),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some("cbor".to_string()),
+                    None,
                 )?;
                 cfr.put(&test_data, None)?;
                 let retrieved: ComplexData = cfr.get(None)?;

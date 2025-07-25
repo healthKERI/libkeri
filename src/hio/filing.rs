@@ -2,9 +2,9 @@
 //!
 //! File and directory management for KERI installations
 
-use std::fs::{self, File, DirBuilder};
-use std::path::{Path, PathBuf};
+use std::fs::{self, DirBuilder, File};
 use std::os::unix::fs::DirBuilderExt;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use crate::hio::errors::HioError;
@@ -17,8 +17,8 @@ use crate::hio::helping::ocfn;
 /// `.perm` provides default restricted access permissions to directory and/or files
 /// `0o1700` == 960
 ///
-/// - Sticky bit: When this bit is set on a directory it means that a file in that 
-///   directory can be renamed or deleted only by the owner of the file, by the owner 
+/// - Sticky bit: When this bit is set on a directory it means that a file in that
+///   directory can be renamed or deleted only by the owner of the file, by the owner
 ///   of the directory, or by a privileged process.
 /// - Owner has read permission
 /// - Owner has write permission  
@@ -101,17 +101,23 @@ impl Filer {
 
         // Validate relative paths
         if Path::new(&name).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative name path: {}", name)));
+            return Err(HioError::FilerError(format!(
+                "Not relative name path: {}",
+                name
+            )));
         }
         if !base.is_empty() && Path::new(&base).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative base path: {}", base)));
+            return Err(HioError::FilerError(format!(
+                "Not relative base path: {}",
+                base
+            )));
         }
 
-        let alt_head_dir_path = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("~"));
+        let alt_head_dir_path = dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
 
         let mut filer = Filer {
-            head_dir_path: head_dir_path.unwrap_or_else(|| PathBuf::from(Self::DEFAULT_HEAD_DIR_PATH)),
+            head_dir_path: head_dir_path
+                .unwrap_or_else(|| PathBuf::from(Self::DEFAULT_HEAD_DIR_PATH)),
             tail_dir_path: PathBuf::from(Self::DEFAULT_TAIL_DIR_PATH),
             clean_tail_dir_path: PathBuf::from(Self::DEFAULT_CLEAN_TAIL_DIR_PATH),
             alt_head_dir_path,
@@ -136,17 +142,19 @@ impl Filer {
 
         if reopen.unwrap_or(true) {
             filer.reopen(
-                None, None, None,
+                None,
+                None,
+                None,
                 clear.unwrap_or(false),
                 reuse.unwrap_or(false),
                 clean.unwrap_or(false),
-                None, None,
+                None,
+                None,
             )?;
         }
 
         Ok(filer)
     }
-
 
     /// Open if closed or close and reopen if opened or create and open if not
     ///
@@ -189,9 +197,7 @@ impl Filer {
             self.fext = fext;
         }
 
-        let should_remake = self.path.is_none()
-            || !self.path.as_ref().unwrap().exists()
-            || !reuse;
+        let should_remake = self.path.is_none() || !self.path.as_ref().unwrap().exists() || !reuse;
 
         if should_remake {
             let (path, file, temp_dir) = self.remake(
@@ -252,10 +258,16 @@ impl Filer {
     ) -> Result<(PathBuf, Option<File>, Option<TempDir>), HioError> {
         // Validate relative paths
         if Path::new(name).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative name path: {}", name)));
+            return Err(HioError::FilerError(format!(
+                "Not relative name path: {}",
+                name
+            )));
         }
         if !base.is_empty() && Path::new(base).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative base path: {}", base)));
+            return Err(HioError::FilerError(format!(
+                "Not relative base path: {}",
+                base
+            )));
         }
 
         let temp = temp.unwrap_or(false);
@@ -299,7 +311,8 @@ impl Filer {
                 .tempdir()
                 .map_err(HioError::IoError)?;
 
-            let temp_path = temp_dir.path()
+            let temp_path = temp_dir
+                .path()
                 .join(tail_dir_path)
                 .join(base)
                 .join(&final_name);
@@ -377,12 +390,14 @@ impl Filer {
                 }
                 Err(_) => {
                     // Fall back to alternative path
-                    persistent_path = self.alt_head_dir_path
+                    persistent_path = self
+                        .alt_head_dir_path
                         .join(alt_tail_dir_path)
                         .join(base)
                         .join(&final_name);
 
-                    file = self.try_create_path(&persistent_path, filed, extensioned, &mode, perm)?;
+                    file =
+                        self.try_create_path(&persistent_path, filed, extensioned, &mode, perm)?;
                 }
             }
 
@@ -477,10 +492,16 @@ impl Filer {
     ) -> Result<bool, HioError> {
         // Validate relative paths
         if Path::new(name).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative name path: {}", name)));
+            return Err(HioError::FilerError(format!(
+                "Not relative name path: {}",
+                name
+            )));
         }
         if !base.is_empty() && Path::new(base).is_absolute() {
-            return Err(HioError::FilerError(format!("Not relative base path: {}", base)));
+            return Err(HioError::FilerError(format!(
+                "Not relative base path: {}",
+                base
+            )));
         }
 
         let head_dir_path = head_dir_path.unwrap_or(&self.head_dir_path);
@@ -521,7 +542,8 @@ impl Filer {
         }
 
         // Check alternative path
-        let alt_path = self.alt_head_dir_path
+        let alt_path = self
+            .alt_head_dir_path
             .join(alt_tail_dir_path)
             .join(base)
             .join(&final_name);
@@ -589,7 +611,6 @@ impl Drop for Filer {
     }
 }
 
-
 // Simple context manager - no builder needed
 pub struct FilerContext {
     pub filer: Filer,
@@ -599,7 +620,10 @@ pub struct FilerContext {
 impl FilerContext {
     pub fn new(filer: Filer, clear: bool) -> Self {
         let clear_on_drop = filer.temp || clear;
-        Self { filer, clear_on_drop }
+        Self {
+            filer,
+            clear_on_drop,
+        }
     }
 }
 
@@ -611,11 +635,15 @@ impl Drop for FilerContext {
 
 impl std::ops::Deref for FilerContext {
     type Target = Filer;
-    fn deref(&self) -> &Self::Target { &self.filer }
+    fn deref(&self) -> &Self::Target {
+        &self.filer
+    }
 }
 
 impl std::ops::DerefMut for FilerContext {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.filer }
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.filer
+    }
 }
 
 pub fn open_filer(
@@ -630,19 +658,19 @@ pub fn open_filer(
     let clear = clear.unwrap_or(false);
 
     let filer = Filer::new(
-        Some(name),     // name
-        None,           // base
-        Some(temp),     // temp - this is the key fix
-        None,           // head_dir_path
-        None,           // perm
-        Some(reopen),   // reopen
-        Some(clear),    // clear
-        None,           // reuse
-        None,           // clean
-        None,           // filed
-        None,           // extensioned
-        None,           // mode
-        None,           // fext
+        Some(name),   // name
+        None,         // base
+        Some(temp),   // temp - this is the key fix
+        None,         // head_dir_path
+        None,         // perm
+        Some(reopen), // reopen
+        Some(clear),  // clear
+        None,         // reuse
+        None,         // clean
+        None,         // filed
+        None,         // extensioned
+        None,         // mode
+        None,         // fext
     )?;
 
     Ok(FilerContext::new(filer, clear))
@@ -651,8 +679,8 @@ pub fn open_filer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write, Seek, SeekFrom};
     use std::fs;
+    use std::io::{Read, Seek, SeekFrom, Write};
     use std::path::PathBuf;
     use std::sync::Mutex;
 
@@ -662,7 +690,7 @@ mod tests {
     fn cleanup_all_test_dirs() {
         // Clean up ALL possible test directories more thoroughly
         let dirs_to_clean = vec![
-            "/usr/local/var/hio",  // Clean entire hio directory
+            "/usr/local/var/hio", // Clean entire hio directory
             "/usr/local/var/hio/test",
             "/usr/local/var/hio/clean",
             "/usr/local/var/hio/clean/test",
@@ -683,7 +711,7 @@ mod tests {
 
         if let Some(home) = dirs::home_dir() {
             let alt_dirs = vec![
-                home.join(".hio"),  // Clean entire .hio directory 
+                home.join(".hio"), // Clean entire .hio directory
                 home.join(".hio/test"),
                 home.join(".hio/clean"),
                 home.join(".hio/clean/test"),
@@ -715,9 +743,18 @@ mod tests {
         let exists_before = {
             let filer = Filer::new(
                 Some("test".to_string()),
-                None, None, None, None,
+                None,
+                None,
+                None,
+                None,
                 Some(false), // reopen=false
-                None, None, None, None, None, None, None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
             )?;
             filer.exists("test", "", None, false, false, false, None)?
         };
@@ -726,11 +763,27 @@ mod tests {
         // Test with reopen=true (default)
         let mut filer = Filer::new(
             Some("test".to_string()),
-            None, None, None, None, None, None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert!(filer.exists("test", "", None, false, false, false, None)?);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/test"));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
@@ -744,25 +797,45 @@ mod tests {
         // Test reopen without reuse (remake)
         filer.reopen(None, None, None, false, false, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with reuse=true
         filer.reopen(None, None, None, false, true, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with reuse=true, clear=true (should remake even with reuse)
         filer.reopen(None, None, None, true, true, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen with clear=true (should remake)
         filer.reopen(None, None, None, true, false, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test close with clear=true
@@ -783,11 +856,18 @@ mod tests {
         let exists_before = {
             let filer = Filer::new(
                 Some("test".to_string()),
-                None, None, None, None,
+                None,
+                None,
+                None,
+                None,
                 Some(false), // reopen=false
-                None, None,
+                None,
+                None,
                 Some(true), // clean=true
-                None, None, None, None,
+                None,
+                None,
+                None,
+                None,
             )?;
             filer.exists("test", "", None, true, false, false, None)?
         };
@@ -795,13 +875,27 @@ mod tests {
 
         let mut filer = Filer::new(
             Some("test".to_string()),
-            None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // clean=true
-            None, None, None, None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
         assert!(filer.exists("test", "", None, true, false, false, None)?);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/clean/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/clean/test"));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
@@ -812,22 +906,42 @@ mod tests {
         // Test various reopen scenarios with clean=true
         filer.reopen(None, None, None, false, false, true, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/clean/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/clean/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, false, true, true, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/clean/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/clean/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, true, true, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/clean/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/clean/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, false, true, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/clean/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/clean/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.close(true)?;
@@ -848,53 +962,115 @@ mod tests {
         let exists_before = {
             let filer = Filer::new(
                 Some("test".to_string()),
-                None, None,
+                None,
+                None,
                 Some(restricted_head.clone()),
                 None,
                 Some(false), // reopen=false
-                None, None, None, None, None, None, None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
             )?;
-            filer.exists("test", "", Some(&restricted_head), false, false, false, None)?
+            filer.exists(
+                "test",
+                "",
+                Some(&restricted_head),
+                false,
+                false,
+                false,
+                None,
+            )?
         };
         assert!(!exists_before);
 
         let mut filer = Filer::new(
             Some("test".to_string()),
-            None, None,
+            None,
+            None,
             Some(restricted_head.clone()),
-            None, None, None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )?;
 
-        assert!(filer.exists("test", "", Some(&restricted_head), false, false, false, None)?);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer.exists(
+            "test",
+            "",
+            Some(&restricted_head),
+            false,
+            false,
+            false,
+            None
+        )?);
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_none());
 
         filer.close(false)?;
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test various reopen scenarios with alt path
         filer.reopen(None, None, None, false, false, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, false, true, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, true, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, false, false, None, None)?;
         assert!(filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/test"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/test"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.close(true)?;
@@ -914,11 +1090,17 @@ mod tests {
             let filer = Filer::new(
                 Some("test".to_string()),
                 Some("conf".to_string()),
-                None, None, None,
+                None,
+                None,
+                None,
                 Some(false), // reopen=false
-                None, None, None,
+                None,
+                None,
+                None,
                 Some(true), // filed=true
-                None, None, None,
+                None,
+                None,
+                None,
             )?;
             filer.exists("test", "conf", None, false, true, false, None)?
         };
@@ -927,13 +1109,26 @@ mod tests {
         let mut filer = Filer::new(
             Some("test".to_string()),
             Some("conf".to_string()),
-            None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None, None,
+            None,
+            None,
+            None,
         )?;
 
         assert!(filer.exists("test", "conf", None, false, true, false, None)?);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_some());
@@ -952,32 +1147,57 @@ mod tests {
 
         filer.close(false)?;
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen scenarios with file
         filer.reopen(None, None, None, false, false, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, false, true, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, true, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, false, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains("hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains("hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.close(true)?;
@@ -1003,11 +1223,23 @@ mod tests {
                 Some(restricted_head.clone()),
                 None,
                 Some(false), // reopen=false
-                None, None, None,
+                None,
+                None,
+                None,
                 Some(true), // filed=true
-                None, None, None,
+                None,
+                None,
+                None,
             )?;
-            filer.exists("test", "conf", Some(&restricted_head), false, true, false, None)?
+            filer.exists(
+                "test",
+                "conf",
+                Some(&restricted_head),
+                false,
+                true,
+                false,
+                None,
+            )?
         };
         assert!(!exists_before);
 
@@ -1016,13 +1248,32 @@ mod tests {
             Some("conf".to_string()),
             None,
             Some(restricted_head.clone()),
-            None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None, None,
+            None,
+            None,
+            None,
         )?;
 
-        assert!(filer.exists("test", "conf", Some(&restricted_head), false, true, false, None)?);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer.exists(
+            "test",
+            "conf",
+            Some(&restricted_head),
+            false,
+            true,
+            false,
+            None
+        )?);
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.opened);
         assert!(filer.path.as_ref().unwrap().exists());
         assert!(filer.file.is_some());
@@ -1041,32 +1292,57 @@ mod tests {
 
         filer.close(false)?;
         assert!(!filer.opened);
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         // Test reopen scenarios
         filer.reopen(None, None, None, false, false, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, false, true, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, true, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.reopen(None, None, None, true, false, false, None, None)?;
         assert!(filer.opened);
         assert!(filer.file.is_some());
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().contains(".hio/conf/test.text"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .contains(".hio/conf/test.text"));
         assert!(filer.path.as_ref().unwrap().exists());
 
         filer.close(true)?;
@@ -1105,18 +1381,18 @@ mod tests {
         // Test open_filer with filed=true but temp=true
         let filer = Filer::new(
             Some("test".to_string()),
-            None,           // base
-            Some(true),     // temp=true
-            None,           // head_dir_path
-            None,           // perm
-            None,           // reopen (default true)
-            None,           // clear
-            None,           // reuse
-            None,           // clean
-            Some(true),     // filed=true
-            None,           // extensioned
-            None,           // mode
-            None,           // fext
+            None,       // base
+            Some(true), // temp=true
+            None,       // head_dir_path
+            None,       // perm
+            None,       // reopen (default true)
+            None,       // clear
+            None,       // reuse
+            None,       // clean
+            Some(true), // filed=true
+            None,       // extensioned
+            None,       // mode
+            None,       // fext
         )?;
 
         let filer_ctx = FilerContext::new(filer, false);
@@ -1141,9 +1417,17 @@ mod tests {
         let result = Filer::new(
             Some("/test".to_string()),
             Some("conf".to_string()),
-            None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None, None,
+            None,
+            None,
+            None,
         );
         assert!(matches!(result, Err(HioError::FilerError(_))));
 
@@ -1151,9 +1435,17 @@ mod tests {
         let result = Filer::new(
             Some("test".to_string()),
             Some("/conf".to_string()),
-            None, None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None, None,
+            None,
+            None,
+            None,
         );
         assert!(matches!(result, Err(HioError::FilerError(_))));
     }
@@ -1167,13 +1459,24 @@ mod tests {
             Some("testfile".to_string()), // no extension
             None,
             Some(true), // temp=true
-            None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None,
+            None,
+            None,
             Some("dat".to_string()), // custom extension
         )?;
 
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().ends_with("testfile.dat"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with("testfile.dat"));
         assert!(filer.opened);
         assert!(filer.file.is_some());
 
@@ -1189,13 +1492,24 @@ mod tests {
             Some("testfile.json".to_string()), // has extension
             None,
             Some(true), // temp=true
-            None, None, None, None, None, None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
             Some(true), // filed=true
-            None, None,
+            None,
+            None,
             Some("dat".to_string()), // different extension - should be ignored
         )?;
 
-        assert!(filer.path.as_ref().unwrap().to_string_lossy().ends_with("testfile.json"));
+        assert!(filer
+            .path
+            .as_ref()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with("testfile.json"));
         assert!(filer.opened);
         assert!(filer.file.is_some());
 

@@ -7,10 +7,12 @@ use crate::cesr::saider::Saider;
 use crate::cesr::seqner::Seqner;
 use crate::cesr::signing::Sigmat;
 use crate::cesr::tholder::{Tholder, TholderSith};
-use crate::cesr::{mtr_dex, trait_dex, Tiers};
 use crate::cesr::verfer::Verfer;
+use crate::cesr::{mtr_dex, trait_dex, Tiers};
 use crate::cesr::{Matter, Parsable};
 use crate::hio::hicting::Mict;
+use crate::keri::app::configing::Configer;
+use crate::keri::app::keeping::creators::Algos;
 use crate::keri::app::keeping::{Keeper, Manager};
 use crate::keri::core::eventing::incept::InceptionEventBuilder;
 use crate::keri::core::eventing::interact::InteractEventBuilder;
@@ -37,8 +39,6 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
-use crate::keri::app::configing::Configer;
-use crate::keri::app::keeping::creators::Algos;
 
 pub struct BaseHab<'db, R> {
     pub ks: Keeper<'db>,
@@ -2692,7 +2692,6 @@ impl<'db, R> BaseHab<'db, R> {
     }
 }
 
-
 /// Hab class provides a given identifier controller's local resource environment
 /// i.e. hab or habitat. Includes dependency injection of database, keystore,
 /// configuration file as well as Kevery and key store Manager.
@@ -2723,7 +2722,6 @@ impl<'db, R> BaseHab<'db, R> {
 /// * `prefixes` - Local prefixes for .db
 /// * `accepted` - True means accepted into local KEL. False otherwise
 
-
 pub struct Hab<'db, R> {
     /// Base habitat functionality
     pub base: BaseHab<'db, R>,
@@ -2746,7 +2744,6 @@ impl<'db, R> DerefMut for Hab<'db, R> {
         &mut self.base
     }
 }
-
 
 impl<'db, R> Hab<'db, R> {
     /// Create a new Hab instance
@@ -2783,24 +2780,9 @@ impl<'db, R> Hab<'db, R> {
         temp: bool,
         delpre: Option<String>,
     ) -> Result<Self, KERIError> {
-        let base = BaseHab::new(
-            ks,
-            db,
-            mgr,
-            rtr,
-            rvy,
-            kvy,
-            psr,
-            name,
-            ns,
-            pre,
-            temp,
-        )?;
+        let base = BaseHab::new(ks, db, mgr, rtr, rvy, kvy, psr, name, ns, pre, temp)?;
 
-        let mut hab = Hab {
-            base,
-            cf,
-        };
+        let mut hab = Hab { base, cf };
 
         // Set delegator prefix if provided
         hab.base.delpre = delpre;
@@ -2834,7 +2816,8 @@ impl<'db, R> Hab<'db, R> {
         tier: Option<Tiers>,
     ) -> Result<SerderKERI, KERIError> {
         // Check if resources are opened
-        if !(self.ks.opened() && self.db.opened() && self.cf.as_ref().map_or(false, |cf| cf.opened)) {
+        if !(self.ks.opened() && self.db.opened() && self.cf.as_ref().map_or(false, |cf| cf.opened))
+        {
             return Err(KERIError::ClosedError(
                 "Attempt to make Hab with unopened resources.".to_string(),
             ));
@@ -2886,8 +2869,8 @@ impl<'db, R> Hab<'db, R> {
                 None,        // erase
             )?
         } else {
-            // Normal inception flow  
-            
+            // Normal inception flow
+
             self.mgr.incept(
                 None, // icodes
                 Some(icount),
@@ -2930,7 +2913,6 @@ impl<'db, R> Hab<'db, R> {
                 "Invalid inception event: missing or invalid 'i' field".to_string(),
             ));
         }
-
 
         // Move from old prefix to new prefix
         if let Some(ref pre) = self.pre.clone() {
@@ -3000,7 +2982,6 @@ impl<'db, R> Hab<'db, R> {
         }
     }
 
-
     /// Save habitat record to database and register name
     ///
     /// # Parameters
@@ -3018,26 +2999,35 @@ impl<'db, R> Hab<'db, R> {
         })?;
 
         // Save the habitat record keyed by prefix
-        self.db.habs.pin(&[pre.as_bytes()], &habord)
-            .map_err(|e| KERIError::DatabaseError(format!("Failed to save habitat record: {}", e)))?;
+        self.db.habs.pin(&[pre.as_bytes()], &habord).map_err(|e| {
+            KERIError::DatabaseError(format!("Failed to save habitat record: {}", e))
+        })?;
 
         // Prepare namespace - empty string if None
         let ns = self.ns.as_deref().unwrap_or("");
 
         // Check if name already exists in this namespace
-        let existing: Option<Vec<u8>> = self.db.names.get(&[ns.as_bytes(), self.name.as_bytes()])
-            .map_err(|e| KERIError::DatabaseError(format!("Failed to check existing name: {}", e)))?;
+        let existing: Option<Vec<u8>> = self
+            .db
+            .names
+            .get(&[ns.as_bytes(), self.name.as_bytes()])
+            .map_err(|e| {
+            KERIError::DatabaseError(format!("Failed to check existing name: {}", e))
+        })?;
 
         let existing_string = existing.map(|bytes| String::from_utf8_lossy(&bytes).to_string());
 
         if existing_string.is_some() {
-            return Err(KERIError::ValueError("AID already exists with that name".to_string()));
+            return Err(KERIError::ValueError(
+                "AID already exists with that name".to_string(),
+            ));
         }
-        
-        // Save the name mapping (namespace, name) -> prefix
-        self.db.names.pin(&[ns.as_bytes(), self.name.as_bytes()], &pre.as_bytes())
-            .map_err(|e| KERIError::DatabaseError(format!("Failed to save name mapping: {}", e)))?;
 
+        // Save the name mapping (namespace, name) -> prefix
+        self.db
+            .names
+            .pin(&[ns.as_bytes(), self.name.as_bytes()], &pre.as_bytes())
+            .map_err(|e| KERIError::DatabaseError(format!("Failed to save name mapping: {}", e)))?;
 
         Ok(())
     }
@@ -3046,17 +3036,14 @@ impl<'db, R> Hab<'db, R> {
     /// # Returns
     /// * `Result<String, KERIError>` - The algorithm name or error
     pub fn algo(&self) -> Result<String, KERIError> {
-        let pre = self.pre.as_ref().ok_or_else(|| {
-            KERIError::ValueError("Cannot get algo: prefix not set".to_string())
-        })?;
+        let pre = self
+            .pre
+            .as_ref()
+            .ok_or_else(|| KERIError::ValueError("Cannot get algo: prefix not set".to_string()))?;
 
-        let pp = self.ks.prms.get(&[pre.as_bytes()])?
-            .ok_or_else(|| {
-                KERIError::ValueError(format!(
-                    "No parameters found for prefix: {}",
-                    pre
-                ))
-            })?;
+        let pp = self.ks.prms.get(&[pre.as_bytes()])?.ok_or_else(|| {
+            KERIError::ValueError(format!("No parameters found for prefix: {}", pre))
+        })?;
 
         Ok(pp.algo)
     }
@@ -3065,7 +3052,7 @@ impl<'db, R> Hab<'db, R> {
     /// Returns rotation message with attached signatures.
     ///
     /// # Parameters
-    /// * `isith` - Current signing threshold 
+    /// * `isith` - Current signing threshold
     /// * `nsith` - Next signing threshold
     /// * `ncount` - Next number of signing keys
     /// * `toad` - Witness threshold after cuts and adds
@@ -3085,9 +3072,10 @@ impl<'db, R> Hab<'db, R> {
         adds: Option<Vec<String>>,
         data: Option<Vec<u8>>,
     ) -> Result<Vec<u8>, KERIError> {
-        let pre = self.pre.clone().ok_or_else(|| {
-            KERIError::ValueError("Cannot rotate: prefix not set".to_string())
-        })?;
+        let pre = self
+            .pre
+            .clone()
+            .ok_or_else(|| KERIError::ValueError("Cannot rotate: prefix not set".to_string()))?;
 
         // Set defaults for counts - use len of prior next digers as default
         let ncount = ncount.unwrap_or({
@@ -3101,22 +3089,22 @@ impl<'db, R> Hab<'db, R> {
         // Try to replay first, fallback to rotate if IndexError
         let (verfers, digers) = match self.mgr.replay(
             pre.as_bytes(),
-            None,        // dcode
-            Some(true),  // advance
-            Some(true),  // erase
+            None,       // dcode
+            Some(true), // advance
+            Some(true), // erase
         ) {
             Ok((verfers, digers)) => (verfers, digers),
             Err(KERIError::IndexError(_)) => {
                 // Old next is new current - need to rotate
                 self.mgr.rotate(
                     pre.as_bytes(),
-                    None,                    // ncodes
-                    Some(ncount as usize),   // ncount
-                    None,                    // ncode - will use default ED25519
-                    None,                    // dcode - will use default BLAKE3_256
-                    Some(true),              // transferable
-                    Some(self.temp),         // temp
-                    Some(true),              // erase
+                    None,                  // ncodes
+                    Some(ncount as usize), // ncount
+                    None,                  // ncode - will use default ED25519
+                    None,                  // dcode - will use default BLAKE3_256
+                    Some(true),            // transferable
+                    Some(self.temp),       // temp
+                    Some(true),            // erase
                 )?
             }
             Err(e) => return Err(e),
@@ -3124,7 +3112,7 @@ impl<'db, R> Hab<'db, R> {
 
         // Call the parent rotate method from BaseHab
         self.base.rotate(
-            None,    // count - not used in BaseHab::rotate
+            None, // count - not used in BaseHab::rotate
             Some(ncount),
             isith,
             nsith,

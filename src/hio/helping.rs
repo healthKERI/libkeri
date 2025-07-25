@@ -1,10 +1,10 @@
 //! HIO helping utilities module
 
+use crate::hio::errors::HioError;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-use crate::hio::errors::HioError;
 
 /// Atomically open or create file from filepath.
 ///
@@ -19,7 +19,7 @@ use crate::hio::errors::HioError;
 /// * `read` - Whether file should be readable (default: true)  
 /// * `write` - Whether file should be writable (default: true)
 /// * `append` - Whether to append to existing file (default: false)
-/// * `truncate` - Whether to truncate existing file (default: false) 
+/// * `truncate` - Whether to truncate existing file (default: false)
 /// * `create` - Whether to create file if it doesn't exist (default: true)
 /// * `create_new` - Whether to fail if file already exists (default: false)
 /// * `perm` - Unix file permissions (default: 0o600 - owner read/write only)
@@ -60,7 +60,7 @@ pub fn ocfn<P: AsRef<Path>>(
                         path.display()
                     )));
                 }
-            },
+            }
             Err(e) => return Err(HioError::IoError(e)),
         }
     }
@@ -78,4 +78,3 @@ pub fn ocfn<P: AsRef<Path>>(
 
     Ok(file)
 }
-
