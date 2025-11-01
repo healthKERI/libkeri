@@ -149,14 +149,14 @@ impl Filer for LMDBer {
     const CLEAN_TAIL_DIR_PATH: &'static str = "keri/clean/db";
 
     #[cfg(target_os = "windows")]
-    const ALT_TAIL_DIR_PATH: &'static str = "keri\\db";
+    const ALT_TAIL_DIR_PATH: &'static str = ".keri\\db";
     #[cfg(not(target_os = "windows"))]
-    const ALT_TAIL_DIR_PATH: &'static str = "keri/db";
+    const ALT_TAIL_DIR_PATH: &'static str = ".keri/db";
 
     #[cfg(target_os = "windows")]
-    const ALT_CLEAN_TAIL_DIR_PATH: &'static str = "keri\\clean\\db";
+    const ALT_CLEAN_TAIL_DIR_PATH: &'static str = ".keri\\clean\\db";
     #[cfg(not(target_os = "windows"))]
-    const ALT_CLEAN_TAIL_DIR_PATH: &'static str = "keri/clean/db";
+    const ALT_CLEAN_TAIL_DIR_PATH: &'static str = ".keri/clean/db";
 
     const TEMP_PREFIX: &'static str = "keri_lmdb_";
 }

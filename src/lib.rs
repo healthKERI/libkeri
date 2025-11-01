@@ -8,9 +8,14 @@ pub use crate::errors::Error;
 
 mod cesr;
 mod hio;
-mod keri;
+pub mod keri;
 
 pub use crate::cesr::Matter;
+
+// Re-export commonly used types for easier access
+pub use crate::keri::db::dbing::LMDBer;
+pub use crate::keri::db::basing::Baser;
+pub use crate::keri::app::keeping::{Keeper, Manager};
 
 /// Initialize the KERI library
 pub fn init() -> Result<(), Error> {
