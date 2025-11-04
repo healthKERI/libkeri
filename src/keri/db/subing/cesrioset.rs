@@ -6,14 +6,14 @@ use crate::keri::db::subing::ioset::IoSetSuber;
 use crate::keri::db::subing::SuberError;
 use std::sync::Arc;
 
-pub struct CesrIoSetSuber<'db, M: Matter> {
-    pub base: CesrSuberBase<'db, M>,
-    pub io_set_suber: IoSetSuber<'db, crate::keri::db::subing::cesr::CesrCodec<M>>,
+pub struct CesrIoSetSuber<M: Matter> {
+    pub base: CesrSuberBase<M>,
+    pub io_set_suber: IoSetSuber<crate::keri::db::subing::cesr::CesrCodec<M>>,
 }
 
-impl<'db, M: Matter + Parsable> CesrIoSetSuber<'db, M> {
+impl<M: Matter + Parsable> CesrIoSetSuber<M> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,

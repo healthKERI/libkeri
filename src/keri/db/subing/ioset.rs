@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 /// Represents an Insertion Ordered Set Suber.
 
-pub struct IoSetSuber<'db, C: ValueCodec = Utf8Codec> {
-    pub base: SuberBase<'db, C>,
+pub struct IoSetSuber<C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
+impl<C: ValueCodec> IoSetSuber<C> {
     /// Creates a new `IoSetSuber`.
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,

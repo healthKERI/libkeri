@@ -265,25 +265,25 @@ impl EndpointKey {
 
 /// Baser struct for key event log and escrow storage (DB)
 /// Sets up named sub databases for key event logs and escrow storage.
-pub struct Baser<'db> {
+pub struct Baser {
     /// Base database
-    lmdber: Arc<&'db LMDBer>, // The base LMDB database
+    lmdber: Arc<LMDBer>,      // The base LMDB database
 
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,
-    pub kevers: HashMap<String, Kever<'db>>,
+    pub kevers: HashMap<String, Kever>,
 
     /// habitat application state keyed by habitat name, includes prefix
-    pub habs: Komer<'db, HabitatRecord>,
+    pub habs: Komer<HabitatRecord>,
 
     /// habitat name database mapping (domain,name) as key to Prefixer
-    pub names: Suber<'db>,
+    pub names: Suber,
 
     /// .evts is named sub DB whose values are serialized key events
     ///     dgKey
     ///     DB is keyed by identifier prefix plus digest of serialized event
     ///     Only one value per DB key is allowed
-    pub evts: Suber<'db>,
+    pub evts: Suber,
 
     /// .fels is named sub DB of first seen event logs (FEL) as indices that map
     ///    first seen ordinal number to digests.
@@ -297,7 +297,7 @@ pub struct Baser<'db> {
     ///    Value is digest of serialized event used to lookup event in .evts sub DB
     ///    Only one value per DB key is allowed.
     ///    Provides append only ordering of accepted first seen events.
-    pub fels: OnSuber<'db>,
+    pub fels: OnSuber,
 
     /// .kels is named sub DB of key event logs as indices that map sequence numbers
     ///     to serialized key event digests.
@@ -307,7 +307,7 @@ pub struct Baser<'db> {
     ///     Values are digests used to lookup event in .evts sub DB
     ///     DB is keyed by identifier prefix plus sequence number of key event
     ///     More than one value per DB key is allowed
-    pub kels: OnIoDupSuber<'db, Utf8Codec>,
+    pub kels: OnIoDupSuber<Utf8Codec>,
 
     /// .fons is named subDB CesrSuber
     ///     Uses digest
@@ -320,7 +320,7 @@ pub struct Baser<'db> {
     ///     Whereas direct lookup in .evts could be escrowed events that may
     ///     never have been accepted as first seen.
     ///     CesrSuber(db=self, subkey='fons.', klas=core.Number)
-    pub fons: CesrSuber<'db, Number>,
+    pub fons: CesrSuber<Number>,
 
     /// .esrs is named sub DB instance of Komer of EventSourceRecord
     ///      dgKey
@@ -334,7 +334,7 @@ pub struct Baser<'db> {
     ///      validation logic to run on the event. This database is used to track
     ///      the source when processing escrows that would otherwise be decoupled
     ///      from the original source of the event.
-    pub esrs: Komer<'db, EventSourceRecord>,
+    pub esrs: Komer<EventSourceRecord>,
 
     /// .dtss is named sub DB of datetime stamp strings in ISO 8601 format of
     ///      the datetime when the event was first escrosed and then later first
@@ -342,18 +342,18 @@ pub struct Baser<'db> {
     ///      dgKey
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      Value is ISO 8601 datetime stamp bytes
-    pub dtss: DupSuber<'db>,
+    pub dtss: DupSuber,
 
     /// .sdts (sad date-time-stamp) named subDB instance of CesrSuber that
     ///     maps SAD SAID to Dater instance's CESR serialization of
     ///     ISO-8601 datetime
     ///     key = said (bytes) of sad, val = dater.qb64b
-    pub sdts: CesrSuber<'db, Dater>,
+    pub sdts: CesrSuber<Dater>,
 
     /// .rpys (replys) named subDB instance of SerderSuber that maps said of
     ///     reply message (versioned SAD) to serialization of that reply message.
     ///     key is said bytes, val is Serder.raw bytes of reply 'rpy' message
-    pub rpys: SerderSuber<'db, SerderKERI>,
+    pub rpys: SerderSuber<SerderKERI>,
 
     /// .ssgs (sad trans indexed sigs) named subDB instance of CesrIoSetSuber
     ///     that maps keys quadruple (saider.qb64, prefixer.qb64, seqner.q64,
@@ -363,7 +363,7 @@ pub struct Baser<'db> {
     ///     have a set of vals in insertion order one for each signer of the sad.
     ///     key = join (saider.qb64b, prefixer.qb64b, seqner.qb64b, diger.qb64b)
     ///     (bytes)  val = siger.qb64b
-    pub ssgs: CatCesrIoSetSuber<'db, Siger>,
+    pub ssgs: CatCesrIoSetSuber<Siger>,
 
     /// .scgs (sad nontrans cigs) named subDB instance of CatCesrIoSetSuber
     ///     that maps said of SAD to couple (Verfer, Cigar) for nontrans signer.
@@ -371,14 +371,14 @@ pub struct Baser<'db> {
     ///     Each key may have a set of vals in insertion order one for each
     ///     nontrans signer of the sad.
     ///     key = said (bytes) of SAD, val = cat of (verfer.qb64, cigar.qb64b)
-    pub scgs: CatCesrIoSetSuber<'db, Verfer>,
+    pub scgs: CatCesrIoSetSuber<Verfer>,
 
     /// .rpes (reply escrows) named subDB instance of CesrIoSetSuber that
     ///     maps routes of reply (versioned SAD) to single Saider of that
     ///     reply msg.
     ///     Routes such as '/end/role/' and '/loc/scheme'
     ///     key is route bytes, vals = saider.qb64b of reply 'rpy' msg
-    pub rpes: CesrIoSetSuber<'db, Saider>,
+    pub rpes: CesrIoSetSuber<Saider>,
 
     /// .aess is named sub DB of authorizing event source seal couples
     ///      that map digest to seal source couple of authorizer's
@@ -390,13 +390,13 @@ pub struct Baser<'db> {
     ///      .kels sub DB
     ///      DB is keyed by identifier prefix plus digest of key event
     ///      Only one value per DB key is allowed
-    pub aess: Suber<'db>,
+    pub aess: Suber,
 
     /// .sigs is named sub DB of fully qualified indexed event signatures
     ///      dgKey
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      More than one value per DB key is allowed
-    pub sigs: DupSuber<'db>,
+    pub sigs: DupSuber,
 
     ///  .wigs is named sub DB of indexed witness signatures of event that may
     ///      come directly or derived from a witness receipt message.
@@ -406,10 +406,10 @@ pub struct Baser<'db> {
     ///      dgKey
     ///      DB is keyed by identifier prefix plus digest of serialized event
     ///      More than one value per DB key is allowed
-    pub wigs: DupSuber<'db>,
+    pub wigs: DupSuber,
 
     /// Insertion order set of witnesses qb64 prefix
-    pub wits: IoDupSuber<'db>,
+    pub wits: IoDupSuber,
 
     /// .rcts is named sub DB of event receipt couplets from nontransferable
     ///     signers.
@@ -421,7 +421,7 @@ pub struct Baser<'db> {
     ///     dgKey
     ///     DB is keyed by identifier prefix plus digest of serialized event
     ///     More than one value per DB key is allowed
-    pub rcts: DupSuber<'db>,
+    pub rcts: DupSuber,
 
     /// .vrcs is named sub DB of event validator receipt quadruples from transferable
     ///     signers. Each quadruple is concatenation of  four fully qualified items
@@ -435,25 +435,25 @@ pub struct Baser<'db> {
     ///     dgKey
     ///     DB is keyed by identifier prefix plus digest of serialized event
     ///     More than one value per DB key is allowed
-    pub vrcs: DupSuber<'db>,
+    pub vrcs: DupSuber,
 
     /// Prefix situation database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is serialized parameter dict of public key situation
-    pub states: Komer<'db, KeyStateRecord>,
+    pub states: Komer<KeyStateRecord>,
 
-    pub locs: Komer<'db, LocationRecord>,
+    pub locs: Komer<LocationRecord>,
 
-    pub ends: Komer<'db, EndpointRecord>,
+    pub ends: Komer<EndpointRecord>,
 
-    pub eans: CesrSuber<'db, Saider>,
+    pub eans: CesrSuber<Saider>,
 
-    pub lans: CesrSuber<'db, Saider>,
+    pub lans: CesrSuber<Saider>,
 
-    pub pses: IoDupSuber<'db>,
+    pub pses: IoDupSuber,
 }
 
-impl<'db> Filer for Baser<'db> {
+impl Filer for Baser {
     fn defaults() -> FilerDefaults {
         BaseFiler::defaults()
     }
@@ -471,12 +471,12 @@ impl<'db> Filer for Baser<'db> {
     const TEMP_PREFIX: &'static str = "keri_db_";
 }
 
-impl<'db> Baser<'db> {
+impl Baser {
     /// Maximum number of named databases
     pub const MAX_NAMED_DBS: u32 = 10;
 
     /// Create a new Keeper instance
-    pub fn new(lmdber: Arc<&'db LMDBer>) -> Result<Self, DBError> {
+    pub fn new(lmdber: Arc<LMDBer>) -> Result<Self, DBError> {
         // Create the keeper instance
         let baser = Baser {
             lmdber: lmdber.clone(),
@@ -730,7 +730,7 @@ impl<'db> Baser<'db> {
     ///
     /// # Returns
     /// * `Result<Vec<Vec<u8>>, DBError>` - Collection of messages representing the delegation chain
-    pub fn clone_delegation(&self, kever: &Kever<'db>) -> Result<Vec<Vec<u8>>, DBError> {
+    pub fn clone_delegation(&self, kever: &Kever) -> Result<Vec<Vec<u8>>, DBError> {
         let mut msgs = Vec::new();
 
         // Check if this kever is delegated and has a delegator in our kevers
@@ -1117,12 +1117,5 @@ impl<'db> Baser<'db> {
             .map_err(|e| KERIError::ValidationError(format!("Failed to create Diger: {}", e)))?;
 
         Ok((prefixer, seqner, diger))
-    }
-}
-
-impl<'db> Drop for Baser<'db> {
-    fn drop(&mut self) {
-        // This is a no-op, as the LMDBer will be dropped automatically
-        // and it has its own Drop implementation
     }
 }

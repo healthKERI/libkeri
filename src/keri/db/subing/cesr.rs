@@ -33,20 +33,20 @@ impl<T: Matter> ValueCodec for CesrCodec<T> {
 }
 
 // The actual CesrSuberBase implementation
-pub struct CesrSuberBase<'db, M: Matter> {
-    pub base: SuberBase<'db, CesrCodec<M>>,
+pub struct CesrSuberBase<M: Matter> {
+    pub base: SuberBase<CesrCodec<M>>,
     _matter_type: PhantomData<M>,
 }
 
 #[allow(dead_code)]
-impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
+impl<M: Matter + Parsable> CesrSuberBase<M> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
     ) -> Result<Self, SuberError> {
-        let base = SuberBase::<'db, CesrCodec<M>>::new(db, subkey, sep, verify, Some(false))?;
+        let base = SuberBase::<CesrCodec<M>>::new(db, subkey, sep, verify, Some(false))?;
 
         Ok(Self {
             base,
@@ -145,13 +145,13 @@ impl<'db, M: Matter + Parsable> CesrSuberBase<'db, M> {
 }
 
 // Similar to the Python Suber class, we can implement a wrapper for CesrSuberBase
-pub struct CesrSuber<'db, M: Matter> {
-    base: CesrSuberBase<'db, M>,
+pub struct CesrSuber<M: Matter> {
+    base: CesrSuberBase<M>,
 }
 
-impl<'db, M: Matter + Parsable> CesrSuber<'db, M> {
+impl<M: Matter + Parsable> CesrSuber<M> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,

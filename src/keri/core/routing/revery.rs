@@ -19,11 +19,11 @@ use tracing::{debug, info, trace, warn};
 pub const TIMEOUT_RPE: u64 = 3600;
 
 /// Reply message event processor
-pub struct Revery<'db> {
+pub struct Revery {
     /// Timeout for reply message escrows (in seconds)
 
     /// Database instance
-    pub db: Arc<&'db Baser<'db>>,
+    pub db: Arc<Baser>,
 
     /// Router for dispatching reply messages
     pub rtr: Router,
@@ -45,10 +45,10 @@ pub struct ReplyMessageCue {
     pub data: std::collections::HashMap<String, serde_json::Value>,
 }
 
-impl<'db> Revery<'db> {
+impl Revery {
     /// Initialize new Revery instance
     pub fn new(
-        db: Arc<&'db Baser<'db>>,
+        db: Arc<Baser>,
         rtr: Option<Router>,
         cues: Option<VecDeque<ReplyMessageCue>>,
         lax: Option<bool>,

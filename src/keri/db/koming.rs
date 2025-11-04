@@ -42,12 +42,12 @@ pub enum SerialKind {
 /// KomerBase is a base struct for Komer (Keyspace Object Mapper) implementations
 /// that each use a struct (with Serialize/Deserialize) as the object mapped via
 /// serialization to an LMDB database.
-pub struct KomerBase<'db, T>
+pub struct KomerBase<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// LMDB database environment
-    db: Arc<&'db LMDBer>, // The base LMDB database
+    db: Arc<LMDBer>,      // The base LMDB database
 
     /// LMDB database instance for this Komer
     pub sdb: Database<Bytes, Bytes>,
@@ -59,16 +59,16 @@ where
     pub sep: String,
 
     /// Phantom data for the schema type
-    phantom: PhantomData<&'db T>,
+    phantom: PhantomData<T>,
 }
 
-impl<'db, T> KomerBase<'db, T>
+impl<T> KomerBase<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// Create a new KomerBase instance
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         kind: SerialKind,
         dupsort: bool,
@@ -256,14 +256,14 @@ where
 
 /// Keyspace Object Mapper factory struct.
 #[allow(dead_code)]
-pub struct Komer<'db, T>
+pub struct Komer<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
-    base: KomerBase<'db, T>,
+    base: KomerBase<T>,
 }
 
-impl<'db, T> Komer<'db, T>
+impl<T> Komer<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
@@ -276,7 +276,7 @@ where
     ///
     /// # Returns
     /// A Result containing the Komer instance or a KomerError
-    pub fn new(db: Arc<&'db LMDBer>, subkey: &str, kind: SerialKind) -> Result<Self, KomerError> {
+    pub fn new(db: Arc<LMDBer>, subkey: &str, kind: SerialKind) -> Result<Self, KomerError> {
         let base = KomerBase::new(db, subkey, kind, false, None)?;
 
         Ok(Self { base })

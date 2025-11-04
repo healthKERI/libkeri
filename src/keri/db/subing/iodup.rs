@@ -30,14 +30,14 @@ use std::sync::Arc;
 ///
 /// With prepended proem ordinal must explicitly check for duplicate values
 /// before insertion. Uses a set for the duplicate inclusion test.
-pub struct IoDupSuber<'db, C: ValueCodec = Utf8Codec> {
-    base: DupSuber<'db, C>,
+pub struct IoDupSuber<C: ValueCodec = Utf8Codec> {
+    base: DupSuber<C>,
 }
 
-impl<'db, C: ValueCodec> IoDupSuber<'db, C> {
+impl<C: ValueCodec> IoDupSuber<C> {
     /// Creates a new `IoDupSuber` instance.
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,

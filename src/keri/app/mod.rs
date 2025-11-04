@@ -1,4 +1,4 @@
-mod configing;
+pub mod configing;
 pub mod habbing;
 pub mod keeping;
 

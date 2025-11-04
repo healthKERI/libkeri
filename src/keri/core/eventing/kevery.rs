@@ -27,15 +27,15 @@ use tracing::{debug, info};
 /// KERI identifier prefixes.
 ///
 /// Only supports current version VERSION
-pub struct Kevery<'db> {
+pub struct Kevery {
     /// Database instance for KERI event storage
-    pub db: Arc<&'db Baser<'db>>,
+    pub db: Arc<Baser>,
 
     /// Notices of events needing receipt or requests needing response
     pub cues: VecDeque<Cue>,
 
     /// Optional recovery module
-    pub rvy: Option<Rvy<'db>>,
+    pub rvy: Option<Rvy>,
 
     /// True means operate in promiscuous (unrestricted) mode,
     /// False means operate in nonpromiscuous (restricted) mode
@@ -60,7 +60,7 @@ pub struct Kevery<'db> {
     pub check: bool,
 
     /// Cache of kevers indexed by prefix
-    pub kevers: HashMap<String, Kever<'db>>,
+    pub kevers: HashMap<String, Kever>,
 }
 
 /// Cue represents a notice of an event needing receipt or a request needing response
@@ -71,11 +71,11 @@ pub struct Cue {
 }
 
 /// Recovery module for Kevery
-pub struct Rvy<'db> {
-    pub db: Baser<'db>,
+pub struct Rvy {
+    pub db: Baser,
 }
 
-impl<'db> Kevery<'db> {
+impl Kevery {
     /// Timeout constants (in seconds)
     pub const TIMEOUT_OOE: u64 = 1200; // seconds to timeout out of order escrows
     pub const TIMEOUT_PSE: u64 = 3600; // seconds to timeout partially signed or delegated escrows
@@ -100,8 +100,8 @@ impl<'db> Kevery<'db> {
     /// * `check` - True means do not update the database in any non-idempotent way
     pub fn new(
         cues: Option<VecDeque<Cue>>,
-        db: Arc<&'db Baser<'db>>,
-        rvy: Option<Rvy<'db>>,
+        db: Arc<Baser>,
+        rvy: Option<Rvy>,
         lax: Option<bool>,
         local: Option<bool>,
         cloned: Option<bool>,
@@ -124,12 +124,12 @@ impl<'db> Kevery<'db> {
     }
 
     /// Get a reference to the kevers dictionary
-    pub fn kevers(&self) -> &HashMap<String, Kever<'db>> {
+    pub fn kevers(&self) -> &HashMap<String, Kever> {
         &self.kevers
     }
 
     /// Get a mutable reference to the kevers dictionary
-    pub fn kevers_mut(&mut self) -> &mut HashMap<String, Kever<'db>> {
+    pub fn kevers_mut(&mut self) -> &mut HashMap<String, Kever> {
         &mut self.kevers
     }
 
@@ -211,7 +211,7 @@ impl<'db> Kevery<'db> {
 
                 // Create kever from serder
                 let kever = Kever::new(
-                    Arc::new(&self.db),
+                    self.db.clone(),
                     None, // state
                     Some(serder.clone()),
                     Some(sigers.clone()),
@@ -1357,10 +1357,10 @@ impl<'db> Kevery<'db> {
 }
 
 /// Builder pattern for Kevery to make initialization more ergonomic
-pub struct KeveryBuilder<'db> {
-    db: Arc<&'db Baser<'db>>,
+pub struct KeveryBuilder {
+    db: Arc<Baser>,
     cues: Option<VecDeque<Cue>>,
-    rvy: Option<Rvy<'db>>,
+    rvy: Option<Rvy>,
     lax: Option<bool>,
     local: Option<bool>,
     cloned: Option<bool>,
@@ -1368,9 +1368,9 @@ pub struct KeveryBuilder<'db> {
     check: Option<bool>,
 }
 
-impl<'db> KeveryBuilder<'db> {
+impl KeveryBuilder {
     /// Create a new KeveryBuilder instance
-    pub fn new(db: Arc<&'db Baser<'db>>) -> Self {
+    pub fn new(db: Arc<Baser>) -> Self {
         Self {
             db,
             cues: None,
@@ -1390,7 +1390,7 @@ impl<'db> KeveryBuilder<'db> {
     }
 
     /// Set the recovery module for the Kevery instance
-    pub fn with_rvy(mut self, rvy: Rvy<'db>) -> Self {
+    pub fn with_rvy(mut self, rvy: Rvy) -> Self {
         self.rvy = Some(rvy);
         self
     }
@@ -1426,7 +1426,7 @@ impl<'db> KeveryBuilder<'db> {
     }
 
     /// Build the Kevery instance from the provided options
-    pub fn build(self) -> Result<Kevery<'db>, KERIError> {
+    pub fn build(self) -> Result<Kevery, KERIError> {
         Kevery::new(
             self.cues,
             self.db.clone(),

@@ -24,9 +24,9 @@ use std::collections::VecDeque;
 /// * `inited` - Flag indicating if manager is fully initialized
 /// * `_seed` - Private signing key for the aeid (memory only, never persisted)
 /// * `_inits` - Initialization parameters for later setup
-pub struct Manager<'db> {
+pub struct Manager {
     /// Key store LMDB database instance for storing public and private keys
-    pub ks: Keeper<'db>,
+    pub ks: Keeper,
 
     /// Instance for encrypting secrets. Public encryption key derived from aeid
     pub encrypter: Option<Encrypter>,
@@ -43,7 +43,7 @@ pub struct Manager<'db> {
     _seed: Vec<u8>,
 }
 
-impl<'db> Manager<'db> {
+impl Manager {
     /// Create new Manager instance
     ///
     /// # Parameters
@@ -54,7 +54,7 @@ impl<'db> Manager<'db> {
     /// # Returns
     /// * `Result<Self, DBError>` - Result containing new Manager or error
     pub fn new(
-        ks: Keeper<'db>,
+        ks: Keeper,
         seed: Option<Vec<u8>>,
         aeid: Option<Vec<u8>>,
         pidx: Option<usize>,
@@ -1824,7 +1824,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
         let manager = Manager::new(keeper, None, None, None, None, None, None)?;
 
         assert!(manager.inited);
@@ -1854,7 +1854,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         // Test invalid salt error
         let result = Manager::new(
@@ -1870,7 +1870,7 @@ mod tests {
         assert!(matches!(result, Err(KERIError::MatterError(_))));
 
         // Create valid manager with salt
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
         let mut manager = Manager::new(keeper, None, None, None, None, Some(salt.clone()), None)?;
 
         assert!(manager.ks.opened());
@@ -2614,7 +2614,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         // Create manager with encryption/decryption due to aeid and seed
         let mut manager = Manager::new(

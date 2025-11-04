@@ -40,14 +40,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-pub struct BaseHab<'db, R> {
-    pub ks: Keeper<'db>,
-    pub db: Baser<'db>,
-    pub mgr: Manager<'db>,
+pub struct BaseHab<R> {
+    pub ks: Keeper,
+    pub db: Baser,
+    pub mgr: Manager,
     pub rtr: Option<Arc<Router>>,
-    pub rvy: Revery<'db>, // Added missing field
-    pub kvy: Kevery<'db>,
-    pub psr: Parser<'db, R>,
+    pub rvy: Revery, // Added missing field
+    pub kvy: Kevery,
+    pub psr: Parser<R>,
     pub name: String,
     pub ns: Option<String>,
     pub pre: Option<String>,
@@ -56,15 +56,15 @@ pub struct BaseHab<'db, R> {
     pub delpre: Option<String>,
 }
 
-impl<'db, R> BaseHab<'db, R> {
+impl<R> BaseHab<R> {
     pub fn new(
-        ks: Keeper<'db>,
-        db: Baser<'db>,
-        mgr: Manager<'db>,
+        ks: Keeper,
+        db: Baser,
+        mgr: Manager,
         rtr: Option<Arc<Router>>,
-        rvy: Revery<'db>,
-        kvy: Kevery<'db>,
-        psr: Parser<'db, R>,
+        rvy: Revery,
+        kvy: Kevery,
+        psr: Parser<R>,
         name: String,
         ns: Option<String>,
         pre: Option<String>,
@@ -264,7 +264,7 @@ impl<'db, R> BaseHab<'db, R> {
     }
 
     /// Get all kevers from the local database
-    pub fn kevers(&self) -> &HashMap<String, Kever<'db>> {
+    pub fn kevers(&self) -> &HashMap<String, Kever> {
         &self.kvy.kevers
     }
 
@@ -280,7 +280,7 @@ impl<'db, R> BaseHab<'db, R> {
     }
 
     /// Get the kever (key state) of the local controller
-    pub fn kever(&self) -> Result<&Kever<'db>, KERIError> {
+    pub fn kever(&self) -> Result<&Kever, KERIError> {
         if let Some(ref pre) = self.pre {
             self.kvy
                 .kevers
@@ -438,14 +438,12 @@ impl<'db, R> BaseHab<'db, R> {
 
         // Validate rotation against prior next key digests
         let mut indices = Vec::new();
-        for (idx, prior_digers_vec) in kever.ndigers.iter().enumerate() {
-            // Iterate over each Diger in the vector
-            for prior_diger in prior_digers_vec {
-                // Create digests from new verfers to compare with prior next digesters
+        if let Some(prior_digers) = &kever.ndigers {
+            for (idx, prior_diger) in prior_digers.iter().enumerate() {
                 for verfer in &verfers {
                     let new_diger = Diger::from_ser(&mut verfer.qb64b(), Some(prior_diger.code()))?;
                     if new_diger.qb64() == prior_diger.qb64() {
-                        indices.push(idx); // Remove 'as u32' - idx is already usize from enumerate()
+                        indices.push(idx);
                         break;
                     }
                 }
@@ -2722,16 +2720,16 @@ impl<'db, R> BaseHab<'db, R> {
 /// * `prefixes` - Local prefixes for .db
 /// * `accepted` - True means accepted into local KEL. False otherwise
 
-pub struct Hab<'db, R> {
+pub struct Hab<R> {
     /// Base habitat functionality
-    pub base: BaseHab<'db, R>,
+    pub base: BaseHab<R>,
     /// Configuration file instance
     pub cf: Option<Arc<Configer>>,
 }
 
 // Implement Deref to delegate read-only access to BaseHab
-impl<'db, R> Deref for Hab<'db, R> {
-    type Target = BaseHab<'db, R>;
+impl<R> Deref for Hab<R> {
+    type Target = BaseHab<R>;
 
     fn deref(&self) -> &Self::Target {
         &self.base
@@ -2739,13 +2737,13 @@ impl<'db, R> Deref for Hab<'db, R> {
 }
 
 // Implement DerefMut to delegate mutable access to BaseHab
-impl<'db, R> DerefMut for Hab<'db, R> {
+impl<R> DerefMut for Hab<R> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.base
     }
 }
 
-impl<'db, R> Hab<'db, R> {
+impl<R> Hab<R> {
     /// Create a new Hab instance
     ///
     /// # Parameters
@@ -2766,13 +2764,13 @@ impl<'db, R> Hab<'db, R> {
     /// # Returns
     /// * `Result<Self, KERIError>` - New Hab instance or error
     pub fn new(
-        ks: Keeper<'db>,
-        db: Baser<'db>,
-        mgr: Manager<'db>,
+        ks: Keeper,
+        db: Baser,
+        mgr: Manager,
         rtr: Option<Arc<Router>>,
-        rvy: Revery<'db>,
-        kvy: Kevery<'db>,
-        psr: Parser<'db, R>,
+        rvy: Revery,
+        kvy: Kevery,
+        psr: Parser<R>,
         cf: Option<Arc<Configer>>,
         name: String,
         ns: Option<String>,
@@ -2816,7 +2814,7 @@ impl<'db, R> Hab<'db, R> {
         tier: Option<Tiers>,
     ) -> Result<SerderKERI, KERIError> {
         // Check if resources are opened
-        if !(self.ks.opened() && self.db.opened() && self.cf.as_ref().map_or(false, |cf| cf.opened))
+        if !(self.ks.opened() && self.db.opened() && self.cf.as_ref().map_or(true, |cf| cf.opened))
         {
             return Err(KERIError::ClosedError(
                 "Attempt to make Hab with unopened resources.".to_string(),

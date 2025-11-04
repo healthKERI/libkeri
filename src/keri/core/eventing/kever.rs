@@ -29,8 +29,8 @@ pub struct LastEstLoc {
     pub d: String,
 }
 
-pub struct Kever<'db> {
-    pub db: Arc<&'db Baser<'db>>,
+pub struct Kever {
+    pub db: Arc<Baser>,
     version: String,            // Version of KERI protocol
     ilk: Ilk,                   // Event type ilk
     pub delpre: Option<String>, // Delegator prefix if any
@@ -57,7 +57,7 @@ pub struct Kever<'db> {
     do_not_delegate: Option<bool>,
 }
 
-impl<'db> Kever<'db> {
+impl Kever {
     /// Create a new Kever instance for an inception event
     ///
     /// # Arguments
@@ -81,7 +81,7 @@ impl<'db> Kever<'db> {
     ///
     /// * `Result<Self, KERIError>` - New Kever instance or error
     pub fn new(
-        db: Arc<&'db Baser<'db>>,
+        db: Arc<Baser>,
         state: Option<KeyStateRecord>,
         serder: Option<SerderKERI>,
         sigers: Option<Vec<Siger>>,
@@ -210,7 +210,7 @@ impl<'db> Kever<'db> {
     /// # Returns
     ///
     /// * `Result<Self, KERIError>` - New Kever instance initialized from state or error
-    pub fn reload(db: Arc<&'db Baser<'db>>, state: KeyStateRecord) -> Result<Self, KERIError> {
+    pub fn reload(db: Arc<Baser>, state: KeyStateRecord) -> Result<Self, KERIError> {
         // Create a Prefixer from the identifier prefix
         let prefixer = Prefixer::from_qb64(&state.i)
             .map_err(|e| KERIError::ValueError(format!("Invalid identifier prefix: {}", e)))?;
@@ -223,8 +223,25 @@ impl<'db> Kever<'db> {
         let fner = Number::from_numh(&state.f)
             .map_err(|e| KERIError::ValueError(format!("Invalid first seen number: {}", e)))?;
 
-        // Create datetime stamp
-        let dater = Dater::from_dt((&state.dt).parse().unwrap());
+        // Create datetime stamp - dt field may be ISO-8601 string or base64-encoded
+        let dater = if state.dt.is_empty() {
+            Dater::from_dt(chrono::Utc::now())
+        } else {
+            // Try parsing as ISO-8601 first, then try base64 decoding
+            match (&state.dt).parse::<chrono::DateTime<chrono::Utc>>() {
+                Ok(dt) => Dater::from_dt(dt),
+                Err(_) => {
+                    // Try base64 decode
+                    use base64::Engine;
+                    let decoded = base64::engine::general_purpose::STANDARD.decode(&state.dt)
+                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime encoding '{}': {}", state.dt, e)))?;
+                    let dts = String::from_utf8(decoded)
+                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime UTF-8: {}", e)))?;
+                    Dater::from_dts(&dts)
+                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime '{}': {}", dts, e)))?
+                }
+            }
+        };
 
         // Get event type (ilk)
         let ilk = match Ilk::from_str(&state.et) {
@@ -1057,7 +1074,9 @@ impl<'db> Kever<'db> {
         _saider: Option<&Saider>,
         _local: bool,
     ) -> Result<(), KERIError> {
-        todo!("Implement escrow for partially signed events")
+        Err(KERIError::MissingSignatureError(
+            "Partially signed event (escrow not yet implemented)".to_string(),
+        ))
     }
 
     fn escrow_pw_event(
@@ -1960,8 +1979,8 @@ impl<'db> Kever<'db> {
 
 /// KeverBuilder provides a builder pattern for constructing a Kever instance
 /// Each optional parameter of Kever::new is represented by a with_* method
-pub struct KeverBuilder<'db> {
-    db: Arc<&'db Baser<'db>>,
+pub struct KeverBuilder {
+    db: Arc<Baser>,
     state: Option<KeyStateRecord>,
     serder: Option<SerderKERI>,
     sigers: Option<Vec<Siger>>,
@@ -1976,9 +1995,9 @@ pub struct KeverBuilder<'db> {
     check: Option<bool>,
 }
 
-impl<'db> KeverBuilder<'db> {
+impl KeverBuilder {
     /// Create a new KeverBuilder with required database
-    pub fn new(db: Arc<&'db Baser<'db>>) -> Self {
+    pub fn new(db: Arc<Baser>) -> Self {
         KeverBuilder {
             db,
             state: None,
@@ -2069,7 +2088,7 @@ impl<'db> KeverBuilder<'db> {
     }
 
     /// Build the Kever instance
-    pub fn build(self) -> Result<Kever<'db>, KERIError> {
+    pub fn build(self) -> Result<Kever, KERIError> {
         Kever::new(
             self.db,
             self.state,

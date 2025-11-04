@@ -221,51 +221,51 @@ impl IntoIterator for PubSet {
 /// Keeper struct for key pair storage (KS)
 /// Sets up named sub databases for key pair storage.
 /// Methods provide key pair creation, storage, and data signing.
-pub struct Keeper<'db> {
+pub struct Keeper {
     /// Base database
-    lmdber: Arc<&'db LMDBer>, // The base LMDB database
+    lmdber: Arc<LMDBer>, // The base LMDB database
 
     /// Global parameters for all prefixes
     /// Key is parameter label, Value is parameter
-    pub gbls: Suber<'db>,
+    pub gbls: Suber,
 
     /// Private keys database
     /// Key is public key (fully qualified qb64)
     /// Value is private key (fully qualified qb64)
-    pub pris: CryptSignerSuber<'db>,
+    pub pris: CryptSignerSuber,
 
     /// Encrypted private keys database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is encrypted private key
-    pub prxs: CesrSuber<'db, Cipher>,
+    pub prxs: CesrSuber<Cipher>,
 
     /// Next key digests database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is next key commitment (digest)
-    pub nxts: CesrSuber<'db, Cipher>,
+    pub nxts: CesrSuber<Cipher>,
 
     /// Prefixes database
     /// Key is first public key in key sequence for a prefix (fully qualified qb64)
     /// Value is prefix or first public key (temporary) (fully qualified qb64)
-    pub pres: CesrSuber<'db, Prefixer>,
+    pub pres: CesrSuber<Prefixer>,
 
     /// Prefix parameters database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is serialized parameter dict of public key parameters
-    pub prms: Komer<'db, PrePrm>,
+    pub prms: Komer<PrePrm>,
 
     /// Prefix situation database
     /// Key is identifier prefix (fully qualified qb64)
     /// Value is serialized parameter dict of public key situation
-    pub sits: Komer<'db, PreSit>,
+    pub sits: Komer<PreSit>,
 
     /// Public keys database
     /// Key is prefix.ridx (rotation index as 32 char hex string)
     /// Value is serialized list of fully qualified public keys
-    pub pubs: Komer<'db, PubSet>,
+    pub pubs: Komer<PubSet>,
 }
 
-impl<'db> Filer for Keeper<'db> {
+impl Filer for Keeper {
     fn defaults() -> FilerDefaults {
         BaseFiler::defaults()
     }
@@ -283,12 +283,12 @@ impl<'db> Filer for Keeper<'db> {
     const TEMP_PREFIX: &'static str = "keri_ks_";
 }
 
-impl<'db> Keeper<'db> {
+impl Keeper {
     /// Maximum number of named databases
     pub const MAX_NAMED_DBS: u32 = 10;
 
     /// Create a new Keeper instance
-    pub fn new(lmdber: Arc<&'db LMDBer>) -> Result<Self, DBError> {
+    pub fn new(lmdber: Arc<LMDBer>) -> Result<Self, DBError> {
         // Create the keeper instance
         let keeper = Keeper {
             lmdber: lmdber.clone(),
@@ -341,12 +341,6 @@ impl<'db> Keeper<'db> {
     }
 }
 
-impl<'db> Drop for Keeper<'db> {
-    fn drop(&mut self) {
-        // This is a no-op, as the LMDBer will be dropped automatically
-        // and it has its own Drop implementation
-    }
-}
 
 /// Trait for key pair storage and cryptographic key management
 pub trait KeeperTrait: Send + Sync {
@@ -366,7 +360,7 @@ pub trait KeeperTrait: Send + Sync {
     fn ri_key(&self, pre: &str, ri: u64) -> String;
 }
 
-impl<'db> KeeperTrait for Keeper<'db> {
+impl KeeperTrait for Keeper {
     fn opened(&self) -> bool {
         self.lmdber.opened()
     }
@@ -397,12 +391,12 @@ mod tests {
     #[test]
     fn test_keeper_basics() -> Result<(), DBError> {
         // Create a temporary Keeper instance
-        let lmdber = LMDBer::builder().name("test_keeper").temp(true).build()?;
+        let lmdber = Arc::new(LMDBer::builder().name("test_keeper").temp(true).build()?);
 
         // Create "seen." database
         assert_eq!(lmdber.name(), "test_keeper");
         assert!(lmdber.opened());
-        let keeper = Keeper::new(Arc::new(&lmdber))?;
+        let keeper = Keeper::new(lmdber.clone())?;
         assert!(keeper.opened());
 
         // Check it was created properly
@@ -427,15 +421,15 @@ mod tests {
     #[test]
     fn test_keeper_subdb() -> Result<(), DBError> {
         // Create a temporary Keeper instance
-        let mut lmdber = LMDBer::builder()
+        let lmdber = Arc::new(LMDBer::builder()
             .name("test_keeper_subdb")
             .temp(true)
-            .build()?;
+            .build()?);
 
         // Create "seen." database
         assert_eq!(lmdber.name(), "test_keeper_subdb");
         assert!(lmdber.opened());
-        let keeper = Keeper::new(Arc::new(&lmdber))?;
+        let keeper = Keeper::new(lmdber.clone())?;
 
         // Test the gbls database
         let key = "aeid";

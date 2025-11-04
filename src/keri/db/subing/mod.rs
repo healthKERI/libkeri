@@ -91,8 +91,8 @@ impl ValueCodec for Utf8Codec {
 }
 
 // The base struct for sub-database functionality
-pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
-    db: Arc<&'db LMDBer>,   // The base LMDB database
+pub struct SuberBase<C: ValueCodec = Utf8Codec> {
+    db: Arc<LMDBer>,        // The base LMDB database
     pub sdb: BytesDatabase, // The sub-database
     sep: u8,                // Separator for combining keys
     verify: bool,           // Whether to verify data when deserializing
@@ -100,9 +100,9 @@ pub struct SuberBase<'db, C: ValueCodec = Utf8Codec> {
     _codec: PhantomData<C>, // Phantom data to track the codec type
 }
 
-impl<'db, C: ValueCodec> SuberBase<'db, C> {
+impl<C: ValueCodec> SuberBase<C> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -221,13 +221,13 @@ impl<'db, C: ValueCodec> SuberBase<'db, C> {
 }
 
 // Suber - a subclass of SuberBase that doesn't allow duplicates
-pub struct Suber<'a, C: ValueCodec = Utf8Codec> {
-    pub base: SuberBase<'a, C>,
+pub struct Suber<C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> Suber<'db, C> {
+impl<C: ValueCodec> Suber<C> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -325,7 +325,8 @@ mod tests {
         assert!(lmdber.opened());
 
         // Create Suber
-        let suber: Suber<Utf8Codec> = Suber::new(Arc::new(&lmdber), "bags.", None, false)?;
+        let lmdber = Arc::new(lmdber);
+        let suber: Suber<Utf8Codec> = Suber::new(lmdber.clone(), "bags.", None, false)?;
 
         let sue = "Hello sailer!";
 
@@ -408,7 +409,7 @@ mod tests {
         let z = "White snow";
 
         // // Create a new Suber instance with different subkey
-        let suber: Suber<'_, Utf8Codec> = Suber::new(Arc::new(&lmdber), "pugs.", None, false)?;
+        let suber: Suber<Utf8Codec> = Suber::new(lmdber.clone(), "pugs.", None, false)?;
 
         suber.put(&["a", "1"], &w)?;
         suber.put(&["a", "2"], &x)?;

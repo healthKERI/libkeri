@@ -11,13 +11,13 @@ pub trait SignerTrait: Matter + Parsable {
     fn with_transferable(qb64b: &[u8], transferable: bool) -> Result<Self, SuberError>;
 }
 
-pub struct SignerSuber<'db> {
-    base: CesrSuber<'db, Signer>,
+pub struct SignerSuber {
+    base: CesrSuber<Signer>,
 }
 
-impl<'db> SignerSuber<'db> {
+impl SignerSuber {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -129,13 +129,13 @@ impl<'db> SignerSuber<'db> {
 /// Assumes that last or only element of db key from keys for all entries is the qb64
 /// of a public key for the associated Verfer instance. This allows returned
 /// Signer instance to have its .transferable property set correctly.
-pub struct CryptSignerSuber<'db> {
-    base: CesrSuberBase<'db, Signer>,
+pub struct CryptSignerSuber {
+    base: CesrSuberBase<Signer>,
 }
 
-impl<'db> CryptSignerSuber<'db> {
+impl CryptSignerSuber {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
