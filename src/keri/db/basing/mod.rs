@@ -267,7 +267,7 @@ impl EndpointKey {
 /// Sets up named sub databases for key event logs and escrow storage.
 pub struct Baser {
     /// Base database
-    lmdber: Arc<LMDBer>,      // The base LMDB database
+    lmdber: Arc<LMDBer>, // The base LMDB database
 
     pub prefixes: IndexSet<String>,
     pub groups: IndexSet<String>,

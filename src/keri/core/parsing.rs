@@ -202,7 +202,10 @@ impl Message {
 // Traits for message handlers
 #[async_trait::async_trait]
 pub trait MessageHandler: Send + Sync {
-    fn handle(&self, msg: Message) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>>;
+    fn handle(
+        &self,
+        msg: Message,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>>;
 }
 
 pub struct Parser<R> {
@@ -2153,7 +2156,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl MessageHandler for MockHandler {
-        fn handle(&self, _msg: Message) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>> {
+        fn handle(
+            &self,
+            _msg: Message,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>>
+        {
             Box::pin(async {
                 let _serder = match _msg {
                     Message::KeyEvent { serder, .. } => Some(Box::new(serder)),
@@ -2788,9 +2795,7 @@ mod tests {
     }
     impl Default for Handlers {
         fn default() -> Self {
-            let lmdber = Arc::new(
-                LMDBer::builder().temp(true).name("temp").build().unwrap(),
-            );
+            let lmdber = Arc::new(LMDBer::builder().temp(true).name("temp").build().unwrap());
             let db = Arc::new(Baser::new(lmdber).unwrap());
 
             let kevery = Kevery::new(

@@ -223,25 +223,8 @@ impl Kever {
         let fner = Number::from_numh(&state.f)
             .map_err(|e| KERIError::ValueError(format!("Invalid first seen number: {}", e)))?;
 
-        // Create datetime stamp - dt field may be ISO-8601 string or base64-encoded
-        let dater = if state.dt.is_empty() {
-            Dater::from_dt(chrono::Utc::now())
-        } else {
-            // Try parsing as ISO-8601 first, then try base64 decoding
-            match (&state.dt).parse::<chrono::DateTime<chrono::Utc>>() {
-                Ok(dt) => Dater::from_dt(dt),
-                Err(_) => {
-                    // Try base64 decode
-                    use base64::Engine;
-                    let decoded = base64::engine::general_purpose::STANDARD.decode(&state.dt)
-                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime encoding '{}': {}", state.dt, e)))?;
-                    let dts = String::from_utf8(decoded)
-                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime UTF-8: {}", e)))?;
-                    Dater::from_dts(&dts)
-                        .map_err(|e| KERIError::ValueError(format!("Invalid datetime '{}': {}", dts, e)))?
-                }
-            }
-        };
+        // Create datetime stamp
+        let dater = Dater::from_dt((&state.dt).parse().unwrap());
 
         // Get event type (ilk)
         let ilk = match Ilk::from_str(&state.et) {

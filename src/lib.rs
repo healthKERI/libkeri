@@ -10,28 +10,28 @@ mod cesr;
 mod hio;
 pub mod keri;
 
+pub use crate::cesr::tholder::{Tholder, TholderSith};
 pub use crate::cesr::Matter;
 pub use crate::cesr::Tiers;
-pub use crate::cesr::tholder::{Tholder, TholderSith};
 
 // Errors
 pub use crate::keri::KERIError;
 
 // Database layer
-pub use crate::keri::db::dbing::LMDBer;
 pub use crate::keri::db::basing::{Baser, HabitatRecord, KeyStateRecord};
+pub use crate::keri::db::dbing::LMDBer;
 
 // Application layer - keeping
-pub use crate::keri::app::keeping::{Keeper, Manager};
 pub use crate::keri::app::keeping::creators::Algos;
+pub use crate::keri::app::keeping::{Keeper, Manager};
 
 // Application layer - habbing
-pub use crate::keri::app::habbing::{BaseHab, Hab};
 pub use crate::keri::app::configing::Configer;
+pub use crate::keri::app::habbing::{BaseHab, Hab};
 
 // Core - eventing
-pub use crate::keri::core::eventing::kevery::Kevery;
 pub use crate::keri::core::eventing::kever::Kever;
+pub use crate::keri::core::eventing::kevery::Kevery;
 
 // Core - routing
 pub use crate::keri::core::routing::{Revery, Router};
@@ -40,7 +40,7 @@ pub use crate::keri::core::routing::{Revery, Router};
 pub use crate::keri::core::serdering::SadValue;
 
 // Core - parsing
-pub use crate::keri::core::parsing::{Parser, Handlers, Message, MessageHandler};
+pub use crate::keri::core::parsing::{Handlers, Message, MessageHandler, Parser};
 
 // Re-export commonly used types for easier access
 pub use crate::keri::db::dbing::LMDBer;

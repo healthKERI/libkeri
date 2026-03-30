@@ -47,7 +47,7 @@ where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// LMDB database environment
-    db: Arc<LMDBer>,      // The base LMDB database
+    db: Arc<LMDBer>, // The base LMDB database
 
     /// LMDB database instance for this Komer
     pub sdb: Database<Bytes, Bytes>,

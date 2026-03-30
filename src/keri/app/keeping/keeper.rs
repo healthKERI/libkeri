@@ -341,7 +341,6 @@ impl Keeper {
     }
 }
 
-
 /// Trait for key pair storage and cryptographic key management
 pub trait KeeperTrait: Send + Sync {
     /// Check if database is opened
@@ -421,10 +420,12 @@ mod tests {
     #[test]
     fn test_keeper_subdb() -> Result<(), DBError> {
         // Create a temporary Keeper instance
-        let lmdber = Arc::new(LMDBer::builder()
-            .name("test_keeper_subdb")
-            .temp(true)
-            .build()?);
+        let lmdber = Arc::new(
+            LMDBer::builder()
+                .name("test_keeper_subdb")
+                .temp(true)
+                .build()?,
+        );
 
         // Create "seen." database
         assert_eq!(lmdber.name(), "test_keeper_subdb");
