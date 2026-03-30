@@ -197,7 +197,7 @@ mod tests {
     fn test_cat_cesr_ioset_suber() -> Result<(), SuberError> {
         // Create temporary database with LMDBerBuilder
         let lmdb = LMDBer::builder().temp(true).build()?;
-        let db = Arc::new(&lmdb);
+        let db = Arc::new(lmdb);
 
         // Test default constructor
         let formats = vec!["seqner".to_string(), "diger".to_string()];

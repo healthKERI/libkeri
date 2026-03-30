@@ -167,7 +167,7 @@ mod tests {
 
         {
             // Create a CesrIoSetSuber instance
-            let db_ref = Arc::new(&db);
+            let db_ref = Arc::new(db);
             let cisuber = CesrIoSetSuber::<Saider>::new(db_ref, "bags.", None, false)?;
             assert!(!cisuber.is_dupsort());
 

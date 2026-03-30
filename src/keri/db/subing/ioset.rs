@@ -417,8 +417,8 @@ mod tests {
         assert!(db.opened());
 
         // Create IoSetSuber
-        let db_ref = Arc::new(&db);
-        let iosuber = IoSetSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
+        let db_ref = Arc::new(db);
+        let iosuber = IoSetSuber::<Utf8Codec>::new(db_ref.clone(), "bags.", None, false)?;
 
         let sue = "Hello sailer!";
         let sal = "Not my type.";
@@ -690,7 +690,7 @@ mod tests {
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), bil);
 
         // The database should be closed and removed when db goes out of scope
-        drop(db);
+        drop(db_ref);
 
         Ok(())
     }

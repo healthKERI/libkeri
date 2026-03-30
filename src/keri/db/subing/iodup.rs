@@ -391,7 +391,7 @@ mod tests {
 
         // Create IoDupSuber
         let ioduber: IoDupSuber<Utf8Codec> =
-            IoDupSuber::new(Arc::new(&lmdber), "bags.", None, false)?;
+            IoDupSuber::new(Arc::new(lmdber), "bags.", None, false)?;
         assert!(ioduber.is_dupsort());
 
         // Test data

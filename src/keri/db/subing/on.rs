@@ -454,10 +454,10 @@ mod tests {
         assert_eq!(db.name(), "test");
         assert!(db.opened());
 
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
 
         // Create OnSuber instance
-        let onsuber = OnSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
+        let onsuber = OnSuber::<Utf8Codec>::new(db_ref.clone(), "bags.", None, false)?;
 
         // Verify not dupsort (matches Python test)
         assert!(!onsuber.is_dupsort());
@@ -869,7 +869,7 @@ mod tests {
         assert!(onsuber.rem_on(&["d"], 0)?);
 
         // The database should be closed when db goes out of scope
-        drop(db);
+        drop(db_ref);
 
         Ok(())
     }

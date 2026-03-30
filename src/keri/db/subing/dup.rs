@@ -246,7 +246,7 @@ mod tests {
             .name("test")
             .build()
             .map_err(SuberError::DBError)?;
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
 
         // Create a DupSuber
         let dupber: DupSuber<Utf8Codec> = DupSuber::new(db_ref.clone(), "bags.", None, false)?;

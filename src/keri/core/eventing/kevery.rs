@@ -1448,7 +1448,7 @@ mod tests {
     #[test]
     fn test_kevery_new() -> Result<(), KERIError> {
         // Create a temporary database
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_kevery")
             .build()
@@ -1460,7 +1460,7 @@ mod tests {
         // Create Kevery using the new function
         let kevery = Kevery::new(
             None,
-            Arc::new(&db),
+            Arc::new(db),
             None,
             Some(true),
             Some(false),
@@ -1482,7 +1482,7 @@ mod tests {
     #[test]
     fn test_kevery_builder() -> Result<(), KERIError> {
         // Create a temporary database
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_kevery_builder")
             .build()
@@ -1492,7 +1492,7 @@ mod tests {
             Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
         // Create Kevery using the builder pattern
-        let kevery = KeveryBuilder::new(Arc::new(&db))
+        let kevery = KeveryBuilder::new(Arc::new(db))
             .with_lax(true)
             .with_local(false)
             .with_cloned(false)

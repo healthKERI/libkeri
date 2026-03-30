@@ -629,9 +629,11 @@ mod tests {
         assert_eq!(db.name(), "test");
         assert!(db.opened());
 
+        let db_ref = Arc::new(db);
+
         {
             // Test Seqner Saider format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "ssdb.",
@@ -697,7 +699,7 @@ mod tests {
 
         {
             // Test Prefixer Seqner Saider format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "pssdb.",
@@ -803,7 +805,7 @@ mod tests {
 
         {
             // Test Single Matter type
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "bags.",
@@ -978,7 +980,7 @@ mod tests {
 
         {
             // Test multiple klases with Dater, Seqner, Diger format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "bags.",
@@ -1036,7 +1038,7 @@ mod tests {
 
         {
             // Test Siger format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "pigs.",

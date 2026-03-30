@@ -295,7 +295,7 @@ mod tests {
             .name("test_serder_db")
             .temp(true)
             .build()?;
-        let db = Arc::new(&lmdber);
+        let db = Arc::new(lmdber);
 
         // Create a SerderSuber instance
         let suber: SerderSuber<SerderKERI> = SerderSuber::new(db, "serders.", None, false)?;

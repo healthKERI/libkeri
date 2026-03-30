@@ -1923,8 +1923,8 @@ mod tests {
 
         // Create a temporary database for the test
         let lmdber = LMDBer::builder().name("test_kevery").temp(true).build()?;
-        let baser = Baser::new(Arc::new(&lmdber))?;
-        let db = Arc::new(&baser);
+        let baser = Baser::new(Arc::new(lmdber))?;
+        let db = Arc::new(baser);
 
         // Create an explicit Kevery instance with more relaxed settings
         let kevery = Kevery::new(
@@ -2181,16 +2181,16 @@ mod tests {
         let reader = tokio::io::BufReader::new(input);
 
         // Create a temporary database
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_kevery_builder")
             .build()
             .expect("LMDBer should be build");
 
-        let db = Baser::new(Arc::new(lmdber)).expect("Baser should be built");
+        let db = Arc::new(Baser::new(Arc::new(lmdber)).expect("Baser should be built"));
 
         // Create Kevery using the builder pattern
-        let kevery = KeveryBuilder::new(Arc::new(&db))
+        let kevery = KeveryBuilder::new(db.clone())
             .with_lax(true)
             .with_local(false)
             .with_cloned(false)
@@ -2238,8 +2238,8 @@ mod tests {
         let con_lmdber = LMDBer::builder().name("controller").temp(true).build()?;
         let val_lmdber = LMDBer::builder().name("validator").temp(true).build()?;
 
-        let con_db = Baser::new(Arc::new(&con_lmdber))?;
-        let val_db = Baser::new(Arc::new(&val_lmdber))?;
+        let con_db = Arc::new(Baser::new(Arc::new(con_lmdber))?);
+        let val_db = Arc::new(Baser::new(Arc::new(val_lmdber))?);
 
         let mut event_digs = Vec::new();
         let mut msgs = Vec::new();
@@ -2268,7 +2268,7 @@ mod tests {
 
         // Create key event verifier state
         let mut kever = Kever::new(
-            Arc::new(&con_db),
+            con_db.clone(),
             None,
             Some(serder.clone()),
             Some(vec![siger.clone()]),
@@ -2728,7 +2728,7 @@ mod tests {
         // Create Kevery and Parser
         let kevery = Kevery::new(
             None,
-            Arc::new(&val_db),
+            val_db.clone(),
             None,
             Some(false),
             Some(false),

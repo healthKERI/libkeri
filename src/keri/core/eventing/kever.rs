@@ -2120,7 +2120,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         let raw = [
             0x05, 0xaa, 0x8f, 0x2d, 0x53, 0x9a, 0xe9, 0xfa, 0x55, 0x9c, 0x02, 0x9c, 0x9b, 0x08,
@@ -2249,7 +2249,7 @@ mod tests {
         assert!(skp0.verfer().verify(tsig0.raw(), tser0.raw())?);
 
         // Create the Kever
-        let kever = KeverBuilder::new(Arc::new(&db))
+        let kever = KeverBuilder::new(Arc::new(db))
             .with_serder(tser0.clone())
             .with_sigers(vec![tsig0])
             .build()?;
@@ -2349,9 +2349,9 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
-        let result = KeverBuilder::new(Arc::new(&db)).build();
+        let result = KeverBuilder::new(Arc::new(db)).build();
 
         assert!(result.is_err());
         match result {
@@ -2397,7 +2397,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         // List to store event digests
         let mut event_digs = Vec::new();
@@ -2465,7 +2465,7 @@ mod tests {
         assert!(signers[0].verfer().verify(sig0.raw(), serder0.raw())?);
 
         // Create Kever with the event
-        let mut kever = KeverBuilder::new(Arc::new(&db))
+        let mut kever = KeverBuilder::new(Arc::new(db))
             .with_serder(serder0.clone())
             .with_sigers(vec![sig0])
             .build()?;

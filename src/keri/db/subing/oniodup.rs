@@ -537,7 +537,7 @@ mod tests {
         assert!(db.opened());
 
         // Create OnIoDupSuber
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
         let onsuber = OnIoDupSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
         assert!(onsuber.is_dupsort());
 

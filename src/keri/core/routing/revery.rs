@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_revery_new() -> Result<(), KERIError> {
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_revery")
             .build()
@@ -670,7 +670,7 @@ mod tests {
         let db =
             Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let revery = Revery::new(Arc::new(&db), None, None, Some(true), Some(false));
+        let revery = Revery::new(Arc::new(db), None, None, Some(true), Some(false));
 
         assert!(revery.lax);
         assert!(!revery.local);

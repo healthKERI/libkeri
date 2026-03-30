@@ -1854,7 +1854,8 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
+        let lmdber_arc = Arc::new(lmdber);
+        let keeper = Keeper::new(lmdber_arc.clone()).expect("Failed to create manager database");
 
         // Test invalid salt error
         let result = Manager::new(
@@ -1870,7 +1871,7 @@ mod tests {
         assert!(matches!(result, Err(KERIError::MatterError(_))));
 
         // Create valid manager with salt
-        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(lmdber_arc.clone()).expect("Failed to create manager database");
         let mut manager = Manager::new(keeper, None, None, None, None, Some(salt.clone()), None)?;
 
         assert!(manager.ks.opened());

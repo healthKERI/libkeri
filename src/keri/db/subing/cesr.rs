@@ -231,10 +231,10 @@ mod tests {
         assert_eq!(lmdber.name(), "test_db");
         assert!(lmdber.opened());
 
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Create CesrSuber with default Matter class
-        let sdb = CesrSuber::<BaseMatter>::new(db_ref, "bags.", None, true)?;
+        let sdb = CesrSuber::<BaseMatter>::new(db_ref.clone(), "bags.", None, true)?;
 
         // Test with initial value
         let pre0 = "BDzwEHHzq7K0gzQPYGGwTmuupUhPx5_yZ-Wk1x4ejhcc";
@@ -310,8 +310,7 @@ mod tests {
         assert!(actual.is_none());
 
         // Test iteritems (get_item_iter)
-        let db_ref = Arc::new(&lmdber);
-        let sdb_pugs = CesrSuber::<BaseMatter>::new(db_ref, "pugs.", None, true)?;
+        let sdb_pugs = CesrSuber::<BaseMatter>::new(db_ref.clone(), "pugs.", None, true)?;
 
         let keys_a1: &[&[u8]] = &[b"a".as_ref(), b"1".as_ref()];
         let keys_a2: &[&[u8]] = &[b"a".as_ref(), b"2".as_ref()];
@@ -342,8 +341,7 @@ mod tests {
         assert_eq!(result_items[1].1, val1.qb64());
 
         // Test with Diger class
-        let db_ref = Arc::new(&lmdber);
-        let sdb_diger = CesrSuber::<Diger>::new(db_ref, "pigs.", None, true)?;
+        let sdb_diger = CesrSuber::<Diger>::new(db_ref.clone(), "pigs.", None, true)?;
 
         let dig0 = "EAPYGGwTmuupWzwEHHzq7K0gzUhPx5_yZ-Wk1x4ejhcc";
         let val0 = Diger::from_qb64(dig0)?;
@@ -385,8 +383,7 @@ mod tests {
         assert_eq!(actual.qb64(), val1_diger.qb64());
 
         // Test iteritems with another database
-        let db_ref = Arc::new(&lmdber);
-        let sdb_figs = CesrSuber::<Diger>::new(db_ref, "figs.", None, true)?;
+        let sdb_figs = CesrSuber::<Diger>::new(db_ref.clone(), "figs.", None, true)?;
 
         let keys_a1: &[&[u8]] = &[b"a".as_ref(), b"1".as_ref()];
         let keys_a2: &[&[u8]] = &[b"a".as_ref(), b"2".as_ref()];
@@ -444,7 +441,6 @@ mod tests {
         assert_eq!(result_items[1].1, val1_diger.qb64());
 
         // Test Siger class
-        let db_ref = Arc::new(&lmdber);
         let sdb_siger = CesrSuber::<Siger>::new(db_ref.clone(), "pigs.", None, true).unwrap();
 
         let sig0 = "AACdI8OSQkMJ9r-xigjEByEjIua7LHH3AOJ22PQKqljMhuhcgh9nGRcKnsz5KvKd7K_H9-1298F4Id1DxvIoEmCQ";

@@ -332,14 +332,14 @@ mod tests {
         // Open LMDB database
         let db = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_arc = Arc::new(&db);
-
         // Ensure the database is opened correctly
         assert_eq!(db.name(), "test");
         assert!(db.opened());
 
+        let db_arc = Arc::new(db);
+
         // Create SignerSuber with default Signer class
-        let sdb = SignerSuber::new(db_arc, "bags.", None, false)?;
+        let sdb = SignerSuber::new(db_arc.clone(), "bags.", None, false)?;
 
         // Verify dupsort is not set (this may need adjustment based on your implementation)
         // Skip this assertion if your Rust implementation handles dupsort differently
@@ -441,8 +441,7 @@ mod tests {
         assert!(actual.is_none());
 
         // Test iteritems with new suber instance
-        let db_arc = Arc::new(&db);
-        let sdb_new = SignerSuber::new(db_arc, "pugs.", None, false)?;
+        let sdb_new = SignerSuber::new(db_arc.clone(), "pugs.", None, false)?;
 
         let result = sdb_new.put(&[signer0.verfer().qb64b()], &signer0)?;
         assert!(result);
@@ -519,7 +518,7 @@ mod tests {
         assert_eq!(result_items, expected_items);
 
         // Close the database and check it's no longer open
-        drop(db);
+        drop(db_arc);
 
         Ok(())
     }
@@ -596,7 +595,7 @@ mod tests {
         // Open LMDB database
         let db = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_arc = Arc::new(&db);
+        let db_arc = Arc::new(db);
 
         // Test CryptSignerSuber functionality
         {
@@ -655,7 +654,6 @@ mod tests {
 
         // Test iteritems
         {
-            let db_arc = Arc::new(&db);
             let sdb = CryptSignerSuber::new(db_arc.clone(), "pugs.", None, true)?;
 
             assert!(sdb.put(&[signer0.verfer.qb64().as_bytes()], &signer0, None)?);
