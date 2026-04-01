@@ -367,7 +367,8 @@ impl<R> BaseHab<R> {
     /// Perform rotation operation
     pub fn rotate(
         &mut self,
-        count: Option<u32>,
+        verfers: Option<Vec<Verfer>>,
+        digers: Option<Vec<Diger>>,
         ncount: Option<u32>,
         isith: Option<Tholder>,
         nsith: Option<Tholder>,
@@ -384,20 +385,23 @@ impl<R> BaseHab<R> {
         let kever = self.kever()?;
         let pre = self.pre.as_ref().unwrap();
 
-        // Set defaults for counts
-        let ncount = ncount.unwrap_or(1);
-
-        // Create new keys using the manager's rotate method with correct parameters
-        let (verfers, digers) = self.mgr.rotate(
-            pre.as_bytes(),        // pre: &[u8]
-            None,                  // ncodes: Option<Vec<&str>>
-            Some(ncount as usize), // ncount: Option<usize>
-            None,                  // ncode: Option<&str> - will use default ED25519
-            None,                  // dcode: Option<&str> - will use default BLAKE3_256
-            Some(true),            // transferable: Option<bool>
-            Some(self.temp),       // temp: Option<bool>
-            Some(true),            // erase: Option<bool> - erase old keys
-        )?;
+        // Use provided keys or generate new ones
+        let (verfers, digers) = match (verfers, digers) {
+            (Some(v), Some(d)) => (v, d),
+            _ => {
+                let ncount = ncount.unwrap_or(1);
+                self.mgr.rotate(
+                    pre.as_bytes(),
+                    None,                  // ncodes
+                    Some(ncount as usize), // ncount
+                    None,                  // ncode
+                    None,                  // dcode
+                    Some(true),            // transferable
+                    Some(self.temp),       // temp
+                    Some(true),            // erase
+                )?
+            }
+        };
 
         // Determine signing thresholds following Python logic
         let isith_sith = if let Some(isith) = isith {
@@ -3108,9 +3112,10 @@ impl<R> Hab<R> {
             Err(e) => return Err(e),
         };
 
-        // Call the parent rotate method from BaseHab
+        // Pass pre-generated keys to BaseHab::rotate so it doesn't regenerate them
         self.base.rotate(
-            None, // count - not used in BaseHab::rotate
+            Some(verfers),
+            Some(digers),
             Some(ncount),
             isith,
             nsith,

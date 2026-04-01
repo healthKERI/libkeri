@@ -223,8 +223,13 @@ impl Kever {
         let fner = Number::from_numh(&state.f)
             .map_err(|e| KERIError::ValueError(format!("Invalid first seen number: {}", e)))?;
 
-        // Create datetime stamp
-        let dater = Dater::from_dt((&state.dt).parse().unwrap());
+        // Create datetime stamp — try parsing as DateTime, fall back to from_dts for KERI format
+        let dater = if let Ok(dt) = state.dt.parse::<chrono::DateTime<chrono::Utc>>() {
+            Dater::from_dt(dt)
+        } else {
+            Dater::from_dts(&state.dt)
+                .map_err(|e| KERIError::ValueError(format!("Invalid datetime '{}': {}", state.dt, e)))?
+        };
 
         // Get event type (ilk)
         let ilk = match Ilk::from_str(&state.et) {
@@ -1116,35 +1121,32 @@ impl Kever {
         // Get ndigers or return empty vector if not available
         let ndigers = match &self.ndigers {
             Some(digers) => digers,
-            None => return Ok(odxs), // Return empty vector if no ndigers
+            None => return Ok(odxs),
         };
 
         for siger in sigers {
-            // Get the ondex from the siger
             let ondex = match siger.ondex() {
                 Some(ondex) => ondex as usize,
-                None => continue, // Skip if ondex is None
+                None => continue,
             };
 
-            // Try to get the corresponding diger
             if ondex >= ndigers.len() {
-                continue; // Skip if ondex is out of bounds
+                continue;
             }
             let diger = &ndigers[ondex];
 
-            // Get the verfer from the siger
             let verfer = match siger.verfer() {
                 Some(vrf) => vrf,
-                None => continue, // Skip if verfer is None
+                None => continue,
             };
 
-            // Create a digest of the verfer using the same code as the diger
-            let kdig = match Diger::new(Some(verfer.raw()), Some(diger.code()), None, None) {
+            // Digest the verfer's qb64b (not raw) to match how digers are
+            // created during key generation — mirrors keripy's exposeds
+            let kdig = match Diger::from_ser(&mut verfer.qb64b(), Some(diger.code())) {
                 Ok(d) => d.qb64(),
-                Err(_) => continue, // Skip if there's an error creating the digest
+                Err(_) => continue,
             };
 
-            // If the digests match, add the ondex to the list
             if kdig == diger.qb64() {
                 odxs.push(ondex);
             }
@@ -1716,7 +1718,6 @@ impl Kever {
         }
 
         // Add event to Key Event Log
-        println!("SEQUENCE NUMBER: {:?}", serder.sn().unwrap());
         let sn_key = sn_key(serder.preb().unwrap(), serder.sn().unwrap());
         self.db.kels.add(&[sn_key], &serder.saidb().unwrap())?;
 

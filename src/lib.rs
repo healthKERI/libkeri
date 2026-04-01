@@ -38,6 +38,12 @@ pub use crate::keri::core::routing::{Revery, Router};
 
 // Core - serdering
 pub use crate::keri::core::serdering::SadValue;
+pub use crate::keri::core::serdering::{Rawifiable, Sadder, Serder, SerderKERI, Serdery};
+
+// Core - eventing (builders and message assembly)
+pub use crate::keri::core::eventing::incept::InceptionEventBuilder;
+pub use crate::keri::core::eventing::messagize;
+pub use crate::keri::core::eventing::receipt::ReceiptEventBuilder;
 
 // Core - parsing
 pub use crate::keri::core::parsing::{Handlers, Message, MessageHandler, Parser};
@@ -46,6 +52,15 @@ pub use crate::keri::core::parsing::{Handlers, Message, MessageHandler, Parser};
 pub use crate::keri::db::dbing::LMDBer;
 pub use crate::keri::db::basing::Baser;
 pub use crate::keri::app::keeping::{Keeper, Manager};
+// CESR primitives
+pub use crate::cesr::cigar::Cigar;
+pub use crate::cesr::diger::Diger;
+pub use crate::cesr::indexing::siger::Siger;
+pub use crate::cesr::signing::{Salter, Sigmat, Signer};
+pub use crate::cesr::verfer::Verfer;
+
+// KERI constants
+pub use crate::keri::Ilks;
 
 /// Initialize the KERI library
 pub fn init() -> Result<(), Error> {
