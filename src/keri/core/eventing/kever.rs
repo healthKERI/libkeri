@@ -227,8 +227,9 @@ impl Kever {
         let dater = if let Ok(dt) = state.dt.parse::<chrono::DateTime<chrono::Utc>>() {
             Dater::from_dt(dt)
         } else {
-            Dater::from_dts(&state.dt)
-                .map_err(|e| KERIError::ValueError(format!("Invalid datetime '{}': {}", state.dt, e)))?
+            Dater::from_dts(&state.dt).map_err(|e| {
+                KERIError::ValueError(format!("Invalid datetime '{}': {}", state.dt, e))
+            })?
         };
 
         // Get event type (ilk)
