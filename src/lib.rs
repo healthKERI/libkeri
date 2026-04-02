@@ -48,10 +48,6 @@ pub use crate::keri::core::eventing::receipt::ReceiptEventBuilder;
 // Core - parsing
 pub use crate::keri::core::parsing::{Handlers, Message, MessageHandler, Parser};
 
-// Re-export commonly used types for easier access
-pub use crate::keri::app::keeping::{Keeper, Manager};
-pub use crate::keri::db::basing::Baser;
-pub use crate::keri::db::dbing::LMDBer;
 // CESR primitives
 pub use crate::cesr::cigar::Cigar;
 pub use crate::cesr::diger::Diger;
