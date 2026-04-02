@@ -30,8 +30,8 @@ Features of this implementation:
 ### Building from Source
 
 ```bash
-git clone https://github.com/WebOfTrust/kerir.git
-cd kerir
+git clone https://github.com/healthKERI/libkeri.git
+cd libkeri
 cargo build --release
 ```
 
@@ -39,7 +39,7 @@ cargo build --release
 
 ```toml
 [dependencies]
-kerir = { git = "https://github.com/WebOfTrust/kerir.git" }
+libkeri = { git = "https://github.com/healthKERI/libkeri.git" }
 ```
 
 ## C-Callable Library
@@ -49,76 +49,25 @@ This implementation is designed as a C-callable library, allowing integration wi
 ### Using the C API
 
 ```c
-#include "kerir.h"
+#include "libkeri.h"
 
 int main() {
     // Initialize KERI context
     KERI_Context* ctx = keri_init();
-    
+
     // Generate a new identifier
     const char* identifier = keri_generate_identifier(ctx);
-    
+
     // Clean up
     keri_free_context(ctx);
-    
+
     return 0;
 }
 ```
 
 ## Examples
 
-### Key Management
-
-```rust
-use kerir::keri::keri::Keri;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new KERI instance
-    let keri = Keri::new()?;
-    
-    // Generate a new identifier
-    let (identifier, keypair) = keri.incept()?;
-    
-    // Rotate the identifier's keys
-    let new_keypair = keri.rotate(identifier, keypair)?;
-    
-    // Verify events
-    let verification = keri.verify(identifier)?;
-    println!("Verification result: {}", verification);
-    
-    Ok(())
-}
-```
-
-### Database Operations
-
-```rust
-use kerir::keri::db::lmdber::LMDBer;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a database
-    let db = LMDBer::builder()
-        .name("my_database")
-        .temp(true)
-        .build()?;
-        
-    // Open a database and perform operations
-    let env = db.env().unwrap();
-    let db_handle = env.create_db(Some("test_db"), lmdb::DatabaseFlags::empty())?;
-    
-    // Insert data
-    let key = b"example_key".to_vec();
-    let value = b"example_value".to_vec();
-    db.put_val(&db_handle, &key, &value)?;
-    
-    // Retrieve data
-    if let Some(retrieved) = db.get_val(&db_handle, &key)? {
-        println!("Retrieved: {}", String::from_utf8_lossy(&retrieved));
-    }
-    
-    Ok(())
-}
-```
+More detailed examples and usage patterns are being developed. Please refer to the test files in the source code for current usage examples.
 
 ## API Documentation
 
@@ -150,4 +99,3 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - [KERI Specification](https://weboftrust.github.io/ietf-keri/draft-ssmith-keri.html)
 - [KERI Python Implementation](https://github.com/WebOfTrust/keripy)
-- [KERI JavaScript Implementation](https://github.com/WebOfTrust/keriJS)
