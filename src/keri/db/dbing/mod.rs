@@ -3193,13 +3193,23 @@ mod tests {
             "Environment should be initialized"
         );
 
-        // Check path ends with "keri/db/main"
+        // Check path ends with "keri/db/main" or ".keri/db/main" (alt path)
         let path_str = databaser.path().expect("Path should be available");
-        assert!(path_str.ends_with(&format!(
+        let ends_with_keri = path_str.ends_with(&format!(
             "keri{}db{}main",
             std::path::MAIN_SEPARATOR,
             std::path::MAIN_SEPARATOR
-        )));
+        ));
+        let ends_with_dot_keri = path_str.ends_with(&format!(
+            ".keri{}db{}main",
+            std::path::MAIN_SEPARATOR,
+            std::path::MAIN_SEPARATOR
+        ));
+        assert!(
+            ends_with_keri || ends_with_dot_keri,
+            "Path {:?} should end with keri/db/main or .keri/db/main",
+            path_str
+        );
 
         // Check path exists
         assert!(Path::new(&path_str).exists());
@@ -3247,11 +3257,21 @@ mod tests {
         let path_str = databaser
             .path()
             .expect("Path should be available after reopen");
-        assert!(path_str.ends_with(&format!(
+        let ends_with_keri = path_str.ends_with(&format!(
             "keri{}db{}main",
             std::path::MAIN_SEPARATOR,
             std::path::MAIN_SEPARATOR
-        )));
+        ));
+        let ends_with_dot_keri = path_str.ends_with(&format!(
+            ".keri{}db{}main",
+            std::path::MAIN_SEPARATOR,
+            std::path::MAIN_SEPARATOR
+        ));
+        assert!(
+            ends_with_keri || ends_with_dot_keri,
+            "Path {:?} should end with keri/db/main or .keri/db/main",
+            path_str
+        );
 
         assert!(Path::new(&path_str).exists());
 
