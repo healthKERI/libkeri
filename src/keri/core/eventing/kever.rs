@@ -29,8 +29,8 @@ pub struct LastEstLoc {
     pub d: String,
 }
 
-pub struct Kever<'db> {
-    pub db: Arc<&'db Baser<'db>>,
+pub struct Kever {
+    pub db: Arc<Baser>,
     version: String,            // Version of KERI protocol
     ilk: Ilk,                   // Event type ilk
     pub delpre: Option<String>, // Delegator prefix if any
@@ -57,7 +57,7 @@ pub struct Kever<'db> {
     do_not_delegate: Option<bool>,
 }
 
-impl<'db> Kever<'db> {
+impl Kever {
     /// Create a new Kever instance for an inception event
     ///
     /// # Arguments
@@ -81,7 +81,7 @@ impl<'db> Kever<'db> {
     ///
     /// * `Result<Self, KERIError>` - New Kever instance or error
     pub fn new(
-        db: Arc<&'db Baser<'db>>,
+        db: Arc<Baser>,
         state: Option<KeyStateRecord>,
         serder: Option<SerderKERI>,
         sigers: Option<Vec<Siger>>,
@@ -210,7 +210,7 @@ impl<'db> Kever<'db> {
     /// # Returns
     ///
     /// * `Result<Self, KERIError>` - New Kever instance initialized from state or error
-    pub fn reload(db: Arc<&'db Baser<'db>>, state: KeyStateRecord) -> Result<Self, KERIError> {
+    pub fn reload(db: Arc<Baser>, state: KeyStateRecord) -> Result<Self, KERIError> {
         // Create a Prefixer from the identifier prefix
         let prefixer = Prefixer::from_qb64(&state.i)
             .map_err(|e| KERIError::ValueError(format!("Invalid identifier prefix: {}", e)))?;
@@ -223,8 +223,14 @@ impl<'db> Kever<'db> {
         let fner = Number::from_numh(&state.f)
             .map_err(|e| KERIError::ValueError(format!("Invalid first seen number: {}", e)))?;
 
-        // Create datetime stamp
-        let dater = Dater::from_dt((&state.dt).parse().unwrap());
+        // Create datetime stamp — try parsing as DateTime, fall back to from_dts for KERI format
+        let dater = if let Ok(dt) = state.dt.parse::<chrono::DateTime<chrono::Utc>>() {
+            Dater::from_dt(dt)
+        } else {
+            Dater::from_dts(&state.dt).map_err(|e| {
+                KERIError::ValueError(format!("Invalid datetime '{}': {}", state.dt, e))
+            })?
+        };
 
         // Get event type (ilk)
         let ilk = match Ilk::from_str(&state.et) {
@@ -1057,7 +1063,9 @@ impl<'db> Kever<'db> {
         _saider: Option<&Saider>,
         _local: bool,
     ) -> Result<(), KERIError> {
-        todo!("Implement escrow for partially signed events")
+        Err(KERIError::MissingSignatureError(
+            "Partially signed event (escrow not yet implemented)".to_string(),
+        ))
     }
 
     fn escrow_pw_event(
@@ -1114,35 +1122,32 @@ impl<'db> Kever<'db> {
         // Get ndigers or return empty vector if not available
         let ndigers = match &self.ndigers {
             Some(digers) => digers,
-            None => return Ok(odxs), // Return empty vector if no ndigers
+            None => return Ok(odxs),
         };
 
         for siger in sigers {
-            // Get the ondex from the siger
             let ondex = match siger.ondex() {
                 Some(ondex) => ondex as usize,
-                None => continue, // Skip if ondex is None
+                None => continue,
             };
 
-            // Try to get the corresponding diger
             if ondex >= ndigers.len() {
-                continue; // Skip if ondex is out of bounds
+                continue;
             }
             let diger = &ndigers[ondex];
 
-            // Get the verfer from the siger
             let verfer = match siger.verfer() {
                 Some(vrf) => vrf,
-                None => continue, // Skip if verfer is None
+                None => continue,
             };
 
-            // Create a digest of the verfer using the same code as the diger
-            let kdig = match Diger::new(Some(verfer.raw()), Some(diger.code()), None, None) {
+            // Digest the verfer's qb64b (not raw) to match how digers are
+            // created during key generation — mirrors keripy's exposeds
+            let kdig = match Diger::from_ser(&mut verfer.qb64b(), Some(diger.code())) {
                 Ok(d) => d.qb64(),
-                Err(_) => continue, // Skip if there's an error creating the digest
+                Err(_) => continue,
             };
 
-            // If the digests match, add the ondex to the list
             if kdig == diger.qb64() {
                 odxs.push(ondex);
             }
@@ -1714,7 +1719,6 @@ impl<'db> Kever<'db> {
         }
 
         // Add event to Key Event Log
-        println!("SEQUENCE NUMBER: {:?}", serder.sn().unwrap());
         let sn_key = sn_key(serder.preb().unwrap(), serder.sn().unwrap());
         self.db.kels.add(&[sn_key], &serder.saidb().unwrap())?;
 
@@ -1960,8 +1964,8 @@ impl<'db> Kever<'db> {
 
 /// KeverBuilder provides a builder pattern for constructing a Kever instance
 /// Each optional parameter of Kever::new is represented by a with_* method
-pub struct KeverBuilder<'db> {
-    db: Arc<&'db Baser<'db>>,
+pub struct KeverBuilder {
+    db: Arc<Baser>,
     state: Option<KeyStateRecord>,
     serder: Option<SerderKERI>,
     sigers: Option<Vec<Siger>>,
@@ -1976,9 +1980,9 @@ pub struct KeverBuilder<'db> {
     check: Option<bool>,
 }
 
-impl<'db> KeverBuilder<'db> {
+impl KeverBuilder {
     /// Create a new KeverBuilder with required database
-    pub fn new(db: Arc<&'db Baser<'db>>) -> Self {
+    pub fn new(db: Arc<Baser>) -> Self {
         KeverBuilder {
             db,
             state: None,
@@ -2069,7 +2073,7 @@ impl<'db> KeverBuilder<'db> {
     }
 
     /// Build the Kever instance
-    pub fn build(self) -> Result<Kever<'db>, KERIError> {
+    pub fn build(self) -> Result<Kever, KERIError> {
         Kever::new(
             self.db,
             self.state,
@@ -2118,7 +2122,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         let raw = [
             0x05, 0xaa, 0x8f, 0x2d, 0x53, 0x9a, 0xe9, 0xfa, 0x55, 0x9c, 0x02, 0x9c, 0x9b, 0x08,
@@ -2247,7 +2251,7 @@ mod tests {
         assert!(skp0.verfer().verify(tsig0.raw(), tser0.raw())?);
 
         // Create the Kever
-        let kever = KeverBuilder::new(Arc::new(&db))
+        let kever = KeverBuilder::new(Arc::new(db))
             .with_serder(tser0.clone())
             .with_sigers(vec![tsig0])
             .build()?;
@@ -2347,9 +2351,9 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
-        let result = KeverBuilder::new(Arc::new(&db)).build();
+        let result = KeverBuilder::new(Arc::new(db)).build();
 
         assert!(result.is_err());
         match result {
@@ -2395,7 +2399,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open Baser database: {}");
-        let db = Baser::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let db = Baser::new(Arc::new(lmdber)).expect("Failed to create manager database");
 
         // List to store event digests
         let mut event_digs = Vec::new();
@@ -2463,7 +2467,7 @@ mod tests {
         assert!(signers[0].verfer().verify(sig0.raw(), serder0.raw())?);
 
         // Create Kever with the event
-        let mut kever = KeverBuilder::new(Arc::new(&db))
+        let mut kever = KeverBuilder::new(Arc::new(db))
             .with_serder(serder0.clone())
             .with_sigers(vec![sig0])
             .build()?;

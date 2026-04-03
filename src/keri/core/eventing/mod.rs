@@ -406,7 +406,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
         let mut manager = Manager::new(keeper, None, None, None, None, Some(salter.qb64b()), None)?;
         // Test salty algorithm incept
         let (verfers, digers) = manager.incept(
@@ -782,7 +782,7 @@ mod tests {
             .reopen(true)
             .build()
             .expect("Failed to open manager database: {}");
-        let keeper = Keeper::new(Arc::new(&lmdber)).expect("Failed to create manager database");
+        let keeper = Keeper::new(Arc::new(lmdber)).expect("Failed to create manager database");
         let mut manager = Manager::new(keeper, None, None, None, None, Some(salter.qb64b()), None)?;
         // Test salty algorithm incept
         let (verfers, digers) = manager.incept(

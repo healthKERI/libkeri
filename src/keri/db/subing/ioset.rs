@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 /// Represents an Insertion Ordered Set Suber.
 
-pub struct IoSetSuber<'db, C: ValueCodec = Utf8Codec> {
-    pub base: SuberBase<'db, C>,
+pub struct IoSetSuber<C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> IoSetSuber<'db, C> {
+impl<C: ValueCodec> IoSetSuber<C> {
     /// Creates a new `IoSetSuber`.
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -417,8 +417,8 @@ mod tests {
         assert!(db.opened());
 
         // Create IoSetSuber
-        let db_ref = Arc::new(&db);
-        let iosuber = IoSetSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
+        let db_ref = Arc::new(db);
+        let iosuber = IoSetSuber::<Utf8Codec>::new(db_ref.clone(), "bags.", None, false)?;
 
         let sue = "Hello sailer!";
         let sal = "Not my type.";
@@ -690,7 +690,7 @@ mod tests {
         assert_eq!(String::from_utf8(bytes[1].clone()).unwrap(), bil);
 
         // The database should be closed and removed when db goes out of scope
-        drop(db);
+        drop(db_ref);
 
         Ok(())
     }

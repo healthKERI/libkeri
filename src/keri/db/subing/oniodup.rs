@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use std::ops::Bound;
 
-pub struct OnIoDupSuber<'db, C: ValueCodec = Utf8Codec> {
-    pub on_base: OnSuberBase<'db, C>,
-    pub io_dup_suber: IoDupSuber<'db, C>,
+pub struct OnIoDupSuber<C: ValueCodec = Utf8Codec> {
+    pub on_base: OnSuberBase<C>,
+    pub io_dup_suber: IoDupSuber<C>,
 }
 
-impl<'db, C: ValueCodec> OnIoDupSuber<'db, C> {
+impl<C: ValueCodec> OnIoDupSuber<C> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -537,7 +537,7 @@ mod tests {
         assert!(db.opened());
 
         // Create OnIoDupSuber
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
         let onsuber = OnIoDupSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
         assert!(onsuber.is_dupsort());
 

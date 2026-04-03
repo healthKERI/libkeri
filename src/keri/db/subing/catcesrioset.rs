@@ -6,14 +6,14 @@ use crate::keri::db::subing::SuberError;
 use crate::Matter;
 use std::sync::Arc;
 
-pub struct CatCesrIoSetSuber<'db, M: Matter> {
-    pub base: CatCesrSuberBase<'db, M>,
-    pub io_set_suber: IoSetSuber<'db>,
+pub struct CatCesrIoSetSuber<M: Matter> {
+    pub base: CatCesrSuberBase<M>,
+    pub io_set_suber: IoSetSuber,
 }
 
-impl<'db, M: Matter + Parsable> CatCesrIoSetSuber<'db, M> {
+impl<M: Matter + Parsable> CatCesrIoSetSuber<M> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         formats: Vec<String>,
         sep: Option<u8>,
@@ -197,7 +197,7 @@ mod tests {
     fn test_cat_cesr_ioset_suber() -> Result<(), SuberError> {
         // Create temporary database with LMDBerBuilder
         let lmdb = LMDBer::builder().temp(true).build()?;
-        let db = Arc::new(&lmdb);
+        let db = Arc::new(lmdb);
 
         // Test default constructor
         let formats = vec!["seqner".to_string(), "diger".to_string()];

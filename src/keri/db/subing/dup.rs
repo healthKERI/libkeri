@@ -6,14 +6,14 @@ use std::sync::Arc;
 ///
 /// Do not use if serialized value is greater than 511 bytes.
 /// This is a limitation of dupsort==True sub dbs in LMDB.
-pub struct DupSuber<'db, C: ValueCodec = Utf8Codec> {
-    pub base: SuberBase<'db, C>,
+pub struct DupSuber<C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> DupSuber<'db, C> {
+impl<C: ValueCodec> DupSuber<C> {
     /// Creates a new `DupSuber`.
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -246,7 +246,7 @@ mod tests {
             .name("test")
             .build()
             .map_err(SuberError::DBError)?;
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
 
         // Create a DupSuber
         let dupber: DupSuber<Utf8Codec> = DupSuber::new(db_ref.clone(), "bags.", None, false)?;

@@ -37,18 +37,18 @@ impl<S: Serder + 'static> ValueCodec for SerderCodec<S> {
 }
 
 /// A struct for handling serialized Serder instances in a database
-pub struct SerderSuberBase<'db, S: Serder + Rawifiable + 'static> {
-    db: Arc<&'db LMDBer>,         // The base LMDB database
+pub struct SerderSuberBase<S: Serder + Rawifiable + 'static> {
+    db: Arc<LMDBer>,              // The base LMDB database
     sdb: BytesDatabase,           // The sub-database
     sep: u8,                      // Separator for combining keys
     verify: bool,                 // Whether to verify data when deserializing
     _serder_type: PhantomData<S>, // Track the Serder type
 }
 
-impl<'db, S: Serder + Rawifiable + 'static> SerderSuberBase<'db, S> {
+impl<S: Serder + Rawifiable + 'static> SerderSuberBase<S> {
     /// Create a new SerderSuberBase instance
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -207,14 +207,14 @@ impl<'db, S: Serder + Rawifiable + 'static> SerderSuberBase<'db, S> {
 
 /// SerderSuber is a specialized database class for storing and retrieving Serder instances.
 /// It combines the functionality of SerderSuberBase and Suber.
-pub struct SerderSuber<'db, S: Serder + Rawifiable + 'static> {
-    base: SerderSuberBase<'db, S>,
+pub struct SerderSuber<S: Serder + Rawifiable + 'static> {
+    base: SerderSuberBase<S>,
 }
 
-impl<'db, S: Serder + Rawifiable + 'static> SerderSuber<'db, S> {
+impl<S: Serder + Rawifiable + 'static> SerderSuber<S> {
     /// Create a new SerderSuber instance
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -278,8 +278,8 @@ impl<'db, S: Serder + Rawifiable + 'static> SerderSuber<'db, S> {
 }
 
 /// A type alias for common usage with SerderKERI
-pub type SerderKERISuber<'db> = SerderSuber<'db, SerderKERI>;
-pub type SerderACDCSuber<'db> = SerderSuber<'db, SerderACDC>;
+pub type SerderKERISuber = SerderSuber<SerderKERI>;
+pub type SerderACDCSuber = SerderSuber<SerderACDC>;
 
 #[cfg(test)]
 mod tests {
@@ -295,7 +295,7 @@ mod tests {
             .name("test_serder_db")
             .temp(true)
             .build()?;
-        let db = Arc::new(&lmdber);
+        let db = Arc::new(lmdber);
 
         // Create a SerderSuber instance
         let suber: SerderSuber<SerderKERI> = SerderSuber::new(db, "serders.", None, false)?;

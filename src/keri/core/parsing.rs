@@ -202,21 +202,24 @@ impl Message {
 // Traits for message handlers
 #[async_trait::async_trait]
 pub trait MessageHandler: Send + Sync {
-    async fn handle(&self, msg: Message) -> Result<(), KERIError>;
+    fn handle(
+        &self,
+        msg: Message,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>>;
 }
 
-pub struct Parser<'a, R> {
+pub struct Parser<R> {
     reader: R,
     buffer: Vec<u8>,
     framed: bool,
     pipeline: bool,
-    handlers: Handlers<'a>,
+    handlers: Handlers,
     attachment_processing: bool, // Flag to mark if we're in the middle of attachments
     current_serder: Option<Box<dyn Serder>>,
     serdery: Serdery,
 }
-pub struct Handlers<'a> {
-    pub kevery: Arc<Mutex<Kevery<'a>>>,
+pub struct Handlers {
+    pub kevery: Arc<Mutex<Kevery>>,
     pub tevery: Arc<dyn MessageHandler>,
     pub exchanger: Arc<dyn MessageHandler>,
     pub revery: Arc<dyn MessageHandler>,
@@ -224,7 +227,7 @@ pub struct Handlers<'a> {
     pub local: bool,
 }
 
-impl<'a, R> Parser<'a, R> {
+impl<R> Parser<R> {
     /// Parse one message from a byte array synchronously
     /// This is the Rust equivalent of Python's parseOne method
     pub fn parse_one(&mut self, ims: &[u8]) -> Result<(), KERIError> {
@@ -803,7 +806,7 @@ impl<'a, R> Parser<'a, R> {
 
         Ok((msg, total_processed))
     }
-    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers<'a>) -> Self {
+    pub fn new(reader: R, framed: bool, pipeline: bool, handlers: Handlers) -> Self {
         Self {
             reader,
             buffer: Vec::new(),
@@ -1731,7 +1734,7 @@ impl<'a, R> Parser<'a, R> {
     }
 }
 
-impl<'a, R: AsyncRead + Unpin + Send> Parser<'a, R> {
+impl<R: AsyncRead + Unpin + Send> Parser<R> {
     pub async fn parse_stream(&mut self, once: Option<bool>) -> Result<(), KERIError> {
         let mut first_read = true;
         let mut loop_count = 0;
@@ -1920,8 +1923,8 @@ mod tests {
 
         // Create a temporary database for the test
         let lmdber = LMDBer::builder().name("test_kevery").temp(true).build()?;
-        let baser = Baser::new(Arc::new(&lmdber))?;
-        let db = Arc::new(&baser);
+        let baser = Baser::new(Arc::new(lmdber))?;
+        let db = Arc::new(baser);
 
         // Create an explicit Kevery instance with more relaxed settings
         let kevery = Kevery::new(
@@ -2153,12 +2156,18 @@ mod tests {
 
     #[async_trait::async_trait]
     impl MessageHandler for MockHandler {
-        async fn handle(&self, _msg: Message) -> Result<(), KERIError> {
-            let serder = match _msg {
-                Message::KeyEvent { serder, .. } => Some(Box::new(serder)),
-                _ => None,
-            };
-            Ok(())
+        fn handle(
+            &self,
+            _msg: Message,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), KERIError>> + Send + '_>>
+        {
+            Box::pin(async {
+                let _serder = match _msg {
+                    Message::KeyEvent { serder, .. } => Some(Box::new(serder)),
+                    _ => None,
+                };
+                Ok(())
+            })
         }
     }
 
@@ -2172,16 +2181,16 @@ mod tests {
         let reader = tokio::io::BufReader::new(input);
 
         // Create a temporary database
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_kevery_builder")
             .build()
             .expect("LMDBer should be build");
 
-        let db = Baser::new(Arc::new(lmdber)).expect("Baser should be built");
+        let db = Arc::new(Baser::new(Arc::new(lmdber)).expect("Baser should be built"));
 
         // Create Kevery using the builder pattern
-        let kevery = KeveryBuilder::new(Arc::new(&db))
+        let kevery = KeveryBuilder::new(db.clone())
             .with_lax(true)
             .with_local(false)
             .with_cloned(false)
@@ -2229,8 +2238,8 @@ mod tests {
         let con_lmdber = LMDBer::builder().name("controller").temp(true).build()?;
         let val_lmdber = LMDBer::builder().name("validator").temp(true).build()?;
 
-        let con_db = Baser::new(Arc::new(&con_lmdber))?;
-        let val_db = Baser::new(Arc::new(&val_lmdber))?;
+        let con_db = Arc::new(Baser::new(Arc::new(con_lmdber))?);
+        let val_db = Arc::new(Baser::new(Arc::new(val_lmdber))?);
 
         let mut event_digs = Vec::new();
         let mut msgs = Vec::new();
@@ -2259,7 +2268,7 @@ mod tests {
 
         // Create key event verifier state
         let mut kever = Kever::new(
-            Arc::new(&con_db),
+            con_db.clone(),
             None,
             Some(serder.clone()),
             Some(vec![siger.clone()]),
@@ -2719,7 +2728,7 @@ mod tests {
         // Create Kevery and Parser
         let kevery = Kevery::new(
             None,
-            Arc::new(&val_db),
+            val_db.clone(),
             None,
             Some(false),
             Some(false),
@@ -2784,25 +2793,10 @@ mod tests {
         // Cleanup should be automatic because we're using temp databases
         Ok(())
     }
-    impl Default for Handlers<'_> {
+    impl Default for Handlers {
         fn default() -> Self {
-            // Create minimal handlers for testing with static lifetime
-            let lmdber = Box::leak(Box::new(
-                LMDBer::builder().temp(true).name("temp").build().unwrap(),
-            ));
-
-            // Convert &mut LMDBer to &LMDBer
-            let lmdber_ref: &LMDBer = &*lmdber;
-
-            // Now create Arc<&LMDBer>
-            let lmdber_arc = Arc::new(lmdber_ref);
-
-            // Create Baser with static lifetime
-            let baser = Box::leak(Box::new(Baser::new(lmdber_arc).unwrap()));
-
-            // Convert to immutable reference and wrap in Arc
-            let baser_ref: &Baser = &*baser;
-            let db = Arc::new(baser_ref);
+            let lmdber = Arc::new(LMDBer::builder().temp(true).name("temp").build().unwrap());
+            let db = Arc::new(Baser::new(lmdber).unwrap());
 
             let kevery = Kevery::new(
                 None,

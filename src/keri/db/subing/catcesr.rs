@@ -14,12 +14,12 @@ use crate::keri::db::subing::{Suber, SuberError};
 use crate::Matter;
 use std::sync::Arc;
 
-pub struct CatCesrSuberBase<'db, M: Matter> {
-    pub base: CesrSuberBase<'db, M>,
+pub struct CatCesrSuberBase<M: Matter> {
+    pub base: CesrSuberBase<M>,
     pub formats: Vec<String>,
 }
 
-impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
+impl<M: Matter + Parsable> CatCesrSuberBase<M> {
     /// Creates a new CatCesrSuberBase
     ///
     /// Parameters:
@@ -29,7 +29,7 @@ impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
     ///   - sep: Optional separator for keys
     ///   - verify: Whether to verify data when deserializing
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         formats: Vec<String>,
         sep: Option<u8>,
@@ -475,12 +475,12 @@ impl<'db, M: Matter + Parsable> CatCesrSuberBase<'db, M> {
 
 /// CatCesrSuber is a wrapper around CatCesrSuberBase that provides the complete Suber interface
 
-pub struct CatCesrSuber<'db, M: Matter> {
-    pub base: CatCesrSuberBase<'db, M>,
-    pub suber: Suber<'db>,
+pub struct CatCesrSuber<M: Matter> {
+    pub base: CatCesrSuberBase<M>,
+    pub suber: Suber,
 }
 
-impl<'db, M: Matter + Parsable> CatCesrSuber<'db, M> {
+impl<M: Matter + Parsable> CatCesrSuber<M> {
     /// Creates a new CatCesrSuber
     ///
     /// Parameters:
@@ -490,7 +490,7 @@ impl<'db, M: Matter + Parsable> CatCesrSuber<'db, M> {
     ///   - sep: Optional separator for keys
     ///   - verify: Whether to verify data when deserializing
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         formats: Vec<String>,
         sep: Option<u8>,
@@ -629,9 +629,11 @@ mod tests {
         assert_eq!(db.name(), "test");
         assert!(db.opened());
 
+        let db_ref = Arc::new(db);
+
         {
             // Test Seqner Saider format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "ssdb.",
@@ -697,7 +699,7 @@ mod tests {
 
         {
             // Test Prefixer Seqner Saider format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "pssdb.",
@@ -803,7 +805,7 @@ mod tests {
 
         {
             // Test Single Matter type
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "bags.",
@@ -978,7 +980,7 @@ mod tests {
 
         {
             // Test multiple klases with Dater, Seqner, Diger format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "bags.",
@@ -1036,7 +1038,7 @@ mod tests {
 
         {
             // Test Siger format
-            let db_ref = Arc::new(&db);
+            let db_ref = db_ref.clone();
             let sdb = CatCesrSuber::<BaseMatter>::new(
                 db_ref.clone(),
                 "pigs.",

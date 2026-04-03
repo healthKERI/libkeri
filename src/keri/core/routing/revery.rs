@@ -19,11 +19,11 @@ use tracing::{debug, info, trace, warn};
 pub const TIMEOUT_RPE: u64 = 3600;
 
 /// Reply message event processor
-pub struct Revery<'db> {
+pub struct Revery {
     /// Timeout for reply message escrows (in seconds)
 
     /// Database instance
-    pub db: Arc<&'db Baser<'db>>,
+    pub db: Arc<Baser>,
 
     /// Router for dispatching reply messages
     pub rtr: Router,
@@ -45,10 +45,10 @@ pub struct ReplyMessageCue {
     pub data: std::collections::HashMap<String, serde_json::Value>,
 }
 
-impl<'db> Revery<'db> {
+impl Revery {
     /// Initialize new Revery instance
     pub fn new(
-        db: Arc<&'db Baser<'db>>,
+        db: Arc<Baser>,
         rtr: Option<Router>,
         cues: Option<VecDeque<ReplyMessageCue>>,
         lax: Option<bool>,
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_revery_new() -> Result<(), KERIError> {
-        let lmdber = &LMDBer::builder()
+        let lmdber = LMDBer::builder()
             .temp(true)
             .name("test_revery")
             .build()
@@ -670,7 +670,7 @@ mod tests {
         let db =
             Baser::new(Arc::new(lmdber)).map_err(|e| KERIError::DatabaseError(format!("{}", e)))?;
 
-        let revery = Revery::new(Arc::new(&db), None, None, Some(true), Some(false));
+        let revery = Revery::new(Arc::new(db), None, None, Some(true), Some(false));
 
         assert!(revery.lax);
         assert!(!revery.local);

@@ -3,11 +3,11 @@ use crate::keri::db::subing::{Suber, SuberBase};
 use crate::keri::db::subing::{SuberError, Utf8Codec, ValueCodec};
 use std::sync::Arc;
 
-pub struct OnSuberBase<'db, C: ValueCodec = Utf8Codec> {
-    pub base: SuberBase<'db, C>,
+pub struct OnSuberBase<C: ValueCodec = Utf8Codec> {
+    pub base: SuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> crate::keri::db::subing::on::OnSuberBase<'db, C> {
+impl<C: ValueCodec> crate::keri::db::subing::on::OnSuberBase<C> {
     /// Creates a new `OnSuberBase`.
     ///
     /// # Parameters
@@ -17,7 +17,7 @@ impl<'db, C: ValueCodec> crate::keri::db::subing::on::OnSuberBase<'db, C> {
     /// * `verify` - Whether to reverify when ._des from db when applicable. Default false
     /// * `dupsort` - Whether to enable duplicates at each key. Default false
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -291,14 +291,14 @@ impl<'db, C: ValueCodec> crate::keri::db::subing::on::OnSuberBase<'db, C> {
     }
 }
 
-pub struct OnSuber<'db, C: ValueCodec = Utf8Codec> {
-    pub base: Suber<'db, C>,
-    pub on_base: OnSuberBase<'db, C>,
+pub struct OnSuber<C: ValueCodec = Utf8Codec> {
+    pub base: Suber<C>,
+    pub on_base: OnSuberBase<C>,
 }
 
-impl<'db, C: ValueCodec> OnSuber<'db, C> {
+impl<C: ValueCodec> OnSuber<C> {
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         sep: Option<u8>,
         verify: bool,
@@ -454,10 +454,10 @@ mod tests {
         assert_eq!(db.name(), "test");
         assert!(db.opened());
 
-        let db_ref = Arc::new(&db);
+        let db_ref = Arc::new(db);
 
         // Create OnSuber instance
-        let onsuber = OnSuber::<Utf8Codec>::new(db_ref, "bags.", None, false)?;
+        let onsuber = OnSuber::<Utf8Codec>::new(db_ref.clone(), "bags.", None, false)?;
 
         // Verify not dupsort (matches Python test)
         assert!(!onsuber.is_dupsort());
@@ -869,7 +869,7 @@ mod tests {
         assert!(onsuber.rem_on(&["d"], 0)?);
 
         // The database should be closed when db goes out of scope
-        drop(db);
+        drop(db_ref);
 
         Ok(())
     }

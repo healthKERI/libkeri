@@ -42,12 +42,12 @@ pub enum SerialKind {
 /// KomerBase is a base struct for Komer (Keyspace Object Mapper) implementations
 /// that each use a struct (with Serialize/Deserialize) as the object mapped via
 /// serialization to an LMDB database.
-pub struct KomerBase<'db, T>
+pub struct KomerBase<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// LMDB database environment
-    db: Arc<&'db LMDBer>, // The base LMDB database
+    db: Arc<LMDBer>, // The base LMDB database
 
     /// LMDB database instance for this Komer
     pub sdb: Database<Bytes, Bytes>,
@@ -59,16 +59,16 @@ where
     pub sep: String,
 
     /// Phantom data for the schema type
-    phantom: PhantomData<&'db T>,
+    phantom: PhantomData<T>,
 }
 
-impl<'db, T> KomerBase<'db, T>
+impl<T> KomerBase<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
     /// Create a new KomerBase instance
     pub fn new(
-        db: Arc<&'db LMDBer>,
+        db: Arc<LMDBer>,
         subkey: &str,
         kind: SerialKind,
         dupsort: bool,
@@ -256,14 +256,14 @@ where
 
 /// Keyspace Object Mapper factory struct.
 #[allow(dead_code)]
-pub struct Komer<'db, T>
+pub struct Komer<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
-    base: KomerBase<'db, T>,
+    base: KomerBase<T>,
 }
 
-impl<'db, T> Komer<'db, T>
+impl<T> Komer<T>
 where
     T: Serialize + for<'de> Deserialize<'de> + Debug,
 {
@@ -276,7 +276,7 @@ where
     ///
     /// # Returns
     /// A Result containing the Komer instance or a KomerError
-    pub fn new(db: Arc<&'db LMDBer>, subkey: &str, kind: SerialKind) -> Result<Self, KomerError> {
+    pub fn new(db: Arc<LMDBer>, subkey: &str, kind: SerialKind) -> Result<Self, KomerError> {
         let base = KomerBase::new(db, subkey, kind, false, None)?;
 
         Ok(Self { base })
@@ -447,7 +447,7 @@ mod tests {
 
         // Open database
         let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Create Komer instance
         let mydb = Komer::<Record>::new(db_ref.clone(), "records.", SerialKind::Json)?;
@@ -563,7 +563,7 @@ mod tests {
         assert!(actual.is_none());
 
         // Close the database (will happen when db goes out of scope)
-        drop(lmdber);
+        drop(db_ref);
 
         // Temporary directory should be removed when temp_dir goes out of scope
         Ok(())
@@ -573,7 +573,7 @@ mod tests {
     fn test_komer_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         // Open database
         let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Test empty keys
         let mydb = Komer::<Record>::new(db_ref.clone(), "records.", SerialKind::Json)?;
@@ -599,7 +599,7 @@ mod tests {
     fn test_serialization_formats() -> Result<(), Box<dyn std::error::Error>> {
         // Open database
         let lmdber = LMDBer::builder().name("test_db").temp(true).build()?;
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Test record
         let record = Record {
@@ -668,9 +668,9 @@ mod tests {
         // Open test database
         let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_ref = Arc::new(&lmdber);
-        assert_eq!(lmdber.name(), "test");
-        assert!(lmdber.opened());
+        let db_ref = Arc::new(lmdber);
+        assert_eq!(db_ref.name(), "test");
+        assert!(db_ref.opened());
 
         // Create Komer instance
         let mydb = Komer::<Stuff>::new(db_ref.clone(), "recs.", SerialKind::Json)?;
@@ -773,7 +773,7 @@ mod tests {
         assert_eq!(items, vec![]);
 
         // Drop database
-        drop(lmdber);
+        drop(db_ref);
 
         // Check database is closed and files are removed
         // No need to check manually as it's handled by the LMDBer drop implementation
@@ -786,7 +786,7 @@ mod tests {
         // Open test database
         let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Create Komer instance
         let mydb = Komer::<Stuff>::new(db_ref.clone(), "recs.", SerialKind::Json)?;
@@ -840,7 +840,7 @@ mod tests {
         // Open test database
         let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         let test_data = Stuff {
             a: "Test".to_string(),
@@ -867,7 +867,7 @@ mod tests {
         // Open test database
         let lmdber = LMDBer::builder().name("test").temp(true).build()?;
 
-        let db_ref = Arc::new(&lmdber);
+        let db_ref = Arc::new(lmdber);
 
         // Create Komer instance
         let mydb = Komer::<Stuff>::new(db_ref.clone(), "recs.", SerialKind::Json)?;
